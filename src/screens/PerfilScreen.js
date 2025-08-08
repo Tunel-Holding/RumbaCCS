@@ -123,7 +123,8 @@ export default function PerfilScreen({ navigation }) {
             if (item === 'tickets') setModalVisible({ ...modalVisible, cart: true });
             else if (item === 'calendar') setModalVisible({ ...modalVisible, calendar: true });
             else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
-             else if (item === 'inicio') navigation.navigate('Inicio');
+            else if (item === 'inicio') navigation.navigate('Inicio');
+            else if (item === 'register') navigation.navigate('Empresa');
           }}
         />
       </View>
