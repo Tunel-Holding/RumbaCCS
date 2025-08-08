@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image, Modal } from 'react-native';
+import CalendarModal from '../components/CalendarModal';
+import HamburgerMenu from '../components/HamburgerMenu';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image, Modal, Animated } from 'react-native';
 import { SvgXml } from 'react-native-svg';
+
 
 // SVGs originales
 const svgGuardados = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M8 6C8 4.89543 8.89543 4 10 4H22C23.1046 4 24 4.89543 24 6V26C24 26.5523 23.4477 27 23 27C22.7893 27 22.5858 26.9216 22.4375 26.7812L16 20.3438L9.5625 26.7812C9.41421 26.9216 9.21071 27 9 27C8.55228 27 8 26.5523 8 26V6Z" stroke="#2563eb" stroke-width="2" fill="#e0e7ff"/></svg>`;
@@ -16,8 +19,33 @@ const sectionTitles = {
 };
 
 export default function PerfilScreen({ navigation }) {
-  const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false, mobileMenu: false });
+  const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false });
+  const [notifAnim] = useState(new Animated.Value(0));
+  const [ticketAnim] = useState(new Animated.Value(0));
+  const [menuVisible, setMenuVisible] = useState(false);
   const [selectedSection, setSelectedSection] = useState(null);
+
+  // Fade in animation when notifications modal opens
+  React.useEffect(() => {
+    if (modalVisible.notifications) {
+      Animated.timing(notifAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [modalVisible.notifications]);
+
+  // Fade in animation when tickets modal opens
+  React.useEffect(() => {
+    if (modalVisible.cart) {
+      Animated.timing(ticketAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [modalVisible.cart]);
 
   // Cambia el título del enunciado según el botón seleccionado
   const getEnunciado = () => {
@@ -76,16 +104,28 @@ export default function PerfilScreen({ navigation }) {
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 32, backgroundColor: '#0f172a', zIndex: 10 }} pointerEvents="none" />
       {/* Overlay inferior color fondo app (más grande) */}
       <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 48, backgroundColor: '#0f172a', zIndex: 10 }} pointerEvents="none" />
-      <ScrollView style={[styles.container, { marginTop: 32, marginBottom: 48 }]} contentContainerStyle={{ paddingHorizontal: 16 }}>
+      <ScrollView
+        style={[styles.container, { marginTop: 32, marginBottom: 48 }]}
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+        scrollEnabled={!modalVisible.calendar}
+      >
       {/* Header / Navbar móvil */}
       <View style={styles.navbar}>
         <View style={styles.logoContainer}>
           <Text style={styles.logoText}>R U M B A</Text>
           <Text style={styles.logoSubText}>CCS</Text>
         </View>
-        <TouchableOpacity style={styles.menuButton} onPress={() => setModalVisible({ ...modalVisible, mobileMenu: true })}>
-          <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='white'><path stroke-linecap='round' stroke-linejoin='round' d='M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5' /></svg>`} width={36} height={36} />
-        </TouchableOpacity>
+        <HamburgerMenu
+          visible={menuVisible}
+          setVisible={setMenuVisible}
+          onMenuItemPress={item => {
+            setMenuVisible(false);
+            if (item === 'tickets') setModalVisible({ ...modalVisible, cart: true });
+            else if (item === 'calendar') setModalVisible({ ...modalVisible, calendar: true });
+            else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
+             else if (item === 'inicio') navigation.navigate('Inicio');
+          }}
+        />
       </View>
 
       {/* Perfil principal móvil */}
@@ -212,52 +252,125 @@ export default function PerfilScreen({ navigation }) {
       )}
 
       {/* Modals solo versión móvil */}
-      <Modal visible={modalVisible.cart} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Tus Tickets</Text>
-          <TouchableOpacity onPress={() => setModalVisible({ ...modalVisible, cart: false })}>
-            <Text style={styles.closeModal}>Cerrar</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-      <Modal visible={modalVisible.calendar} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Calendario</Text>
-          <TouchableOpacity onPress={() => setModalVisible({ ...modalVisible, calendar: false })}>
-            <Text style={styles.closeModal}>Cerrar</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-      <Modal visible={modalVisible.notifications} transparent animationType="slide">
-        <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Notificaciones</Text>
-          <TouchableOpacity onPress={() => setModalVisible({ ...modalVisible, notifications: false })}>
-            <Text style={styles.closeModal}>Cerrar</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-      <Modal visible={modalVisible.mobileMenu} transparent animationType="fade">
-        <View style={styles.mobileMenuOverlay}>
-          <View style={styles.mobileMenuBox}>
-            <TouchableOpacity onPress={() => setModalVisible({ ...modalVisible, mobileMenu: false, cart: true })} style={styles.mobileMenuItem}>
-              <Text style={styles.mobileMenuText}>Tickets</Text>
+      <Modal visible={modalVisible.cart} transparent animationType="none">
+        {/* Fade in/out animation for tickets overlay */}
+        <Animated.View
+          pointerEvents={modalVisible.cart ? 'auto' : 'none'}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.87)',
+            zIndex: 200,
+            justifyContent: 'center',
+            alignItems: 'center',
+            opacity: ticketAnim,
+          }}
+        >
+          <View style={{
+            backgroundColor: '#1e293b',
+            borderRadius: 24,
+            padding: 28,
+            minWidth: 300,
+            maxWidth: '90%',
+            shadowColor: '#000',
+            shadowOpacity: 0.18,
+            shadowOffset: { width: 0, height: 2 },
+            shadowRadius: 12,
+            position: 'relative',
+          }}>
+            <TouchableOpacity
+              onPress={() => {
+                Animated.timing(ticketAnim, {
+                  toValue: 0,
+                  duration: 250,
+                  useNativeDriver: true,
+                }).start(() => setModalVisible({ ...modalVisible, cart: false }));
+              }}
+              style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Text style={{ fontSize: 28, color: '#fff', fontWeight: 'bold' }}>×</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible({ ...modalVisible, mobileMenu: false, calendar: true })} style={styles.mobileMenuItem}>
-              <Text style={styles.mobileMenuText}>Calendario</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible({ ...modalVisible, mobileMenu: false, notifications: true })} style={styles.mobileMenuItem}>
-              <Text style={styles.mobileMenuText}>Notificaciones</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.mobileMenuItem}>
-              <Text style={styles.mobileMenuText}>Registrarse como empresa</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setModalVisible({ ...modalVisible, mobileMenu: false })} style={styles.closeMobileMenuBtn}>
-              <Text style={styles.closeModal}>Cerrar</Text>
-            </TouchableOpacity>
+            <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 18, textAlign: 'center' }}>Tus Tickets</Text>
+            {/* Ejemplo de tickets */}
+            <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Entrada Festival Indie 2023</Text>
+              <Text style={{ color: '#dbeafe', marginTop: 4 }}>15 Dic 2023 - Estadio Nacional</Text>
+            </View>
+            <View style={{ backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>VIP Nochevieja</Text>
+              <Text style={{ color: '#bbf7d0', marginTop: 4 }}>21 Dic 2023 - Club Momentum</Text>
+            </View>
           </View>
-        </View>
+        </Animated.View>
       </Modal>
       </ScrollView>
+      <CalendarModal
+        visible={modalVisible.calendar}
+        onClose={() => setModalVisible({ ...modalVisible, calendar: false })}
+      />
+      <Modal visible={modalVisible.notifications} transparent animationType="slide">
+        {/* Fade in/out animation for notifications overlay */}
+        <Animated.View
+          pointerEvents={modalVisible.notifications ? 'auto' : 'none'}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            zIndex: 200,
+            justifyContent: 'center',
+            alignItems: 'center',
+            opacity: notifAnim,
+          }}
+        >
+          <View style={{
+            backgroundColor: '#1e293b',
+            borderRadius: 24,
+            padding: 28,
+            minWidth: 300,
+            maxWidth: '90%',
+            shadowColor: '#000',
+            shadowOpacity: 0.18,
+            shadowOffset: { width: 0, height: 2 },
+            shadowRadius: 12,
+            position: 'relative',
+          }}>
+            <TouchableOpacity
+              onPress={() => {
+                Animated.timing(notifAnim, {
+                  toValue: 0,
+                  duration: 250,
+                  useNativeDriver: true,
+                }).start(() => setModalVisible({ ...modalVisible, notifications: false }));
+              }}
+              style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Text style={{ fontSize: 28, color: '#fff', fontWeight: 'bold' }}>×</Text>
+            </TouchableOpacity>
+            <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 18, textAlign: 'center' }}>Notificaciones</Text>
+            {/* Ejemplo de notificaciones */}
+            <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>¡Nuevo evento disponible!</Text>
+              <Text style={{ color: '#dbeafe', marginTop: 4 }}>Festival de Música Urbana - 20 Ene 2024</Text>
+            </View>
+            <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Recordatorio de ticket</Text>
+              <Text style={{ color: '#bbf7d0', marginTop: 4 }}>No olvides tu entrada para Nochevieja VIP</Text>
+            </View>
+            <View style={{ backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>¡Actualización de perfil!</Text>
+              <Text style={{ color: '#ede9fe', marginTop: 4 }}>Tu foto de perfil fue actualizada correctamente.</Text>
+            </View>
+          </View>
+        </Animated.View>
+      </Modal>
     </View>
   );
 }
