@@ -72,17 +72,28 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Backend.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# Database
+# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+# Configuración de conexión a la base de datos PostgreSQL (Supabase):
+# - 'NAME': Nombre de la base de datos. En Supabase suele ser 'postgres'. Lo ves en Database > Connection Info.
+# - 'USER': Usuario de la base de datos. En Supabase suele ser 'postgres'. Lo ves en Database > Connection Info.
+# - 'PASSWORD': Contraseña de la base de datos. La ves en Database > Connection Info o puedes regenerarla.
+# - 'HOST': Host de la base de datos. Es el endpoint que aparece en Database > Connection Info (ejemplo: db.xxxxx.supabase.co).
+# - 'PORT': Puerto, normalmente '5432' para PostgreSQL.
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'postgres',  # Database name (Supabase > Database > Connection Info)
+        'USER': 'postgres',  # Database user (Supabase > Database > Connection Info)
+        'PASSWORD': 'Juanitoperez123.',  # Database password (Supabase > Database > Connection Info)
+        'HOST': 'db.exlfxmvvawnukgejbciw.supabase.co',  # Database host (Supabase > Database > Connection Info)
+        'PORT': '5432',  # Database port (Supabase > Database > Connection Info)
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
