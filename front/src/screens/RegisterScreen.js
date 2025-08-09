@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image } from 'react-native';
 
+/****************************************************************************************************** */
+import React, { useState, useEffect } from 'react';
+import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+
 const { width } = Dimensions.get('window');
 
 export default function RegisterScreen({ navigation }) {
@@ -9,6 +15,75 @@ export default function RegisterScreen({ navigation }) {
   const [pass, setPass] = useState('');
   const [repeatPass, setRepeatPass] = useState('');
 
+  // Funcion para logear
+
+  /**Nota:
+   * 
+   * Esta función no se usa en este archivo ya que no es el archivo de login
+   */
+  const handleLogin = async () => {
+  try {
+    const response = await fetch('http://192.168.1.101:8000/api/login/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: user,
+        password: pass,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      // Guardar token
+      await AsyncStorage.setItem('accessToken', data.access);
+      Alert.alert('Login correcto', 'Has ingresado correctamente');
+      // Navegar a pantalla principal, por ejemplo
+      navigation.navigate('HomeScreen');
+    } else {
+      const err = await response.json();
+      Alert.alert('Error de login', err.detail || 'Usuario o contraseña incorrectos');
+    }
+  } catch (error) {
+    Alert.alert('Error', 'No se pudo conectar con el servidor');
+  }
+};
+
+//Función para registrarse
+const handleRegister = async () => {
+  if (pass !== repeatPass) {
+    Alert.alert('Error', 'Las contraseñas no coinciden');
+    return;
+  }
+
+  try {
+    const response = await fetch('http://127.0.0.1:8000/api/register/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: email,
+        nombre: user,
+        password: pass,
+      }),
+    });
+
+    if (response.ok) {
+      Alert.alert('Registro exitoso', 'Usuario creado correctamente');
+      navigation.goBack();  // Regresa a login o pantalla anterior
+    } else {
+      const errorData = await response.json();
+      Alert.alert('Error en registro', JSON.stringify(errorData));
+    }
+  } catch (error) {
+    Alert.alert('Error', 'No se pudo conectar con el servidor');
+  }
+};
+
+
+/****************************************************************************************************** */
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
@@ -62,7 +137,7 @@ export default function RegisterScreen({ navigation }) {
               secureTextEntry
             />
           </View>
-          <TouchableOpacity style={styles.registerBtn}>
+          <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
             <Text style={styles.registerBtnText}>Registrarse</Text>
           </TouchableOpacity>
         </View>
