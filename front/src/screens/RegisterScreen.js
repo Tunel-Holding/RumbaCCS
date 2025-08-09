@@ -58,6 +58,12 @@ const handleRegister = async () => {
   }
 
   try {
+    // URL de conexión al backend para registro:
+    // - Cambia '127.0.0.1:8000' por la IP local de tu backend si pruebas en red local.
+    // - Si usas emulador, puedes usar '10.0.2.2' (Android) o 'localhost' si el frontend y backend están en la misma máquina.
+    // - Asegúrate que el puerto (8000) coincida con el que usas en Django.
+    // - Si despliegas en producción, pon el dominio público del backend.
+    
     const response = await fetch('http://127.0.0.1:8000/api/register/', {
       method: 'POST',
       headers: {
