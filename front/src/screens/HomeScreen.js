@@ -1,7 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { Animated } from 'react-native';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Platform } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, Platform } from 'react-native';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -12,6 +14,44 @@ export default function HomeScreen() {
   const [loginVisible, setLoginVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(-260)).current;
+  const [user, setUser] = useState('');
+  const [pass, setPass] = useState('');
+
+  //Funcion del login
+  const handleLogin = async () => {
+
+    if (!user.trim() || !pass.trim()) {
+    Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+    return; // Detiene la función si faltan datos
+  }
+
+    try {
+      const response = await fetch('http://192.168.1.101:8000/api/login/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: user,
+          password: pass,
+        }),
+      });
+  
+      if (response.ok) {
+        const data = await response.json();
+        // Guardar token
+        await AsyncStorage.setItem('accessToken', data.access);
+        Alert.alert('Login correcto', 'Has ingresado correctamente');
+        // Navegar a pantalla principal, por ejemplo
+        navigation.navigate('HomeScreen');
+      } else {
+        const err = await response.json();
+        Alert.alert('Error de login','Usuario o contraseña incorrectos');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo conectar con el servidor');
+    }
+  };
 
   // Eventos de ejemplo
   const events = [
@@ -226,7 +266,7 @@ export default function HomeScreen() {
         </Pressable>
       </Modal>
 
-      {/* Modal de Login */}
+      {/* Modal de Login
       <Modal
         visible={loginVisible}
         animationType="slide"
@@ -241,7 +281,7 @@ export default function HomeScreen() {
             <Text style={styles.loginTitle}>Iniciar sesión</Text>
             <TextInput style={styles.loginInput} placeholder="Correo electrónico" placeholderTextColor="#888" keyboardType="email-address" />
             <TextInput style={styles.loginInput} placeholder="Contraseña" placeholderTextColor="#888" secureTextEntry />
-            <TouchableOpacity style={styles.loginBtnModal}>
+            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin}>
               <Text style={styles.loginBtnText}>Ingresar</Text>
             </TouchableOpacity>
             <View style={styles.loginLinks}>
@@ -251,6 +291,65 @@ export default function HomeScreen() {
                 setLoginVisible(false);
                 navigation.navigate('Registro');
               }}>
+                <Text style={styles.loginLink}>Regístrate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+} */}
+
+{/* Modal de Login */}
+      <Modal
+        visible={loginVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLoginVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Pressable style={styles.modalClose} onPress={() => setLoginVisible(false)}>
+              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
+            </Pressable>
+            <Text style={styles.loginTitle}>Iniciar sesión</Text>
+
+            <TextInput
+              style={styles.loginInput}
+              placeholder="Correo electrónico"
+              placeholderTextColor="#888"
+              keyboardType="email-address"
+              value={user}
+              onChangeText={setUser}
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+
+            <TextInput
+              style={styles.loginInput}
+              placeholder="Contraseña"
+              placeholderTextColor="#888"
+              secureTextEntry
+              value={pass}
+              onChangeText={setPass}
+              autoCapitalize="none"
+              autoComplete="password"
+            />
+
+            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin}>
+              <Text style={styles.loginBtnText}>Ingresar</Text>
+            </TouchableOpacity>
+
+            <View style={styles.loginLinks}>
+              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
+              <Text style={styles.loginLink}>|</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setLoginVisible(false);
+                  navigation.navigate('Registro');
+                }}
+              >
                 <Text style={styles.loginLink}>Regístrate</Text>
               </TouchableOpacity>
             </View>
