@@ -25,7 +25,14 @@ SECRET_KEY = 'django-insecure-33a1lc16kaxfm6u9u7$bc1hqm6p5o4((k8-*()k5^&q%2b)id^
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+
+#Modificar según la IP de tu máquina
+#De lo contrario django bloque las peticiones
+#ALLOWED_HOSTS = ['192.168.1.101', 'localhost', '127.0.0.1']
+#Como estamos en desarrollo, permitimos todas los hosts
+#En producción, se debe especificar los hosts permitidos
+ALLOWED_HOSTS = ['*']
+
 
 
 # Application definition
@@ -37,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
     'api'
@@ -45,12 +53,15 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+
+CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'Backend.urls'
 
@@ -72,16 +83,41 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Backend.wsgi.application'
 
+# Database
+# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+# Configuración de conexión a la base de datos PostgreSQL (Supabase):
+# - 'NAME': Nombre de la base de datos. En Supabase suele ser 'postgres'. Lo ves en Database > Connection Info.
+# - 'USER': Usuario de la base de datos. En Supabase suele ser 'postgres'. Lo ves en Database > Connection Info.
+# - 'PASSWORD': Contraseña de la base de datos. La ves en Database > Connection Info o puedes regenerarla.
+# - 'HOST': Host de la base de datos. Es el endpoint que aparece en Database > Connection Info (ejemplo: db.xxxxx.supabase.co).
+# - 'PORT': Puerto, normalmente '5432' para PostgreSQL.
+
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',  # BASE_DIR debería estar definido al inicio del settings.py
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'postgres',
+#         'USER': 'postgres',
+#         'PASSWORD': 'primer_project123',
+#         'HOST': 'db.nijunjaerhiskjcaieii.supabase.co',
+#         'PORT': '5432',
+#         'OPTIONS': {
+#             'sslmode': 'require',
+#         },
+#     }
+# }
+
+
 
 
 # Password validation

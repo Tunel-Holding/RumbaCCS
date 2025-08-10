@@ -1,6 +1,6 @@
+
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image } from 'react-native';
 
-/****************************************************************************************************** */
 import React, { useState, useEffect } from 'react';
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -14,40 +14,6 @@ export default function RegisterScreen({ navigation }) {
   const [pass, setPass] = useState('');
   const [repeatPass, setRepeatPass] = useState('');
 
-  // Funcion para logear
-
-  /**Nota:
-   * 
-   * Esta función no se usa en este archivo ya que no es el archivo de login
-   */
-  const handleLogin = async () => {
-  try {
-    const response = await fetch('http://192.168.1.101:8000/api/login/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        username: user,
-        password: pass,
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      // Guardar token
-      await AsyncStorage.setItem('accessToken', data.access);
-      Alert.alert('Login correcto', 'Has ingresado correctamente');
-      // Navegar a pantalla principal, por ejemplo
-      navigation.navigate('HomeScreen');
-    } else {
-      const err = await response.json();
-      Alert.alert('Error de login', err.detail || 'Usuario o contraseña incorrectos');
-    }
-  } catch (error) {
-    Alert.alert('Error', 'No se pudo conectar con el servidor');
-  }
-};
 
 //Función para registrarse
 const handleRegister = async () => {
@@ -55,9 +21,19 @@ const handleRegister = async () => {
     Alert.alert('Error', 'Las contraseñas no coinciden');
     return;
   }
+  if (!user.trim() || !pass.trim() || !email.trim()) {
+      Alert.alert('Campos vacíos', 'Por favor completa todos los campos');
+      return; // Detiene la función si faltan datos
+    }
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/register/', {
+    // URL de conexión al backend para registro:
+    // - Cambia '127.0.0.1:8000' por la IP local de tu backend si pruebas en red local.
+    // - Si usas emulador, puedes usar '10.0.2.2' (Android) o 'localhost' si el frontend y backend están en la misma máquina.
+    // - Asegúrate que el puerto (8000) coincida con el que usas en Django.
+    // - Si despliegas en producción, pon el dominio público del backend.
+    
+    const response = await fetch('http://192.168.1.101:8000/api/register/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,8 +57,6 @@ const handleRegister = async () => {
   }
 };
 
-
-/****************************************************************************************************** */
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
