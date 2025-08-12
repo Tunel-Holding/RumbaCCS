@@ -96,10 +96,21 @@ WSGI_APPLICATION = 'Backend.wsgi.application'
 # - 'PORT': Puerto, normalmente '5432' para PostgreSQL.
 
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',  # BASE_DIR debería estar definido al inicio del settings.py
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',  # BASE_DIR debería estar definido al inicio del settings.py
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'postgres',  # Nombre de la base de datos
+        'USER': 'postgres',  # Usuario
+        'PASSWORD': 'ojalafuncione',  # 🔒 Reemplaza con tu contraseña real
+        'HOST': 'db.fufiohljmxasfvgxmllm.supabase.co',  # Host del servidor
+        'PORT': '5432',  # Puerto por defecto de PostgreSQL
     }
 }
 
