@@ -13,6 +13,8 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [repeatPass, setRepeatPass] = useState('');
+  
+  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
 
 //Función para registrarse
@@ -32,8 +34,8 @@ const handleRegister = async () => {
     // - Si usas emulador, puedes usar '10.0.2.2' (Android) o 'localhost' si el frontend y backend están en la misma máquina.
     // - Asegúrate que el puerto (8000) coincida con el que usas en Django.
     // - Si despliegas en producción, pon el dominio público del backend.
-    
-  const response = await fetch('http://192.168.0.104:8000/api/register/', {
+
+  const response = await fetch(`http://${ipAddress}:8000/api/register/`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

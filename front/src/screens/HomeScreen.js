@@ -18,6 +18,8 @@ export default function HomeScreen() {
   const [pass, setPass] = useState('');
   const [isLogged, setIsLogged] = useState(false);
 
+  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+
   useEffect(() => {
     const checkSession = async () => {
       const token = await AsyncStorage.getItem('accessToken');
@@ -41,7 +43,7 @@ export default function HomeScreen() {
       return; // Detiene la función si faltan datos
     }
     try {
-      const response = await fetch('http://192.168.0.104:8000/api/login/', {
+      const response = await fetch(`http://${ipAddress}:8000/api/login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
