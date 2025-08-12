@@ -18,7 +18,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         # Cambiar de 'username' a 'email'
         attrs['username'] = attrs.get('email') or attrs.get('username')
-        return super().validate(attrs)
+        data = super().validate(attrs)
+        user = self.user
+        data['nombre'] = getattr(user, 'nombre', '')
+        print('LOGIN RESPONSE:', data)  # Depuración: muestra la respuesta en consola
+        return data
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer

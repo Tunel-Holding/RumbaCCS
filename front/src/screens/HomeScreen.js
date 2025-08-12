@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { Animated } from 'react-native';
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, Platform } from 'react-native';
@@ -16,17 +16,34 @@ export default function HomeScreen() {
   const slideAnim = useRef(new Animated.Value(-260)).current;
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
+  const [isLogged, setIsLogged] = useState(false);
+
+  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const token = await AsyncStorage.getItem('accessToken');
+      setIsLogged(!!token);
+    };
+    checkSession();
+  }, [loginVisible]); // Se ejecuta cada vez que el modal cambia
+
+  //Funcion de logout
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('accessToken');
+    await AsyncStorage.removeItem('userEmail');
+    setIsLogged(false);
+    Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
+  };
 
   //Funcion del login
   const handleLogin = async () => {
-
     if (!user.trim() || !pass.trim()) {
-    Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
-    return; // Detiene la función si faltan datos
-  }
-
+      Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+      return; // Detiene la función si faltan datos
+    }
     try {
-      const response = await fetch('http://192.168.1.101:8000/api/login/', {
+      const response = await fetch(`http://${ipAddress}:8000/api/login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -36,13 +53,19 @@ export default function HomeScreen() {
           password: pass,
         }),
       });
-  
       if (response.ok) {
         const data = await response.json();
-        // Guardar token
+        // Guardar token y nombre de usuario
         await AsyncStorage.setItem('accessToken', data.access);
+        await AsyncStorage.setItem('userEmail', user); // email
+        if (data.nombre) {
+          await AsyncStorage.setItem('userName', data.nombre);
+        } else {
+          await AsyncStorage.setItem('userName', user);
+        }
+        setIsLogged(true);
+        setLoginVisible(false); // Cierra el modal y dispara el useEffect
         Alert.alert('Login correcto', 'Has ingresado correctamente');
-        // Navegar a pantalla principal, por ejemplo
         navigation.navigate('HomeScreen');
       } else {
         const err = await response.json();
@@ -156,12 +179,21 @@ export default function HomeScreen() {
           <Text style={styles.headerTitle}>Rumba<Text style={{ color: '#ec4899' }}>CCS</Text></Text>
           {/* Botón iniciar sesión y foto de perfil */}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity
-              style={styles.loginBtn}
-              onPress={() => setLoginVisible(true)}
-            >
-              <Text style={styles.loginBtnText}>Iniciar sesión</Text>
-            </TouchableOpacity>
+            {isLogged ? (
+              <TouchableOpacity
+                style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
+                onPress={handleLogout}
+              >
+                <Text style={styles.loginBtnText}>Cerrar sesión</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.loginBtn}
+                onPress={() => setLoginVisible(true)}
+              >
+                <Text style={styles.loginBtnText}>Iniciar sesión</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
               <Image
                 source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}

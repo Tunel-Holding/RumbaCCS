@@ -148,7 +148,7 @@ export default function EmpresaScreen() {
                console.log('Administrar ganancias');
              }
                            else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
-              else if (item === 'inicio') navigation.navigate('Inicio');
+              else if (item === 'inicio') navigation.navigate('HomeScreen');
               else if (item === 'register') navigation.navigate('Perfil');
            }}
          />
