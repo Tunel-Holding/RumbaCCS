@@ -1,31 +1,87 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
+from django.contrib.auth.models import BaseUserManager
+
 class UsuarioManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
+    def create_user(self, email, username=None, password=None, **extra_fields):
         if not email:
             raise ValueError('El email es obligatorio')
+        if not username:
+            raise ValueError('El nombre de usuario es obligatorio')
+        if not password:
+            raise ValueError('La contraseña es obligatoria')
+
         email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
+        user = self.model(email=email, username=username, **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, email, password=None, **extra_fields):
+    def create_superuser(self, email, username=None, password=None, **extra_fields):
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
-        return self.create_user(email, password, **extra_fields)
+
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('El superusuario debe tener is_staff=True')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('El superusuario debe tener is_superuser=True')
+
+        return self.create_user(email, username, password, **extra_fields)
+
 
 class Usuario(AbstractBaseUser, PermissionsMixin):
+    GENERO_CHOICES = [
+        ('masculino', 'Masculino'),
+        ('femenino', 'Femenino'),
+    ]
+    
+    ESTADO_CHOICES = [
+        ('Amazonas', 'Amazonas'),
+        ('Anzoátegui', 'Anzoátegui'),
+        ('Apure', 'Apure'),
+        ('Aragua', 'Aragua'),
+        ('Barinas', 'Barinas'),
+        ('Bolívar', 'Bolívar'),
+        ('Carabobo', 'Carabobo'),
+        ('Cojedes', 'Cojedes'),
+        ('Delta Amacuro', 'Delta Amacuro'),
+        ('Distrito Capital', 'Distrito Capital'),
+        ('Falcón', 'Falcón'),
+        ('Guárico', 'Guárico'),
+        ('Lara', 'Lara'),
+        ('Mérida', 'Mérida'),
+        ('Miranda', 'Miranda'),
+        ('Monagas', 'Monagas'),
+        ('Nueva Esparta', 'Nueva Esparta'),
+        ('Portuguesa', 'Portuguesa'),
+        ('Sucre', 'Sucre'),
+        ('Táchira', 'Táchira'),
+        ('Trujillo', 'Trujillo'),
+        ('La Guaira', 'La Guaira'),
+        ('Yaracuy', 'Yaracuy'),
+        ('Zulia', 'Zulia'),
+    ]
+
     email = models.EmailField(unique=True)
-    nombre = models.CharField(max_length=100)
+    username = models.CharField(max_length=100)
+    phone = models.BigIntegerField(
+        validators=[MinValueValidator(1000000000), MaxValueValidator(9999999999)]
+    )
+    birthday = models.DateField()
+    region = models.CharField(max_length=20, choices=ESTADO_CHOICES)
+    gender = models.CharField(max_length=9, choices=GENERO_CHOICES)
+
+    # Campos de control recomendados
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
     objects = UsuarioManager()
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['nombre']
+    REQUIRED_FIELDS = ['username']
 
     def __str__(self):
-        return self.nombre
+        return self.username
+

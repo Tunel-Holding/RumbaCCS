@@ -1,34 +1,69 @@
 from django.shortcuts import render
-from rest_framework import viewsets, permissions, generics, permissions, status
+from rest_framework import viewsets, permissions, generics, status
 from django.contrib.auth import get_user_model, authenticate
-from .serializers import UsuarioSerializer
-from .serializers import RegistroUsuarioSerializer
+from .serializers import RegisterSerializer, UserPublicSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-Usuario = get_user_model()
-
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import MyTokenObtainPairSerializer, RegisterSerializer
 
-# Serializer personalizado que permite login con email en vez de username
-class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
-    def validate(self, attrs):
-        # Aquí reemplazamos el campo 'username' por 'email' para que funcione con email
-        attrs['username'] = attrs.get('email') or attrs.get('username')
-        return super().validate(attrs)
+Usuario = get_user_model()
+class RegisterView(generics.CreateAPIView):
+    permission_classes = [permissions.AllowAny]
+    serializer_class = RegisterSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        # Generar tokens al registrar
+        refresh = RefreshToken.for_user(user)
+        user_payload = UserPublicSerializer(user).data
+
+        return Response({
+            "message": "Usuario creado con éxito",
+            "user": user_payload,
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+        }, status=status.HTTP_201_CREATED)
+
+class MeView(generics.RetrieveUpdateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = UserPublicSerializer
+
+    def get_object(self):
+        return self.request.user
+
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+    
+class RegistroUsuarioView(generics.CreateAPIView):
+    serializer_class = RegisterSerializer
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'message': 'Usuario creado con éxito',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'username': user.username,
+                'phone': user.phone,
+                'birthday': str(user.birthday),
+                'region': user.region,
+                'gender': user.gender
+            },
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_201_CREATED)
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
-    serializer_class = UsuarioSerializer
-    permission_classes = [permissions.AllowAny]  # Cambia según tu seguridad
-
-
-class RegistroUsuarioView(generics.CreateAPIView):
-    serializer_class = RegistroUsuarioSerializer
-    permission_classes = [permissions.AllowAny]
+    serializer_class = UserPublicSerializer
