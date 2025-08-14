@@ -22,9 +22,7 @@ export default function EmpresaMenu({ visible, setVisible, onMenuItemPress }) {
             <TouchableOpacity onPress={() => onMenuItemPress('agregar_evento')} style={styles.menuItem}>
               <Text style={styles.menuText}>Agregar evento</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => onMenuItemPress('administrar_ganancias')} style={styles.menuItem}>
-              <Text style={styles.menuText}>Administrar ganancias</Text>
-            </TouchableOpacity>
+           
             <TouchableOpacity onPress={() => onMenuItemPress('notifications')} style={styles.menuItem}>
               <Text style={styles.menuText}>Notificaciones</Text>
             </TouchableOpacity>

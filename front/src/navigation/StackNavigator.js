@@ -6,6 +6,7 @@ import PerfilScreen from '../screens/PerfilScreen';
 import EmpresaScreen from '../screens/EmpresaScreen';
 import BuyScreen from '../screens/BuyScreen';
 import AddScreen from '../screens/AddScreen';
+import FormularioScreen from '../screens/FormularioScreen';
 
 const Stack = createStackNavigator();
 
@@ -18,6 +19,7 @@ export default function StackNavigator() {
   <Stack.Screen name="Empresa" component={EmpresaScreen} />
   <Stack.Screen name="Reservar/Comprar" component={BuyScreen} />
   <Stack.Screen name="Add" component={AddScreen} />
+   <Stack.Screen name="Formulario" component={FormularioScreen} />
 </Stack.Navigator>
 
   );

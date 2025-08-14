@@ -143,10 +143,10 @@ export default function EmpresaScreen() {
                // Navegar a la pantalla de agregar evento
                navigation.navigate('Add');
              }
-             else if (item === 'administrar_ganancias') {
+             //else if (item === 'administrar_ganancias') {
                // Aquí puedes agregar la lógica para administrar ganancias
-               console.log('Administrar ganancias');
-             }
+               //console.log('Administrar ganancias');
+             //}
                            else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
               else if (item === 'inicio') navigation.navigate('HomeScreen');
               else if (item === 'register') navigation.navigate('Perfil');
