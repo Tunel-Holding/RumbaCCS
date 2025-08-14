@@ -1,12 +1,50 @@
 import React, { useState } from 'react';
+import { Alert } from 'react-native';
 import { Modal } from 'react-native';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
+
+const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+
+const API_URL = `http://${ipAddress}:8000/api`;
+
+//funcion de registro
+export const registerUser = async (formData) => {
+  try {
+    const response = await fetch(`${API_URL}/register/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(formData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.log('Error backend completo:', errorData);
+      throw new Error(errorData.detail || 'Error en el registro');
+    }
+
+    const data = await response.json();
+
+    await AsyncStorage.setItem('access', data.access);
+    await AsyncStorage.setItem('refresh', data.refresh);
+    await AsyncStorage.setItem('user', JSON.stringify(data.user));
+
+    return data;
+  } catch (error) {
+    console.error('Error en registerUser:', error);
+    throw error;
+  }
+};
+
+
 
 export default function RegisterScreen({ navigation }) {
   const [showEdadModal, setShowEdadModal] = useState(false);
@@ -21,6 +59,67 @@ export default function RegisterScreen({ navigation }) {
   const [repeatPass, setRepeatPass] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [showRepeatPass, setShowRepeatPass] = useState(false);
+
+const handleRegister = async () => {
+  try {
+
+    const birthday = fechaNacimiento instanceof Date
+    ? `${fechaNacimiento.getFullYear()}-${String(fechaNacimiento.getMonth() + 1).padStart(2, '0')}-${String(fechaNacimiento.getDate()).padStart(2, '0')}`
+    : (() => {
+        const [d, m, y] = fechaNacimiento.split('/');
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      })();
+
+
+    const payload = {
+      username: user.trim(),
+      phone: telefono.replace(/[^\d]/g, ''),
+      birthday,
+      region,
+      gender: sexo,
+      email: email.trim(),
+      password: pass
+    };
+
+    if (!user.trim() || !email.trim() || !pass) {
+      Alert.alert('Campos incompletos', 'Por favor llena usuario, email y contraseña');
+      return;
+    }
+
+    if (!region) {
+      Alert.alert('Campo requerido', 'Selecciona tu estado antes de continuar');
+      return;
+    }
+
+    if (pass.length < 8) {
+      Alert.alert('Contraseña', 'Debe tener mínimo 8 caracteres');
+      return;
+    }
+
+    if (pass !== repeatPass) {
+      Alert.alert('Contraseña', 'Las contraseñas no coinciden');
+      return;
+    }
+
+    // Usamos el mismo birthday formateado en dd/mm/aaaa para enviar
+    const formData = {
+      username: user.trim(),
+      phone: telefono.replace(/[^\d]/g, ''),
+      birthday, // <-- aquí ya va dd/mm/aaaa
+      region,
+      gender: sexo,
+      email: email.trim(),
+      password: pass
+    };
+    const res = await registerUser(formData);
+    Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
+  } catch (err) {
+    console.error('Error en handleRegister:', err);
+    Alert.alert('Error', err.message || 'Algo salió mal');
+  }
+};
+
+
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -208,7 +307,7 @@ export default function RegisterScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           </View>
-          <TouchableOpacity style={styles.registerBtn}>
+          <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
             <Text style={styles.registerBtnText}>Registrarse</Text>
           </TouchableOpacity>
         </View>
