@@ -24,26 +24,61 @@ export default function PerfilScreen({ navigation }) {
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
-    const fetchUserName = async () => {
+  // Función que lee el nombre guardado en AsyncStorage
+  const fetchUserName = async () => {
+    try {
       const name = await AsyncStorage.getItem('userName');
-      if (name) setUserName(name);
-      else setUserName('');
-    };
-    const focusListener = navigation.addListener('focus', fetchUserName);
-    fetchUserName();
-    return () => {
-      focusListener && focusListener();
-    };
-  }, [navigation]);
-
-  // Función para cerrar sesión
-  const handleLogout = async () => {
-  await AsyncStorage.removeItem('userName');
-  await AsyncStorage.removeItem('userEmail');
-  await AsyncStorage.removeItem('accessToken');
-  setUserName('');
-  navigation.navigate('HomeScreen');
+      if (name) {
+        setUserName(name);
+      } else {
+        setUserName('');
+      }
+    } catch (error) {
+      console.log('Error al leer userName:', error);
+      setUserName('');
+    }
   };
+  // Suscribirse al evento 'focus' de React Navigation:
+  // cada vez que la pantalla vuelva al frente, se ejecuta fetchUserName
+  const focusListener = navigation.addListener('focus', fetchUserName);
+
+  // Llamada inicial al montar la pantalla
+  fetchUserName();
+
+  // Limpiar el listener cuando el componente se desmonta
+  return () => {
+    if (focusListener) {
+      focusListener(); // quita la suscripción
+    }
+  };
+}, [navigation]);
+
+
+ const handleLogout = async () => {
+  await Promise.all([
+    AsyncStorage.removeItem('userName'),
+    AsyncStorage.removeItem('userEmail'),
+    AsyncStorage.removeItem('accessToken'),
+  ]);
+
+  setUserName('');
+
+  Alert.alert(
+    'Sesión cerrada',
+    'Has cerrado sesión correctamente',
+    [
+      {
+        text: 'OK',
+        onPress: () => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'HomeScreen' }], // nombre exacto en el Stack
+          });
+        },
+      },
+    ]
+  );
+};
   const [notifAnim] = useState(new Animated.Value(0));
   const [ticketAnim] = useState(new Animated.Value(0));
   const [menuVisible, setMenuVisible] = useState(false);

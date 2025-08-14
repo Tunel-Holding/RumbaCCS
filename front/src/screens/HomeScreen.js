@@ -48,6 +48,7 @@ export default function HomeScreen() {
         headers: {
           'Content-Type': 'application/json',
         },
+        
         body: JSON.stringify({
           email: user,
           password: pass,
@@ -55,11 +56,13 @@ export default function HomeScreen() {
       });
       if (response.ok) {
         const data = await response.json();
+
         // Guardar token y nombre de usuario
         await AsyncStorage.setItem('accessToken', data.access);
         await AsyncStorage.setItem('userEmail', user); // email
-        if (data.nombre) {
-          await AsyncStorage.setItem('userName', data.nombre);
+
+        if (data.user?.username) {
+          await AsyncStorage.setItem('userName', data.user.username);
         } else {
           await AsyncStorage.setItem('userName', user);
         }

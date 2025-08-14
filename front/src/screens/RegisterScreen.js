@@ -113,6 +113,12 @@ const handleRegister = async () => {
     };
     const res = await registerUser(formData);
     Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
+    
+    navigation.reset({
+          index: 0,
+          routes: [{ name: 'HomeScreen' }], // Usa el nombre exacto de tu screen de inicio en el stack
+        });
+
   } catch (err) {
     console.error('Error en handleRegister:', err);
     Alert.alert('Error', err.message || 'Algo salió mal');
