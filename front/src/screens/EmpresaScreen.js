@@ -140,8 +140,8 @@ export default function EmpresaScreen() {
            onMenuItemPress={item => {
              setMobileMenuVisible(false);
              if (item === 'agregar_evento') {
-               // Aquí puedes agregar la lógica para agregar evento
-               console.log('Agregar evento');
+               // Navegar a la pantalla de agregar evento
+               navigation.navigate('Add');
              }
              else if (item === 'administrar_ganancias') {
                // Aquí puedes agregar la lógica para administrar ganancias
@@ -266,9 +266,12 @@ export default function EmpresaScreen() {
     <View style={styles.eventosContainer}>
       <View style={styles.eventosHeader}>
         <Text style={styles.eventosTitle}>Eventos publicados</Text>
-                 <TouchableOpacity style={styles.agregarButton}>
-           <Text style={styles.agregarIcon}>+</Text>
-         </TouchableOpacity>
+                 <TouchableOpacity 
+                   style={styles.agregarButton}
+                   onPress={() => navigation.navigate('Add')}
+                 >
+                   <Text style={styles.agregarIcon}>+</Text>
+                 </TouchableOpacity>
       </View>
 
       <View style={styles.eventosGrid}>

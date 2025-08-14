@@ -244,7 +244,7 @@ export default function HomeScreen() {
                 <Text style={styles.eventTitle}>{event.title}</Text>
                 <Text style={styles.eventInfo}>{event.date} - {event.location}</Text>
                 <Text style={styles.eventPrice}>{event.price}</Text>
-                <TouchableOpacity style={styles.reserveBtn}>
+                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { evento: event })}>
                   <Text style={styles.reserveText}>Reservar</Text>
                 </TouchableOpacity>
               </View>
