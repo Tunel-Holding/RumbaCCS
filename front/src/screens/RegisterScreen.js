@@ -14,35 +14,55 @@ const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
 const API_URL = `http://${ipAddress}:8000/api`;
 
-//funcion de registro
+// helpers/opcional: extrae el primer mensaje legible
+const getFirstMessage = (err) => {
+  if (!err || typeof err !== 'object') return 'Error en el registro';
+  if (typeof err.detail === 'string') return err.detail;
+  // Busca el primer campo con array de mensajes
+  for (const key of Object.keys(err)) {
+    const val = err[key];
+    if (Array.isArray(val) && typeof val[0] === 'string') return val[0];
+    if (typeof val === 'string') return val; // por si viene como string
+  }
+  return 'Error en el registro';
+};
+
+// función de registro
 export const registerUser = async (formData) => {
   try {
     const response = await fetch(`${API_URL}/register/`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(formData),
     });
 
+    const isJson = response.headers
+      ?.get('content-type')
+      ?.includes('application/json');
+
+    // Intenta parsear JSON si corresponde
+    const payload = isJson ? await response.json() : null;
+
     if (!response.ok) {
-      const errorData = await response.json();
-      console.log('Error backend completo:', errorData);
-      throw new Error(errorData.detail || 'Error en el registro');
+      const errorData = payload || { detail: 'Error en el registro' };
+      const err = new Error(getFirstMessage(errorData));
+      // Adjunta datos útiles para el front
+      err.fields = errorData;      // ej: { email: ["Este correo ya está registrado"] }
+      err.status = response.status; // ej: 400
+      throw err;
     }
 
-    const data = await response.json();
-
+    // Éxito
+    const data = payload; // ya está parseado
     await AsyncStorage.setItem('access', data.access);
     await AsyncStorage.setItem('refresh', data.refresh);
     await AsyncStorage.setItem('user', JSON.stringify(data.user));
-
     return data;
   } catch (error) {
-    console.error('Error en registerUser:', error);
     throw error;
   }
 };
+
 
 
 
@@ -59,6 +79,26 @@ export default function RegisterScreen({ navigation }) {
   const [repeatPass, setRepeatPass] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [showRepeatPass, setShowRepeatPass] = useState(false);
+
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState('');
+
+  const onSubmit = async () => {
+    setErrors({});
+    setFormError('');
+    try {
+      await registerUser({ username, email, password });
+      // navegación o éxito
+    } catch (e) {
+      if (e.fields) {
+        setErrors(e.fields); // Ej: { email: ["Este correo ya está registrado"] }
+        setFormError(e.message);
+      } else {
+        setFormError('Error al registrar');
+      }
+    }
+  };
+
 
 const handleRegister = async () => {
   try {
@@ -120,7 +160,6 @@ const handleRegister = async () => {
         });
 
   } catch (err) {
-    console.error('Error en handleRegister:', err);
     Alert.alert('Error', err.message || 'Algo salió mal');
   }
 };
@@ -275,14 +314,24 @@ const handleRegister = async () => {
           </View>
           <View style={styles.inputGroup}>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                errors?.email ? { borderColor: 'red', borderWidth: 1 } : null,
+              ]}
               placeholder="Email"
               placeholderTextColor="#888"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
             />
-          </View>
+            
+            {errors?.email && (
+              <Text style={{ color: 'red', marginTop: 4, fontSize: 13 }}>
+                {Array.isArray(errors.email) ? errors.email[0] : errors.email}
+              </Text>
+            )}
+        </View>
+
           <View style={styles.inputGroup}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TextInput

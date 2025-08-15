@@ -54,6 +54,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("El teléfono debe tener 10 dígitos.")
         return value
 
+    
     def create(self, validated_data):
         password = validated_data.pop('password')
         user = Usuario.objects.create_user(password=password, **validated_data)
