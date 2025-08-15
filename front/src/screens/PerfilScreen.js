@@ -184,6 +184,7 @@ export default function PerfilScreen({ navigation }) {
             else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
             else if (item === 'inicio') navigation.navigate('HomeScreen');
             else if (item === 'register') navigation.navigate('Empresa');
+            else if (item === 'empresa_form') navigation.navigate('Formulario');
           }}
         />
       </View>
