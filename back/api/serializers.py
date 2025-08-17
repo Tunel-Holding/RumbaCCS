@@ -11,8 +11,11 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        # Puedes agregar claims personalizados si lo necesitas
-        token['username'] = user.username
+        # Agregar campos personalizados al payload
+        if hasattr(user, "empresa"):
+            token["empresa_id"] = user.empresa.id
+
+        token["username"] = user.username
         return token
 
     def validate(self, attrs):
@@ -26,6 +29,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
             'region': self.user.region,
             'gender': self.user.gender
         }
+        if hasattr(self.user, "empresa"):
+            data['empresa_id'] = self.user.empresa.id
         return data
 
 

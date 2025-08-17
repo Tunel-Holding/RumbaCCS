@@ -40,5 +40,5 @@ def empresa_detail(request, pk):
     except Empresa.DoesNotExist:
         return Response({"error": "Empresa no encontrada"}, status=404)
 
-    serializer = EmpresaSerializer(empresa)
+    serializer = EmpresaSerializer(empresa, context={'request': request})  # <-- aquí
     return Response(serializer.data)

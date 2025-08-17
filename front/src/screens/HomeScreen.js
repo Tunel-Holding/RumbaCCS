@@ -54,12 +54,16 @@ export default function HomeScreen() {
           password: pass,
         }),
       });
+      
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json(); 
+        console.log("Respuesta login completa:", data);
 
+        
         // Guardar token y nombre de usuario
         await AsyncStorage.setItem('accessToken', data.access);
         await AsyncStorage.setItem('userEmail', user); // email
+        await AsyncStorage.setItem("empresaId", data.empresa_id.toString());
 
         if (data.user?.username) {
           await AsyncStorage.setItem('userName', data.user.username);
@@ -75,6 +79,7 @@ export default function HomeScreen() {
         Alert.alert('Error de login','Usuario o contraseña incorrectos');
       }
     } catch (error) {
+      console.error("Error en login:", error.response?.data || error.message);
       Alert.alert('Error', 'No se pudo conectar con el servidor');
     }
   };

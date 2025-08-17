@@ -10,17 +10,19 @@ import {
   Animated,
   Modal,
   SafeAreaView,
+  ActivityIndicator,
   StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreen() {
   const navigation = useNavigation();
-
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false });
@@ -29,12 +31,47 @@ export default function EmpresaScreen() {
   // Animaciones
   const menuAnim = useRef(new Animated.Value(0)).current;
 
-  // Datos de la empresa
-  const empresaData = {
-    nombre: 'Empresa',
-    seguidores: 50,
-    eventosPublicados: 5,
-  };
+  const [empresaData, setEmpresaData] = useState(null);
+
+
+  useEffect(() => {
+
+    //Funcion para obtener los datos de la empresa
+    const fetchEmpresa = async () => {
+      try {
+        const token = await AsyncStorage.getItem("accessToken");
+        const empresaId = await AsyncStorage.getItem("empresaId");
+
+        console.log("Token:", token);
+
+        console.log("empresaId desde AsyncStorage:", empresaId);
+
+        const response = await axios.get(
+          `http://192.168.1.101:8000/api/empresa/${empresaId}/`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+        console.log("Petición exitosa:", response.status);
+        console.log(response.data);
+
+        setEmpresaData(response.data);
+      } catch (error) {
+        console.error("Error al traer empresa:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEmpresa();
+  }, []);
+
+  const empresaData1 = {
+    nombre: empresaData?.nombre || 'Empresa',
+    rif : empresaData?.rif || 'no disponible',
+    seguidores: empresaData?.seguidores || 0,
+    eventosPublicados: empresaData?.eventosPublicados || 0,
+  }
 
   // Eventos de ejemplo
   const eventos = [
@@ -239,12 +276,15 @@ export default function EmpresaScreen() {
 
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>
-          <Text style={styles.empresaNombre}>{empresaData.nombre}</Text>
+          <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
           <Text style={styles.seguidoresText}>
-            Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData.seguidores}</Text>
+            RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text>
+          </Text>
+          <Text style={styles.seguidoresText}>
+            Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text>
           </Text>
           <Text style={styles.eventosText}>
-            Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData.eventosPublicados}</Text>
+            Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text>
           </Text>
           <TouchableOpacity 
             style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
