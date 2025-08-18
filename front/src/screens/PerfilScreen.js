@@ -24,6 +24,7 @@ export default function PerfilScreen({ navigation }) {
   const [userName, setUserName] = useState('');
 
   useEffect(() => {
+    
   // Función que lee el nombre guardado en AsyncStorage
   const fetchUserName = async () => {
     try {

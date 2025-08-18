@@ -27,7 +27,8 @@ export default function EmpresaScreen() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false });
   const [notifAnim] = useState(new Animated.Value(0));
-  
+  const [loading, setLoading] = useState(true);
+
   // Animaciones
   const menuAnim = useRef(new Animated.Value(0)).current;
 
@@ -43,15 +44,21 @@ export default function EmpresaScreen() {
         const token = await AsyncStorage.getItem("accessToken");
         const empresaId = await AsyncStorage.getItem("empresaId");
 
-        if (empresaId) {
-          try {
-            const res = await axios.get(`http://${ipAddress}:8000/api/empresa/${empresaId}/`);
-            console.log("Empresa:", res.data);
-          } catch (error) {
-            console.error("Error al traer empresa:", error);
-          }
-        } else {
+        // if (empresaId) {
+        //   try {
+        //     const res = await axios.get(`http://${ipAddress}:8000/api/empresa/${empresaId}/`);
+        //     console.log("Empresa:", res.data);
+        //   } catch (error) {
+        //     console.error("Error al traer empresa:", error);
+        //   }
+        // } else {
+        //   console.log("El usuario todavía no tiene empresa asociada.");
+        // }
+
+        if (!empresaId) {
           console.log("El usuario todavía no tiene empresa asociada.");
+          setEmpresaData(null);
+          return;
         }
 
         console.log("empresaId desde AsyncStorage:", empresaId);
@@ -62,8 +69,6 @@ export default function EmpresaScreen() {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
-        console.log("Petición exitosa:", response.status);
-        console.log(response.data);
 
         setEmpresaData(response.data);
       } catch (error) {
@@ -75,6 +80,8 @@ export default function EmpresaScreen() {
 
     fetchEmpresa();
   }, []);
+
+  
 
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
@@ -361,8 +368,21 @@ export default function EmpresaScreen() {
       </View>
     </View>
   );
+  
+  if (loading) {
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#00ff00" /> 
+        <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
 
   return (
+
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
       

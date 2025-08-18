@@ -110,17 +110,6 @@ const handleRegister = async () => {
         return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
       })();
 
-
-    const payload = {
-      username: user.trim(),
-      phone: telefono.replace(/[^\d]/g, ''),
-      birthday,
-      region,
-      gender: sexo,
-      email: email.trim(),
-      password: pass
-    };
-
     if (!user.trim() || !email.trim() || !pass) {
       Alert.alert('Campos incompletos', 'Por favor llena usuario, email y contraseña');
       return;
