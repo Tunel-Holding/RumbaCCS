@@ -6,11 +6,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 Usuario = get_user_model()
 
-
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
+        
         # Agregar campos personalizados al payload
         if hasattr(user, "empresa"):
             token["empresa_id"] = user.empresa.id

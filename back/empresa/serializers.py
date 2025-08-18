@@ -48,6 +48,6 @@ class EmpresaSerializer(serializers.ModelSerializer):
         return attrs
 
 
-    def create(self, validated_data):
-        user = self.context["request"].user
-        return Empresa.objects.create(usuario=user, **validated_data)
+    # def create(self, validated_data):
+    #     user = self.context["request"].user
+    #     return Empresa.objects.create(usuario=user, **validated_data)
