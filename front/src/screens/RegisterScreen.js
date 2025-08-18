@@ -142,7 +142,11 @@ const handleRegister = async () => {
     };
     const res = await registerUser(formData);
     Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
-    
+
+    await AsyncStorage.setItem('accessToken', res.access);
+    await AsyncStorage.setItem("refreshToken", res.refresh);
+    await AsyncStorage.setItem("user", JSON.stringify(res.user));
+
     navigation.reset({
           index: 0,
           routes: [{ name: 'HomeScreen' }], // Usa el nombre exacto de tu screen de inicio en el stack

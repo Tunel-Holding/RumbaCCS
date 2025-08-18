@@ -23,6 +23,9 @@ export default function HomeScreen() {
   useEffect(() => {
     const checkSession = async () => {
       const token = await AsyncStorage.getItem('accessToken');
+      if(token) {
+        setIsLogged(true);
+      }
       setIsLogged(!!token);
     };
     checkSession();
@@ -32,6 +35,7 @@ export default function HomeScreen() {
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
     await AsyncStorage.removeItem('userEmail');
+    await AsyncStorage.removeItem('userName');
     setIsLogged(false);
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
@@ -209,12 +213,16 @@ export default function HomeScreen() {
                 <Text style={styles.loginBtnText}>Iniciar sesión</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-              <Image
-                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-                style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
-              />
-            </TouchableOpacity>
+            {
+              isLogged && (
+                <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
+                  <Image
+                    source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                    style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
+                  />
+                </TouchableOpacity>
+              )
+            }
           </View>
         </View>
 
@@ -313,42 +321,7 @@ export default function HomeScreen() {
         </Pressable>
       </Modal>
 
-      {/* Modal de Login
-      <Modal
-        visible={loginVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setLoginVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Pressable style={styles.modalClose} onPress={() => setLoginVisible(false)}>
-              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
-            </Pressable>
-            <Text style={styles.loginTitle}>Iniciar sesión</Text>
-            <TextInput style={styles.loginInput} placeholder="Correo electrónico" placeholderTextColor="#888" keyboardType="email-address" />
-            <TextInput style={styles.loginInput} placeholder="Contraseña" placeholderTextColor="#888" secureTextEntry />
-            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin}>
-              <Text style={styles.loginBtnText}>Ingresar</Text>
-            </TouchableOpacity>
-            <View style={styles.loginLinks}>
-              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
-              <Text style={styles.loginLink}>|</Text>
-              <TouchableOpacity onPress={() => {
-                setLoginVisible(false);
-                navigation.navigate('Registro');
-              }}>
-                <Text style={styles.loginLink}>Regístrate</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
-  );
-} */}
-
-{/* Modal de Login */}
+      {/* Modal de Login */}
       <Modal
         visible={loginVisible}
         animationType="slide"
