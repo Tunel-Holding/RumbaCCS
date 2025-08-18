@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, ScrollView, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, ScrollView, Animated, Alert } from 'react-native';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function FormularioScreen({ navigation, route }) {
@@ -50,93 +50,86 @@ export default function FormularioScreen({ navigation, route }) {
     if (!telefono.trim()) nuevosErrores.telefono = 'Este campo es obligatorio';
     if (!correo.trim()) nuevosErrores.correo = 'Este campo es obligatorio';
     setErrores(nuevosErrores);
+    console.log("Errores de validación:", nuevosErrores);
     return Object.keys(nuevosErrores).length === 0;
   };
 
-  const handleEnviar = async () => {
+const handleEnviar = async () => {
 
-    if (!validarCampos()) return;
+  
+  if (!validarCampos()) return;
 
-    // Formatea: "J-12345678-9"
+  const empresaId = await AsyncStorage.getItem("empresaId");
+  if (empresaId) {
+    Alert.alert("Atención", "Ya tienes una empresa creada.");
+    navigation.navigate("Empresa", { empresaId });
+    return;
+  }
+
+  console.log("Campos validados");
   const formatearRif = (input, defaultLetter = 'J') => {
     if (!input) return null;
     const raw = String(input).trim().toUpperCase();
-
-    // 1) Detectar letra válida del RIF al inicio (si el usuario la escribió)
-    const letraMatch = raw.match(/^[VEJGPC]/); // V, E, J, G, P, C
+    const letraMatch = raw.match(/^[VEJGPC]/);
     const letra = letraMatch ? letraMatch[0] : defaultLetter;
-
-    // 2) Extraer solo dígitos (conserva ceros a la izquierda)
-    const soloNumeros = raw.replace(/\D/g, ''); // quita todo lo que no sea dígito
-
-    // 3) Validar longitud: 8 del cuerpo + 1 verificador = 9
+    const soloNumeros = raw.replace(/\D/g, '');
     if (soloNumeros.length !== 9) return null;
+    return `${letra}-${soloNumeros.slice(0, 8)}-${soloNumeros.slice(8)}`;
+  };
 
-    const cuerpo = soloNumeros.slice(0, 8);
-    const verificador = soloNumeros.slice(8);
-    return `${letra}-${cuerpo}-${verificador}`;
-    };
+  const rifFormateado = formatearRif(rif);
+  if (!rifFormateado) {
+    Alert.alert("Error", "Debes ingresar 9 dígitos para el RIF");
+    return;
+  }
 
+  try {
+    setCargando(true);
+    const token = await AsyncStorage.getItem("accessToken");
 
-    const rifFormateado = formatearRif(rif);
+    const res = await fetch(`http://${ipAddress}:8000/api/empresas/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        nombre,
+        rif: rifFormateado,
+        lugar,
+        telefono,
+        email_contacto: correo,
+        redes_sociales: redes || ""
+      })
+    });
 
-    console.log('RIF formateado:', rifFormateado);
+    const data = await res.json();
 
-    if (!rifFormateado) {
-      alert("Debes ingresar 9 dígitos para el RIF");
+    if (!res.ok) {
+      console.error("Error backend:", data);
+      Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
       return;
     }
 
-    try {
-      setCargando(true);
-      setVerificado(false);
-
-      const token = await AsyncStorage.getItem("accessToken");
-
-      const res = await fetch(`http://${ipAddress}:8000/empresa/empresas/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          nombre,
-          rif : rifFormateado,
-          lugar,
-          telefono,
-          email_contacto: correo,
-          redes_sociales: redes || ""
-        })
-      });
-
-      const contentType = res.headers.get("content-type") || "";
-      let data;
-      if (contentType.includes("application/json")) {
-        data = await res.json();
-      } else {
-  
-        throw new Error(`Respuesta inesperada del servidor: ${res.status}`);
-      }
-
-      if (!res.ok) {
-        console.log('Error backend:', data);
-        setErrores(data);
-        return
-      } else {
-        console.log("Empresa creada:", data);
-
-        navigation.navigate("Empresa", { empresaId: data.id });
-
-      }
-    } catch (error) {
-      console.error("Error de conexión:", error);
-    } finally {
-      setCargando(false);
+    // Solo si todo salió bien
+    if (data.id) {
+      await AsyncStorage.setItem("empresaId", data.id.toString());
     }
-  };
 
-  const handleActualizar = async () => {
-    if (!validarCampos()) return;
+    console.log("Empresa creada:", data);
+    navigation.navigate("Empresa", { empresaId: data.id });
+
+  } catch (error) {
+    console.error("Error de conexión:", error);
+    Alert.alert("Error", "No se pudo conectar con el servidor");
+  } finally {
+    setCargando(false);
+  }
+};
+
+
+const handleActualizar = async () => {
+  if (!validarCampos()) return;
 
     try {
       setCargando(true);

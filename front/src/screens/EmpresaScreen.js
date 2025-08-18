@@ -33,7 +33,8 @@ export default function EmpresaScreen() {
 
   const [empresaData, setEmpresaData] = useState(null);
 
-
+  const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
+  
   useEffect(() => {
 
     //Funcion para obtener los datos de la empresa
@@ -42,7 +43,16 @@ export default function EmpresaScreen() {
         const token = await AsyncStorage.getItem("accessToken");
         const empresaId = await AsyncStorage.getItem("empresaId");
 
-        console.log("Token:", token);
+        if (empresaId) {
+          try {
+            const res = await axios.get(`http://${ipAddress}:8000/api/empresa/${empresaId}/`);
+            console.log("Empresa:", res.data);
+          } catch (error) {
+            console.error("Error al traer empresa:", error);
+          }
+        } else {
+          console.log("El usuario todavía no tiene empresa asociada.");
+        }
 
         console.log("empresaId desde AsyncStorage:", empresaId);
 

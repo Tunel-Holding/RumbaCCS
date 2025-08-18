@@ -63,7 +63,14 @@ export default function HomeScreen() {
         // Guardar token y nombre de usuario
         await AsyncStorage.setItem('accessToken', data.access);
         await AsyncStorage.setItem('userEmail', user); // email
-        await AsyncStorage.setItem("empresaId", data.empresa_id.toString());
+        // await AsyncStorage.setItem("empresaId", data.empresa_id.toString());
+
+        if (data.empresa_id) {
+          await AsyncStorage.setItem('empresaId', data.empresa_id.toString());
+        }
+        else {
+          await AsyncStorage.setItem('empresaId', "");
+        }
 
         if (data.user?.username) {
           await AsyncStorage.setItem('userName', data.user.username);
