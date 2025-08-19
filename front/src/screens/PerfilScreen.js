@@ -29,6 +29,7 @@ export default function PerfilScreen({ navigation }) {
   const fetchUserName = async () => {
     try {
       const name = await AsyncStorage.getItem('userName');
+
       if (name) {
         setUserName(name);
       } else {

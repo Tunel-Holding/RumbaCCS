@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+const ipAddress ='192.168.1.236'; // Cambia esto por la IP de tu servidor
 
 const API_URL = `http://${ipAddress}:8000/api`;
 
@@ -52,8 +52,13 @@ export const registerUser = async (formData) => {
       throw err;
     }
 
+    
+
     // Éxito
     const data = payload; // ya está parseado
+
+    console.log('Registro exitoso:', data.user);
+
     await AsyncStorage.setItem('access', data.access);
     await AsyncStorage.setItem('refresh', data.refresh);
     await AsyncStorage.setItem('user', JSON.stringify(data.user));
@@ -142,10 +147,12 @@ const handleRegister = async () => {
     };
     const res = await registerUser(formData);
     Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
+    console.log('Usuario registrado:', res.user.username);
 
     await AsyncStorage.setItem('accessToken', res.access);
     await AsyncStorage.setItem("refreshToken", res.refresh);
     await AsyncStorage.setItem("user", JSON.stringify(res.user));
+    await AsyncStorage.setItem("userName", res.user.username);
 
     navigation.reset({
           index: 0,
