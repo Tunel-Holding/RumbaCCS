@@ -4,9 +4,10 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Empresa
-from .serializers import EmpresaSerializer
-
+from .models import Empresa, Evento2
+from .serializers import EmpresaSerializer, EventoSerializer
+from .permissions import IsEmpresaUser
+from rest_framework import viewsets, permissions
 # -----------------------------
 # ViewSet principal para Empresa
 # -----------------------------
@@ -64,3 +65,24 @@ def mi_empresa(request):
     data = serializer.data
     data['empresa_id'] = empresa.id
     return Response(data, status=200)
+
+class EventoViewSet(viewsets.ModelViewSet):
+    
+    authentication_classes = [JWTAuthentication]
+    permission_classes       = [permissions.IsAuthenticated]
+    serializer_class         = EventoSerializer
+
+    def get_queryset(self):
+        # Si viene empresa_pk en la URL, filtra por esa empresa
+        empresa_id = self.kwargs.get('empresa_pk')
+        qs = Evento2.objects.all()
+        return qs.filter(empresa_id=empresa_id) if empresa_id else qs
+
+    def perform_create(self, serializer):
+        empresa_id = self.kwargs.get('empresa_pk')
+        print("CREANDO EVENTO PARA EMPRESA:", empresa_id)
+        print("DATOS POST:", self.request.data)
+
+        serializer.save(empresa_id=empresa_id)
+        
+    

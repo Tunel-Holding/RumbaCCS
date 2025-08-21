@@ -34,7 +34,7 @@ export default function EmpresaScreen() {
 
   const [empresaData, setEmpresaData] = useState(null);
 
-  const ipAddress = "192.168.1.236"; // Cambia esto por tu IP real
+  const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
 
   useEffect(() => {
 
@@ -69,6 +69,8 @@ export default function EmpresaScreen() {
             headers: { Authorization: `Bearer ${token}` },
           }
         );
+
+        console.log("termino la api")
 
         setEmpresaData(response.data);
       } catch (error) {

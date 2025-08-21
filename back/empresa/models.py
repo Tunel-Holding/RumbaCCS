@@ -2,6 +2,9 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.validators import RegexValidator, MinLengthValidator, URLValidator, EmailValidator
 from django.core.exceptions import ValidationError
+from django.contrib.postgres.fields import ArrayField
+from django.utils import timezone
+from django.contrib.postgres.indexes import GinIndex
 
 Usuario = get_user_model()
 
@@ -101,17 +104,150 @@ class Empresa(models.Model):
         # si ya tienes un modelo Evento con ForeignKey a Empresa:
         return self.eventos.count() if hasattr(self, "eventos") else 0
     
+
+
+class Evento2(models.Model):
+    indexes = [
+            GinIndex(fields=["categoria"], name="idx_evento_categoria_gin"),
+        ]
     
-class Evento(models.Model):
     empresa = models.ForeignKey(
         Empresa,
         on_delete=models.CASCADE,
-        related_name="eventos"
+        related_name="eventos",
+        help_text="Empresa dueña de este evento"
     )
-    titulo = models.CharField(max_length=255)
-    fecha = models.DateTimeField()
-    descripcion = models.TextField(blank=True, null=True)
-    lugar = models.CharField(max_length=255, blank=True, null=True)
-    precio = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    categoria = models.CharField(max_length=100, blank=True, null=True)
-    imagen = models.ImageField(upload_to="eventos/", blank=True, null=True)
+    
+    CATEGORIA_CHOICES = [
+    ('Concierto', 'Concierto'),
+    ('Feria', 'Feria'),
+    ('Festival', 'Festival'),
+    ('Exposición', 'Exposición'),
+    ('Conferencia', 'Conferencia'),
+    ('Workshop', 'Workshop'),
+    ('Networking', 'Networking'),
+    ('Show', 'Show'),
+    ('Deportivo', 'Deportivo'),
+    ('Cultural', 'Cultural'),
+    ('Gastronómico', 'Gastronómico'),
+    ('Tecnológico', 'Tecnológico'),
+    ('Arte', 'Arte'),
+    ('Música', 'Música'),
+    ('Teatro', 'Teatro'),
+]
+
+    VESTIMENTA_CHOICES = [
+        ('Formal', 'Formal'),
+        ('Semi-formal', 'Semi-formal'),
+        ('Casual', 'Casual'),
+        ('Deportivo', 'Deportivo'),
+        ('Elegante casual', 'Elegante casual'),
+    ]
+
+    EDAD_MINIMA_CHOICES = [
+    (0, 'Todas las edades'),
+    (13, 'Mayores de 13 años'),
+    (16, 'Mayores de 16 años'),
+    (18, 'Mayores de 18 años'),
+    (21, 'Mayores de 21 años'),
+    (25, 'Mayores de 25 años'),
+]
+
+    
+    titulo = models.CharField(
+        max_length=200,
+        help_text="Título del evento"
+    )
+    descripcion = models.TextField(
+        blank=True,
+        null=False,
+        help_text="Descripción detallada"
+    )
+
+    # Fechas
+    # fecha_inicio = models.DateTimeField(help_text="Fecha y hora de inicio")
+
+    # Selecciones y límites
+    categoria = models.JSONField(
+        default=list,
+        blank=False,
+        help_text="Lista de categorías seleccionadas"
+    )
+    codigo_vestimenta = models.CharField(
+        max_length=50,
+        blank=False,
+        choices= VESTIMENTA_CHOICES,
+        help_text="Código de vestimenta (selección)"
+    )
+
+    descripcion_vestimenta = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Descripción del código de vestimenta"
+    )
+
+    edad_minima = models.PositiveSmallIntegerField(
+        blank=False,
+        choices=EDAD_MINIMA_CHOICES,
+        help_text="Edad mínima para asistir"
+    )
+    ubicacion = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Lugar o dirección del evento"
+    )
+    capacidad = models.PositiveIntegerField(
+        default=0,
+        help_text="Cupo máximo de asistentes (0 = ilimitado)"
+    )
+
+    # Precio y moneda
+    precio = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Precio de entrada"
+    )
+    moneda = models.CharField(
+        max_length=3,
+        default="USD",
+        help_text="Código ISO de moneda (ej. USD, EUR)"
+    )
+
+    # Imagen
+    imagen = models.ImageField(
+        upload_to="eventos_imagenes/",
+        blank=True,
+        null=True,
+        help_text="Imagen promocional del evento"
+    )
+
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Evento"
+        verbose_name_plural = "Eventos"
+        # ordering = ["-fecha_inicio"]
+
+    def __str__(self):
+        return f"{self.titulo} – {self.empresa.nombre}"
+
+    # def clean(self):
+    #     if self.fecha_fin and self.fecha_inicio and self.fecha_fin <= self.fecha_inicio:
+    #         raise ValidationError("La fecha de fin debe ser posterior a la fecha de inicio.")
+    
+# class Evento(models.Model):
+#     empresa = models.ForeignKey(
+#         Empresa,
+#         on_delete=models.CASCADE,
+#         related_name="eventos"
+#     )
+#     titulo = models.CharField(max_length=255)
+#     fecha = models.DateTimeField()
+#     descripcion = models.TextField(blank=True, null=True)
+#     lugar = models.CharField(max_length=255, blank=True, null=True)
+#     precio = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+#     categoria = models.CharField(max_length=100, blank=True, null=True)
+#     imagen = models.ImageField(upload_to="eventos/", blank=True, null=True)

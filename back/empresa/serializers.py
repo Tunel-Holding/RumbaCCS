@@ -1,6 +1,7 @@
 from rest_framework import serializers
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
-from .models import Empresa
+from .models import Empresa, Evento2
 
 class EmpresaSerializer(serializers.ModelSerializer):
     total_seguidores = serializers.SerializerMethodField()
@@ -48,6 +49,71 @@ class EmpresaSerializer(serializers.ModelSerializer):
         return attrs
 
 
-    # def create(self, validated_data):
-    #     user = self.context["request"].user
-    #     return Empresa.objects.create(usuario=user, **validated_data)
+# class EventoSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = Evento2
+#         fields = [
+#             "id",
+#             "titulo",
+#             "descripcion",
+#             "fecha_inicio",
+#             "categoria",
+#             "codigo_vestimenta",
+#             "descripcion_vestimenta",
+#             "edad_minima",
+#             "ubicacion",
+#             "capacidad",
+#             "precio",
+#             "moneda",
+#             "imagen",
+#             "creado_en",
+#             "actualizado_en",
+#         ]
+#         read_only_fields = ["id", "creado_en", "actualizado_en"]
+        
+    
+
+class EventoSerializer(serializers.ModelSerializer):
+    categoria = serializers.ListField(
+        child=serializers.ChoiceField(choices=Evento2.CATEGORIA_CHOICES),
+        allow_empty=False,
+        help_text="Lista de categorías válidas"
+    )
+    
+    empresa = serializers.PrimaryKeyRelatedField(read_only=True)
+    edad_minima = serializers.IntegerField()
+    capacidad = serializers.IntegerField()
+    precio = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+    class Meta:
+        model = Evento2
+        fields = [
+            "id",
+            "titulo",
+            "descripcion",
+            "categoria",
+            "codigo_vestimenta",
+            "empresa",
+            "descripcion_vestimenta",
+            "edad_minima",
+            "ubicacion",
+            "capacidad",
+            "precio",
+            "moneda",
+            "imagen",
+            "creado_en",
+            "actualizado_en",
+        ]
+        read_only_fields = ["id", "creado_en", "actualizado_en"]
+
+    def validate(self, attrs):
+        # validaciones extra (capacidad, precio…)
+        for field in ['edad_minima', 'capacidad', 'precio']:
+            value = attrs.get(field)
+            print(f'{field} -> valor: {value!r}, tipo: {type(value)}')
+            
+        return super().validate(attrs)
+
+    def create(self, validated_data):
+        empresa = self.context["request"].user.empresa
+        return Evento2.objects.create(empresa=empresa, **validated_data)
