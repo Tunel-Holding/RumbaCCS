@@ -9,6 +9,7 @@ from django.contrib.postgres.indexes import GinIndex
 Usuario = get_user_model()
 
 class Empresa(models.Model):
+    
     usuario = models.OneToOneField(
         Usuario,
         on_delete=models.CASCADE,
@@ -229,6 +230,7 @@ class Evento2(models.Model):
     class Meta:
         verbose_name = "Evento"
         verbose_name_plural = "Eventos"
+        ordering = ["-id"]
         # ordering = ["-fecha_inicio"]
 
     def __str__(self):

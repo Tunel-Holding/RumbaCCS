@@ -16,7 +16,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested.routers import NestedDefaultRouter
-from .views import EmpresaViewSet, EventoViewSet, mi_empresa, empresa_detail
+from .views import EmpresaViewSet, EventoViewSet, mi_empresa, empresa_detail, EventosPublicosViewSet
 
 # 1) Router principal para empresas
 router = DefaultRouter()
@@ -25,6 +25,9 @@ router.register(r'empresas', EmpresaViewSet, basename='empresa')
 # 2) Router anidado para eventos de cada empresa
 empresas_router = NestedDefaultRouter(router, r'empresas', lookup='empresa')
 empresas_router.register(r'eventos', EventoViewSet, basename='empresa-eventos')
+
+
+router.register(r'eventos-publicos', EventosPublicosViewSet, basename='eventos-publicos')
 
 urlpatterns = [
   # Rutas base: /api/empresas/ y /api/empresas/<pk>/
@@ -35,5 +38,5 @@ urlpatterns = [
 
   # Otras rutas de tu app
   path('mi-empresa/', mi_empresa, name='mi-empresa'),
-  path('empresa/<int:pk>/', empresa_detail, name='empresa-detail'),
+  # path('empresa/<int:pk>/', empresa_detail, name='empresa-detail'),
 ]

@@ -3,76 +3,6 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from .models import Empresa, Evento2
 
-class EmpresaSerializer(serializers.ModelSerializer):
-    total_seguidores = serializers.SerializerMethodField()
-    is_siguiendo = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Empresa
-        fields = [
-            "id",
-            "nombre",
-            "rif",               # Nuevo campo requerido y único
-            "descripcion",
-            "lugar",             # Sustituye a 'direccion'
-            "telefono",
-            "email_contacto",
-            "redes_sociales",
-            "logo",
-            "total_seguidores",
-            "eventos_publicados",
-            "is_siguiendo",
-            "fecha_creacion",
-            "activo"
-        ]
-        read_only_fields = [
-            "id",
-            "total_seguidores",
-            "is_siguiendo",
-            "fecha_creacion",
-            "activo"
-        ]
-
-    def get_total_seguidores(self, obj):
-        return obj.seguidores.count()
-
-    def get_is_siguiendo(self, obj):
-        user = self.context["request"].user
-        if user.is_authenticated:
-            return obj.seguidores.filter(id=user.id).exists()
-        return False
-
-    def validate(self, attrs):
-        user = self.context["request"].user
-        if self.instance is None and hasattr(user, "empresa"):
-            raise ValidationError("Ya tienes una empresa registrada con este usuario.")
-        return attrs
-
-
-# class EventoSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Evento2
-#         fields = [
-#             "id",
-#             "titulo",
-#             "descripcion",
-#             "fecha_inicio",
-#             "categoria",
-#             "codigo_vestimenta",
-#             "descripcion_vestimenta",
-#             "edad_minima",
-#             "ubicacion",
-#             "capacidad",
-#             "precio",
-#             "moneda",
-#             "imagen",
-#             "creado_en",
-#             "actualizado_en",
-#         ]
-#         read_only_fields = ["id", "creado_en", "actualizado_en"]
-        
-    
-
 class EventoSerializer(serializers.ModelSerializer):
     categoria = serializers.ListField(
         child=serializers.ChoiceField(choices=Evento2.CATEGORIA_CHOICES),
@@ -104,7 +34,7 @@ class EventoSerializer(serializers.ModelSerializer):
             "creado_en",
             "actualizado_en",
         ]
-        read_only_fields = ["id", "creado_en", "actualizado_en"]
+        
 
     def validate(self, attrs):
         # validaciones extra (capacidad, precio…)
@@ -117,3 +47,52 @@ class EventoSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         empresa = self.context["request"].user.empresa
         return Evento2.objects.create(empresa=empresa, **validated_data)
+class EmpresaSerializer(serializers.ModelSerializer):
+    
+    total_seguidores = serializers.SerializerMethodField()
+    is_siguiendo = serializers.SerializerMethodField()
+    
+    eventos = EventoSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Empresa
+        fields = [
+            "id",
+            "nombre",
+            "rif",               # Nuevo campo requerido y único
+            "descripcion",
+            "lugar",             # Sustituye a 'direccion'
+            "telefono",
+            "email_contacto",
+            "redes_sociales",
+            "logo",
+            "total_seguidores",
+            "eventos",
+            "is_siguiendo",
+            "fecha_creacion",
+            "activo"
+        ]
+        read_only_fields = [
+            "id",
+            "total_seguidores",
+            "is_siguiendo",
+            "fecha_creacion",
+            "activo"
+        ]
+
+    def get_total_seguidores(self, obj):
+        return obj.seguidores.count()
+
+    def get_is_siguiendo(self, obj):
+        user = self.context["request"].user
+        if user.is_authenticated:
+            return obj.seguidores.filter(id=user.id).exists()
+        return False
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        if self.instance is None and hasattr(user, "empresa"):
+            raise ValidationError("Ya tienes una empresa registrada con este usuario.")
+        return attrs
+
+

@@ -1,5 +1,5 @@
 from rest_framework.viewsets import ModelViewSet
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
@@ -15,6 +15,8 @@ class EmpresaViewSet(ModelViewSet):
     serializer_class = EmpresaSerializer
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
+    
+    queryset = Empresa.objects.all()
 
     def get_queryset(self):
         # Devuelve todas las empresas (para que un usuario pueda seguir cualquier empresa)
@@ -69,13 +71,13 @@ def mi_empresa(request):
 class EventoViewSet(viewsets.ModelViewSet):
     
     authentication_classes = [JWTAuthentication]
-    permission_classes       = [permissions.IsAuthenticated]
+    permission_classes       = [permissions.AllowAny]
     serializer_class         = EventoSerializer
 
     def get_queryset(self):
         # Si viene empresa_pk en la URL, filtra por esa empresa
         empresa_id = self.kwargs.get('empresa_pk')
-        qs = Evento2.objects.all()
+        qs = Evento2.objects.all().order_by('-id')
         return qs.filter(empresa_id=empresa_id) if empresa_id else qs
 
     def perform_create(self, serializer):
@@ -85,4 +87,8 @@ class EventoViewSet(viewsets.ModelViewSet):
 
         serializer.save(empresa_id=empresa_id)
         
-    
+
+class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Evento2.objects.all().order_by('-id')  # orden por id
+    serializer_class = EventoSerializer
+    permission_classes = [AllowAny]  # público, no requiere token
