@@ -61,6 +61,7 @@ export default function PerfilScreen({ navigation }) {
     AsyncStorage.removeItem('userName'),
     AsyncStorage.removeItem('userEmail'),
     AsyncStorage.removeItem('accessToken'),
+    AsyncStorage.removeItem('empresaId'),
   ]);
 
   setUserName('');

@@ -17,8 +17,9 @@ export default function HomeScreen() {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
   const [isLogged, setIsLogged] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+  const ipAddress = '192.168.1.236'; // Cambia esto por la IP de tu servidor
 
 
   useEffect(() => {
@@ -121,9 +122,12 @@ export default function HomeScreen() {
           imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
         }));
 
+        
         setEventos(eventosTransformados);
       } catch (error) {
         console.error("Error fetching eventos públicos:", error);
+      }finally {
+        setLoading(false);
       }
     };
 
@@ -167,6 +171,18 @@ export default function HomeScreen() {
     (filter === 'all' || e.type === filter) &&
     (e.title.toLowerCase().includes(search.toLowerCase()) || e.location.toLowerCase().includes(search.toLowerCase()))
   );
+
+  // if (loading) {
+  //   return (
+  //     <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+  //       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+  //       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+  //         <ActivityIndicator size="large" color="#00ff00" /> 
+  //         <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+  //       </View>
+  //     </SafeAreaView>
+  //   );
+  // }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>

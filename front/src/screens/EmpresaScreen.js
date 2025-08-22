@@ -16,6 +16,7 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
+import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
@@ -29,12 +30,13 @@ export default function EmpresaScreen() {
   const [notifAnim] = useState(new Animated.Value(0));
   const [loading, setLoading] = useState(true);
 
+  const datos = false
   // Animaciones
   const menuAnim = useRef(new Animated.Value(0)).current;
 
   const [empresaData, setEmpresaData] = useState(null);
 
-  const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
+  const ipAddress = "192.168.1.236"; // Cambia esto por tu IP real
 
   useEffect(() => {
 
@@ -101,7 +103,14 @@ useEffect(() => {
       const token = await AsyncStorage.getItem("accessToken");
       const empresaId = await AsyncStorage.getItem("empresaId");
 
-      const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`, {
+      if (!empresaId) {
+        console.log("El usuario todavía no tiene empresa asociada.");
+        setEventos([]);
+        return;
+      }
+
+      else{
+          const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -126,6 +135,9 @@ useEffect(() => {
       console.log("Status:", res.status);
       
       setEventos(eventosTransformados);
+      }
+
+      
     } catch (error) {
       console.error(error);
     }
@@ -333,7 +345,17 @@ useEffect(() => {
         <Text style={styles.eventosTitle}>Eventos publicados</Text>
                  <TouchableOpacity 
                    style={styles.agregarButton}
-                   onPress={() => navigation.navigate('Add')}
+                   onPress={async () => {
+                     const empresaId = await AsyncStorage.getItem("empresaId");
+                     if (empresaId) {
+                       navigation.navigate('Add');
+                     }
+                      else {
+                        console.log('Empresa no encontrada', empresaId);
+                        Alert.alert('Error', 'No tienes empresa creada');
+                        
+                      }
+                   }}
                  >
                    <Text style={styles.agregarIcon}>+</Text>
                  </TouchableOpacity>
