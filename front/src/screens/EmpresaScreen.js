@@ -64,7 +64,7 @@ export default function EmpresaScreen() {
         console.log("empresaId desde AsyncStorage:", empresaId);
 
         const response = await axios.get(
-          `http://${ipAddress}:8000/api/empresa/${empresaId}/`,
+          `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
           {
             headers: { Authorization: `Bearer ${token}` },
           }
@@ -92,59 +92,65 @@ export default function EmpresaScreen() {
     eventosPublicados: empresaData?.eventosPublicados || 0,
   }
 
+
+  const [eventos, setEventos] = useState([]);
+
+useEffect(() => {
+  const fetchEventos = async () => {
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      const empresaId = await AsyncStorage.getItem("empresaId");
+
+      const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!res.ok) {
+        throw new Error(`Error HTTP: ${res.status}`);}
+
+      const data = await res.json();
+      console.log("Eventos de la empresa:", data);
+
+      // transformar los datos al formato que quieres
+      const eventosTransformados = data.map(ev => ({
+        id: ev.id,
+        titulo: ev.titulo,
+        fecha: ev.fecha || "Fecha no definida",
+        ubicacion: ev.ubicacion,
+        precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
+        categoria: ev.categoria || "Sin categoría",
+        categoriaColor: ev.categoriaColor || "#4f46e5",
+        imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+      }));
+      console.log("Status:", res.status);
+      
+      setEventos(eventosTransformados);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  fetchEventos();
+}, []);
+
   // Eventos de ejemplo
-  const eventos = [
-    {
-      id: 1,
-      titulo: 'Concierto Electrónico',
-      fecha: '15 Ago 2025',
-      ubicacion: 'Sala Mayor',
-      precio: '$30.000',
-      categoria: 'Concierto',
-      categoriaColor: '#4f46e5',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
-    },
-    {
-      id: 2,
-      titulo: 'Feria Gastronómica',
-      fecha: '22 Sep 2025',
-      ubicacion: 'Plaza Gourmet',
-      precio: 'Entrada libre',
-      categoria: 'Feria',
-      categoriaColor: '#db2777',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2845f684-896f-4604-a8e9-6ce9929b0bbb.png',
-    },
-    {
-      id: 3,
-      titulo: 'Festival de Jazz',
-      fecha: '5 Nov 2025',
-      ubicacion: 'Teatro Central',
-      precio: '$20.000',
-      categoria: 'Festival',
-      categoriaColor: '#ca8a04',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/d202d6da-9e5f-432c-97dd-5ad86b5461af.png',
-    },
-    {
-      id: 4,
-      titulo: 'Expo Arte Urbano',
-      fecha: '12 Dic 2025',
-      ubicacion: 'Galería Libre',
-      precio: '$10.000',
-      categoria: 'Expo',
-      categoriaColor: '#16a34a',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2cd9adb4-9a48-403a-8a0b-c1e9b937bda9.png',
-    },
-    {
-      id: 5,
-      titulo: 'Noche de Stand Up',
-      fecha: '20 Ene 2026',
-      ubicacion: 'Café Teatro',
-      precio: '$12.000',
-      categoria: 'Show',
-      categoriaColor: '#9333ea',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-    },
-  ];
+  // const eventos = [
+
+
+
+
+  // //   {
+  // //     id: 5,
+  // //     titulo: 'Noche de Stand Up',
+  // //     fecha: '20 Ene 2026',
+  // //     ubicacion: 'Café Teatro',
+  // //     precio: '$12.000',
+  // //     categoria: 'Show',
+  // //     categoriaColor: '#9333ea',
+  // //     imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+  // //   },
+  //  ];
 
 
 

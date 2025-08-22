@@ -20,6 +20,7 @@ export default function HomeScreen() {
 
   const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
+
   useEffect(() => {
     const checkSession = async () => {
       const token = await AsyncStorage.getItem('accessToken');
@@ -96,69 +97,53 @@ export default function HomeScreen() {
     }
   };
 
+  const [events, setEventos] = useState([]);
+
+  useEffect(() => {
+    const fetchEventos = async () => {
+      try {
+        // Endpoint público, no requiere token
+        const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
+        if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
+
+        const data = await res.json();
+
+        const eventosTransformados = data.map(ev => ({
+          id: ev.id,
+          title: ev.titulo,
+          date: ev.creado_en
+            ? new Date(ev.creado_en).toLocaleDateString()
+            : "Fecha no definida",
+          location: ev.ubicacion,
+          price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+          type: ev.categoria || ["Sin categoría"],
+          categoriaColor: "#4f46e5",
+          imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+        }));
+
+        setEventos(eventosTransformados);
+      } catch (error) {
+        console.error("Error fetching eventos públicos:", error);
+      }
+    };
+
+    fetchEventos();
+  }, []);
+
   // Eventos de ejemplo
-  const events = [
-    {
-      id: 1,
-      type: 'concert',
-      title: 'Festival Indie 2023',
-      date: '15 Dic 2023',
-      location: 'Estadio Nacional, Santiago',
-      price: '$25.000 - $80.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
-      tag: 'Concierto'
-    },
-    {
-      id: 2,
-      type: 'party',
-      title: 'Nochevieja VIP',
-      date: '21 Dic 2023',
-      location: 'Club Nocturno Momentum',
-      price: '$15.000 - $50.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2845f684-896f-4604-a8e9-6ce9929b0bbb.png',
-      tag: 'Fiesta'
-    },
-    {
-      id: 3,
-      type: 'sports',
-      title: 'Final Copa Nacional',
-      date: '25 Nov 2023',
-      location: 'Estadio Monumental',
-      price: '$10.000 - $45.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/d202d6da-9e5f-432c-97dd-5ad86b5461af.png',
-      tag: 'Deportes'
-    },
-    {
-      id: 4,
-      type: 'concert',
-      title: 'Electric Festival',
-      date: '12 Ene 2024',
-      location: 'Parque Bicentenario',
-      price: '$30.000 - $90.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2cd9adb4-9a48-403a-8a0b-c1e9b937bda9.png',
-      tag: 'Concierto'
-    },
-    {
-      id: 5,
-      type: 'theater',
-      title: 'Hamlet Moderno',
-      date: '20 Ene 2024',
-      location: 'Teatro Municipal',
-      price: '$12.000 - $35.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-      tag: 'Teatro'
-    },
-    {
-      id: 6,
-      type: 'party',
-      title: 'Noche de San Valentín',
-      date: '14 Feb 2024',
-      location: 'Hotel Luxury SkyBar',
-      price: '$18.000 - $60.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/3df9dee6-6fdf-450d-9fe0-c750685aee18.png',
-      tag: 'Fiesta'
-    }
-  ];
+  // const events = [
+  //   {
+  //     id: 1,
+  //     type: 'concert',
+  //     title: 'Festival Indie 2023',
+  //     date: '15 Dic 2023',
+  //     location: 'Estadio Nacional, Santiago',
+  //     price: '$25.000 - $80.000',
+  //     image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
+  //     tag: 'Concierto'
+  //   }
+    
+  // ];
 
   // Filtros disponibles
   const filters = [

@@ -145,7 +145,11 @@ const handleRegister = async () => {
       email: email.trim(),
       password: pass
     };
+
+    console.log('Datos del formulario:', formData);
+
     const res = await registerUser(formData);
+    
     Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
     console.log('Usuario registrado:', res.user.username);
 

@@ -76,7 +76,6 @@ export default function AddScreen() {
   { label: 'Mayores de 18 años',     value: 18 },
   { label: 'Mayores de 21 años',     value: 21 },
   { label: 'Mayores de 25 años',     value: 25 },
-  { label: 'Familiar (Todas las edades)', value: -1 },
 ];
 
   // Función para formatear precio con comas y decimales
@@ -136,12 +135,12 @@ export default function AddScreen() {
     categoria: formData.categoria,
     codigo_vestimenta: formData.codigoVestimenta,
     descripcion_vestimenta: formData.descripcionVestimenta,
-    edad_minima: 13,//parseInt(formData.edadMinima, 10),
+    edad_minima: parseInt(formData.edad_minima, 10),
     ubicacion: formData.ubicacion,
-    capacidad: 100, //parseInt(formData.capacidad, 10),
+    capacidad: parseInt(formData.capacidad, 10),
     descripcion: formData.descripcion,
-    precio:  100,  // parseFloat(formData.precio),
-    moneda: formData.moneda,
+    precio: formData.precio === 'Entrada libre' ? 0 : parseFloat(formData.precio),
+  moneda: formData.moneda || 'USD',
     // si fuera archivo, usar FormData y append('imagen', file)
   };
   console.log('titulo', typeof(payload.titulo));
@@ -178,7 +177,7 @@ export default function AddScreen() {
 
     const newEvent = await res.json();
     Alert.alert('Éxito', 'Evento agregado correctamente', [
-      { text: 'OK', onPress: () => navigation.goBack() }
+      { text: 'OK', onPress: () => navigation.navigate("Empresa") }
     ]);
   } catch (e) {
     Alert.alert('Error de red', e.message);
@@ -383,14 +382,14 @@ export default function AddScreen() {
           </View>
           <FlatList
             data={edadesMinimas}
-            keyExtractor={(item) => item}
+            keyExtractor={(item) => item.value.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.modalItem}
                 onPress={() => {
-                  const formEdades = { ...formData, item}
+                  const formEdades = { ...formData, edad_minima: item.value };
                   setFormData(formEdades);
-                  console.log('edadMinima seleccionada:', formEdades.edadMinima);
+                  console.log('edadMinima seleccionada:', formEdades.edad_minima);
                   setEdadModalVisible(false);
                 }}
               >
@@ -663,7 +662,7 @@ export default function AddScreen() {
               />
             </View>
 
-            {/* Precio */}
+             {/* Precio */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Precio</Text>
               <View style={styles.precioOptionsContainer}>
