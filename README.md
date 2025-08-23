@@ -1,5 +1,8 @@
 <!-- Para el correcto funcionamiento de la app, deben iniciar en terminales distintas
 el servidor de django y el npx expo start -->
+NOTA:
+Se tiene que cambiar la dirección ip en los archivos screens para el funcionanmiento de la app
+(proximamente se creará la fx para automatizar el proceso)
 
 Para activar el entorno virtual en la carpeta back (Debes tenerlo creado):
 
