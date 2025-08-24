@@ -26,6 +26,28 @@ class MeView(generics.RetrieveUpdateAPIView):
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
     
+class RegistroUsuarioView(generics.CreateAPIView):
+    serializer_class = RegisterSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'message': 'Usuario creado con éxito',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'username': user.username,
+                'phone': user.phone,
+                'birthday': str(user.birthday),
+                'region': user.region,
+                'gender': user.gender
+            },
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_201_CREATED)
 
 class RegistroUsuarioView(generics.CreateAPIView):
     serializer_class = RegisterSerializer

@@ -97,4 +97,6 @@ class EmailVerification(models.Model):
 
     def __str__(self):
         return f"{self.email} - {self.code}"
+    def __str__(self):
+        return f"{self.email} - {self.code}"
 
