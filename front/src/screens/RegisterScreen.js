@@ -1,14 +1,76 @@
 import React, { useState } from 'react';
+import { Alert } from 'react-native';
 import { Modal } from 'react-native';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-export default function RegisterScreen({ navigation }) {
+const ipAddress ='192.168.1.236'; // Cambia esto por la IP de tu servidor
+
+const API_URL = `http://${ipAddress}:8000/api`;
+
+// helpers/opcional: extrae el primer mensaje legible
+const getFirstMessage = (err) => {
+  if (!err || typeof err !== 'object') return 'Error en el registro';
+  if (typeof err.detail === 'string') return err.detail;
+  // Busca el primer campo con array de mensajes
+  for (const key of Object.keys(err)) {
+    const val = err[key];
+    if (Array.isArray(val) && typeof val[0] === 'string') return val[0];
+    if (typeof val === 'string') return val; // por si viene como string
+  }
+  return 'Error en el registro';
+};
+
+// función de registro
+export const registerUser = async (formData) => {
+  try {
+    const response = await fetch(`${API_URL}/register/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+
+    const isJson = response.headers
+      ?.get('content-type')
+      ?.includes('application/json');
+
+    // Intenta parsear JSON si corresponde
+    const payload = isJson ? await response.json() : null;
+
+    if (!response.ok) {
+      const errorData = payload || { detail: 'Error en el registro' };
+      const err = new Error(getFirstMessage(errorData));
+      // Adjunta datos útiles para el front
+      err.fields = errorData;      // ej: { email: ["Este correo ya está registrado"] }
+      err.status = response.status; // ej: 400
+      throw err;
+    }
+
+    
+
+    // Éxito
+    const data = payload; // ya está parseado
+
+    console.log('Registro exitoso:', data.user);
+
+    await AsyncStorage.setItem('access', data.access);
+    await AsyncStorage.setItem('refresh', data.refresh);
+    await AsyncStorage.setItem('user', JSON.stringify(data.user));
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+
+
+export default function RegisterScreen({ navigation, route }) {
   const [showEdadModal, setShowEdadModal] = useState(false);
   const [sexo, setSexo] = useState('masculino');
   const [user, setUser] = useState('');
@@ -22,6 +84,93 @@ export default function RegisterScreen({ navigation }) {
   const [showPass, setShowPass] = useState(false);
   const [showRepeatPass, setShowRepeatPass] = useState(false);
 
+  const [errors, setErrors] = useState({});
+  const [formError, setFormError] = useState('');
+
+  const accountType = route?.params?.accountType || 'normal'; // 'normal' o 'empresa'
+
+  const onSubmit = async () => {
+    setErrors({});
+    setFormError('');
+    try {
+      await registerUser({ username, email, password });
+      // navegación o éxito
+    } catch (e) {
+      if (e.fields) {
+        setErrors(e.fields); // Ej: { email: ["Este correo ya está registrado"] }
+        setFormError(e.message);
+      } else {
+        setFormError('Error al registrar');
+      }
+    }
+  };
+
+
+const handleRegister = async () => {
+  try {
+
+    const birthday = fechaNacimiento instanceof Date
+    ? `${fechaNacimiento.getFullYear()}-${String(fechaNacimiento.getMonth() + 1).padStart(2, '0')}-${String(fechaNacimiento.getDate()).padStart(2, '0')}`
+    : (() => {
+        const [d, m, y] = fechaNacimiento.split('/');
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      })();
+
+    if (!user.trim() || !email.trim() || !pass) {
+      Alert.alert('Campos incompletos', 'Por favor llena usuario, email y contraseña');
+      return;
+    }
+
+    if (!region) {
+      Alert.alert('Campo requerido', 'Selecciona tu estado antes de continuar');
+      return;
+    }
+
+    if (pass.length < 8) {
+      Alert.alert('Contraseña', 'Debe tener mínimo 8 caracteres');
+      return;
+    }
+
+    if (pass !== repeatPass) {
+      Alert.alert('Contraseña', 'Las contraseñas no coinciden');
+      return;
+    }
+
+    // Usamos el mismo birthday formateado en dd/mm/aaaa para enviar
+    const formData = {
+      username: user.trim(),
+      phone: telefono.replace(/[^\d]/g, ''),
+      birthday, // <-- aquí ya va dd/mm/aaaa
+      region,
+      gender: sexo,
+      email: email.trim(),
+      password: pass
+    };
+
+    console.log('Datos del formulario:', formData);
+
+    const res = await registerUser(formData);
+    
+    Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
+    console.log('Usuario registrado:', res.user.username);
+
+    await AsyncStorage.setItem('accessToken', res.access);
+    await AsyncStorage.setItem("refreshToken", res.refresh);
+    await AsyncStorage.setItem("user", JSON.stringify(res.user));
+    await AsyncStorage.setItem("userName", res.user.username);
+
+    navigation.reset({
+          index: 0,
+          routes: [{ name: 'HomeScreen' }], // Usa el nombre exacto de tu screen de inicio en el stack
+        });
+
+  } catch (err) {
+    Alert.alert('Error', err.message || 'Algo salió mal');
+  }
+};
+
+
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
@@ -30,12 +179,18 @@ export default function RegisterScreen({ navigation }) {
         </View>
         <View style={styles.registerContainer}>
           {/* Flecha para volver */}
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('AccountTypeScreen')}>
             <Text style={styles.backArrow}>←</Text>
             <Text style={styles.backText}>Volver</Text>
           </TouchableOpacity>
           <Text style={styles.title}>RumbaCCS</Text>
           <Text style={styles.subtitle}>¡Regístrate para continuar!</Text>
+          {/* Descripción según tipo de cuenta */}
+          {accountType === 'normal' ? null : (
+            <Text style={{ color: '#fff', marginBottom: 12, textAlign: 'center' }}>
+              Cuenta Empresa: Cuenta empresarial para publicar eventos y ser tu el que prende la rumba
+            </Text>
+          )}
           <View style={styles.inputGroup}>
             <TextInput
               style={styles.input}
@@ -170,14 +325,24 @@ export default function RegisterScreen({ navigation }) {
           </View>
           <View style={styles.inputGroup}>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                errors?.email ? { borderColor: 'red', borderWidth: 1 } : null,
+              ]}
               placeholder="Email"
               placeholderTextColor="#888"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
             />
-          </View>
+            
+            {errors?.email && (
+              <Text style={{ color: 'red', marginTop: 4, fontSize: 13 }}>
+                {Array.isArray(errors.email) ? errors.email[0] : errors.email}
+              </Text>
+            )}
+        </View>
+
           <View style={styles.inputGroup}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TextInput
@@ -208,11 +373,67 @@ export default function RegisterScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           </View>
-          <TouchableOpacity style={styles.registerBtn}>
+          <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
             <Text style={styles.registerBtnText}>Registrarse</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// Nueva pantalla para seleccionar tipo de cuenta
+export function AccountTypeScreen({ navigation }) {
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{
+        backgroundColor: 'rgba(30,41,59,0.92)',
+        borderRadius: 16,
+        maxWidth: 400,
+        width: width < 400 ? width - 32 : 400,
+        padding: 24,
+        alignItems: 'center',
+        shadowColor: '#e9dbdbff',
+        shadowOpacity: 0.2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowRadius: 8,
+        elevation: 8,
+      }}>
+        <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#ec4899', marginBottom: 16 }}>Tipo de Cuenta</Text>
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#2563eb',
+            borderRadius: 8,
+            paddingVertical: 16,
+            paddingHorizontal: 24,
+            marginBottom: 16,
+            width: '100%',
+            alignItems: 'center',
+          }}
+          onPress={() => navigation.navigate('RegisterScreen', { accountType: 'normal' })}
+        >
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Normal</Text>
+          <Text style={{ color: '#fff', fontSize: 14, marginTop: 4, textAlign: 'center' }}>
+            Cuenta de usuario para ver eventos y RUMBEAR
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#0ea5e9',
+            borderRadius: 8,
+            paddingVertical: 16,
+            paddingHorizontal: 24,
+            width: '100%',
+            alignItems: 'center',
+          }}
+          onPress={() => navigation.navigate('FormularioScreen', { accountType: 'empresa' })}
+        >
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Empresa</Text>
+          <Text style={{ color: '#fff', fontSize: 14, marginTop: 4, textAlign: 'center' }}>
+            Cuenta empresarial para publicar eventos y ser tu el que prende la RUMBA
+          </Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }

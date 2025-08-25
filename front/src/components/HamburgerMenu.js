@@ -29,7 +29,7 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress }) 
               <Text style={styles.menuText}>Notificaciones</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => onMenuItemPress('register')} style={styles.menuItem}>
-              <Text style={styles.menuText}>Registrarse como empresa</Text>
+              <Text style={styles.menuText}> Perfil empresa</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => onMenuItemPress('empresa_form')} style={styles.menuItem}>
               <Text style={styles.menuText}>Formulario de empresa</Text>

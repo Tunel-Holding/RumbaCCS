@@ -10,85 +10,159 @@ import {
   Animated,
   Modal,
   SafeAreaView,
+  ActivityIndicator,
   StatusBar,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
+import HamburgerMenu from '../components/HamburgerMenu';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
 
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreen() {
   const navigation = useNavigation();
-
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false });
   const [notifAnim] = useState(new Animated.Value(0));
-  
+  const [loading, setLoading] = useState(true);
+
+  const datos = false
   // Animaciones
   const menuAnim = useRef(new Animated.Value(0)).current;
 
-  // Datos de la empresa
-  const empresaData = {
-    nombre: 'Empresa',
-    seguidores: 50,
-    eventosPublicados: 5,
+  const [empresaData, setEmpresaData] = useState(null);
+
+  const ipAddress = "192.168.1.236"; // Cambia esto por tu IP real
+
+  useEffect(() => {
+
+    //Funcion para obtener los datos de la empresa
+    const fetchEmpresa = async () => {
+      try {
+        const token = await AsyncStorage.getItem("accessToken");
+        const empresaId = await AsyncStorage.getItem("empresaId");
+
+        // if (empresaId) {
+        //   try {
+        //     const res = await axios.get(`http://${ipAddress}:8000/api/empresa/${empresaId}/`);
+        //     console.log("Empresa:", res.data);
+        //   } catch (error) {
+        //     console.error("Error al traer empresa:", error);
+        //   }
+        // } else {
+        //   console.log("El usuario todavía no tiene empresa asociada.");
+        // }
+
+        if (!empresaId) {
+          console.log("El usuario todavía no tiene empresa asociada.");
+          setEmpresaData(null);
+          return;
+        }
+
+        console.log("empresaId desde AsyncStorage:", empresaId);
+
+        const response = await axios.get(
+          `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        console.log("termino la api")
+
+        setEmpresaData(response.data);
+      } catch (error) {
+        console.error("Error al traer empresa:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEmpresa();
+  }, []);
+
+  
+
+  const empresaData1 = {
+    nombre: empresaData?.nombre || 'Empresa',
+    rif : empresaData?.rif || 'no disponible',
+    seguidores: empresaData?.seguidores || 0,
+    eventosPublicados: empresaData?.eventosPublicados || 0,
+  }
+
+
+  const [eventos, setEventos] = useState([]);
+
+useEffect(() => {
+  const fetchEventos = async () => {
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      const empresaId = await AsyncStorage.getItem("empresaId");
+
+      if (!empresaId) {
+        console.log("El usuario todavía no tiene empresa asociada.");
+        setEventos([]);
+        return;
+      }
+
+      else{
+          const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!res.ok) {
+        throw new Error(`Error HTTP: ${res.status}`);}
+
+      const data = await res.json();
+      console.log("Eventos de la empresa:", data);
+
+      // transformar los datos al formato que quieres
+      const eventosTransformados = data.map(ev => ({
+        id: ev.id,
+        titulo: ev.titulo,
+        fecha: ev.fecha || "Fecha no definida",
+        ubicacion: ev.ubicacion,
+        precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
+        categoria: ev.categoria || "Sin categoría",
+        categoriaColor: ev.categoriaColor || "#4f46e5",
+        imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+      }));
+      console.log("Status:", res.status);
+      
+      setEventos(eventosTransformados);
+      }
+
+      
+    } catch (error) {
+      console.error(error);
+    }
   };
 
+  fetchEventos();
+}, []);
+
   // Eventos de ejemplo
-  const eventos = [
-    {
-      id: 1,
-      titulo: 'Concierto Electrónico',
-      fecha: '15 Ago 2025',
-      ubicacion: 'Sala Mayor',
-      precio: '$30.000',
-      categoria: 'Concierto',
-      categoriaColor: '#4f46e5',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
-    },
-    {
-      id: 2,
-      titulo: 'Feria Gastronómica',
-      fecha: '22 Sep 2025',
-      ubicacion: 'Plaza Gourmet',
-      precio: 'Entrada libre',
-      categoria: 'Feria',
-      categoriaColor: '#db2777',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2845f684-896f-4604-a8e9-6ce9929b0bbb.png',
-    },
-    {
-      id: 3,
-      titulo: 'Festival de Jazz',
-      fecha: '5 Nov 2025',
-      ubicacion: 'Teatro Central',
-      precio: '$20.000',
-      categoria: 'Festival',
-      categoriaColor: '#ca8a04',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/d202d6da-9e5f-432c-97dd-5ad86b5461af.png',
-    },
-    {
-      id: 4,
-      titulo: 'Expo Arte Urbano',
-      fecha: '12 Dic 2025',
-      ubicacion: 'Galería Libre',
-      precio: '$10.000',
-      categoria: 'Expo',
-      categoriaColor: '#16a34a',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2cd9adb4-9a48-403a-8a0b-c1e9b937bda9.png',
-    },
-    {
-      id: 5,
-      titulo: 'Noche de Stand Up',
-      fecha: '20 Ene 2026',
-      ubicacion: 'Café Teatro',
-      precio: '$12.000',
-      categoria: 'Show',
-      categoriaColor: '#9333ea',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-    },
-  ];
+  // const eventos = [
+
+
+
+
+  // //   {
+  // //     id: 5,
+  // //     titulo: 'Noche de Stand Up',
+  // //     fecha: '20 Ene 2026',
+  // //     ubicacion: 'Café Teatro',
+  // //     precio: '$12.000',
+  // //     categoria: 'Show',
+  // //     categoriaColor: '#9333ea',
+  // //     imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+  // //   },
+  //  ];
 
 
 
@@ -239,12 +313,15 @@ export default function EmpresaScreen() {
 
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>
-          <Text style={styles.empresaNombre}>{empresaData.nombre}</Text>
+          <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
           <Text style={styles.seguidoresText}>
-            Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData.seguidores}</Text>
+            RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text>
+          </Text>
+          <Text style={styles.seguidoresText}>
+            Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text>
           </Text>
           <Text style={styles.eventosText}>
-            Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData.eventosPublicados}</Text>
+            Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text>
           </Text>
           <TouchableOpacity 
             style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
@@ -268,7 +345,17 @@ export default function EmpresaScreen() {
         <Text style={styles.eventosTitle}>Eventos publicados</Text>
                  <TouchableOpacity 
                    style={styles.agregarButton}
-                   onPress={() => navigation.navigate('Add')}
+                   onPress={async () => {
+                     const empresaId = await AsyncStorage.getItem("empresaId");
+                     if (empresaId) {
+                       navigation.navigate('Add');
+                     }
+                      else {
+                        console.log('Empresa no encontrada', empresaId);
+                        Alert.alert('Error', 'No tienes empresa creada');
+                        
+                      }
+                   }}
                  >
                    <Text style={styles.agregarIcon}>+</Text>
                  </TouchableOpacity>
@@ -311,8 +398,21 @@ export default function EmpresaScreen() {
       </View>
     </View>
   );
+  
+  if (loading) {
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#00ff00" /> 
+        <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
 
   return (
+
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
       

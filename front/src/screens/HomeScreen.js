@@ -17,12 +17,17 @@ export default function HomeScreen() {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
   const [isLogged, setIsLogged] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+  const ipAddress = '192.168.1.236'; // Cambia esto por la IP de tu servidor
+
 
   useEffect(() => {
     const checkSession = async () => {
       const token = await AsyncStorage.getItem('accessToken');
+      if(token) {
+        setIsLogged(true);
+      }
       setIsLogged(!!token);
     };
     checkSession();
@@ -32,6 +37,8 @@ export default function HomeScreen() {
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
     await AsyncStorage.removeItem('userEmail');
+    await AsyncStorage.removeItem('userName');
+    await AsyncStorage.removeItem('empresaId');
     setIsLogged(false);
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
@@ -48,18 +55,32 @@ export default function HomeScreen() {
         headers: {
           'Content-Type': 'application/json',
         },
+        
         body: JSON.stringify({
           email: user,
           password: pass,
         }),
       });
+      
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json(); 
+        console.log("Respuesta login completa:", data);
+
+        
         // Guardar token y nombre de usuario
         await AsyncStorage.setItem('accessToken', data.access);
         await AsyncStorage.setItem('userEmail', user); // email
-        if (data.nombre) {
-          await AsyncStorage.setItem('userName', data.nombre);
+        // await AsyncStorage.setItem("empresaId", data.empresa_id.toString());
+
+        if (data.empresa_id) {
+          await AsyncStorage.setItem('empresaId', data.empresa_id.toString());
+        }
+        else {
+          await AsyncStorage.setItem('empresaId', "");
+        }
+
+        if (data.user?.username) {
+          await AsyncStorage.setItem('userName', data.user.username);
         } else {
           await AsyncStorage.setItem('userName', user);
         }
@@ -72,73 +93,61 @@ export default function HomeScreen() {
         Alert.alert('Error de login','Usuario o contraseña incorrectos');
       }
     } catch (error) {
+      console.error("Error en login:", error.response?.data || error.message);
       Alert.alert('Error', 'No se pudo conectar con el servidor');
     }
   };
 
+  const [events, setEventos] = useState([]);
+
+  useEffect(() => {
+    const fetchEventos = async () => {
+      try {
+        // Endpoint público, no requiere token
+        const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
+        if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
+
+        const data = await res.json();
+
+        const eventosTransformados = data.map(ev => ({
+          id: ev.id,
+          title: ev.titulo,
+          date: ev.creado_en
+            ? new Date(ev.creado_en).toLocaleDateString()
+            : "Fecha no definida",
+          location: ev.ubicacion,
+          price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+          type: ev.categoria || ["Sin categoría"],
+          categoriaColor: "#4f46e5",
+          imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+        }));
+
+        
+        setEventos(eventosTransformados);
+      } catch (error) {
+        console.error("Error fetching eventos públicos:", error);
+      }finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEventos();
+  }, []);
+
   // Eventos de ejemplo
-  const events = [
-    {
-      id: 1,
-      type: 'concert',
-      title: 'Festival Indie 2023',
-      date: '15 Dic 2023',
-      location: 'Estadio Nacional, Santiago',
-      price: '$25.000 - $80.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
-      tag: 'Concierto'
-    },
-    {
-      id: 2,
-      type: 'party',
-      title: 'Nochevieja VIP',
-      date: '21 Dic 2023',
-      location: 'Club Nocturno Momentum',
-      price: '$15.000 - $50.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2845f684-896f-4604-a8e9-6ce9929b0bbb.png',
-      tag: 'Fiesta'
-    },
-    {
-      id: 3,
-      type: 'sports',
-      title: 'Final Copa Nacional',
-      date: '25 Nov 2023',
-      location: 'Estadio Monumental',
-      price: '$10.000 - $45.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/d202d6da-9e5f-432c-97dd-5ad86b5461af.png',
-      tag: 'Deportes'
-    },
-    {
-      id: 4,
-      type: 'concert',
-      title: 'Electric Festival',
-      date: '12 Ene 2024',
-      location: 'Parque Bicentenario',
-      price: '$30.000 - $90.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2cd9adb4-9a48-403a-8a0b-c1e9b937bda9.png',
-      tag: 'Concierto'
-    },
-    {
-      id: 5,
-      type: 'theater',
-      title: 'Hamlet Moderno',
-      date: '20 Ene 2024',
-      location: 'Teatro Municipal',
-      price: '$12.000 - $35.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-      tag: 'Teatro'
-    },
-    {
-      id: 6,
-      type: 'party',
-      title: 'Noche de San Valentín',
-      date: '14 Feb 2024',
-      location: 'Hotel Luxury SkyBar',
-      price: '$18.000 - $60.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/3df9dee6-6fdf-450d-9fe0-c750685aee18.png',
-      tag: 'Fiesta'
-    }
-  ];
+  // const events = [
+  //   {
+  //     id: 1,
+  //     type: 'concert',
+  //     title: 'Festival Indie 2023',
+  //     date: '15 Dic 2023',
+  //     location: 'Estadio Nacional, Santiago',
+  //     price: '$25.000 - $80.000',
+  //     image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
+  //     tag: 'Concierto'
+  //   }
+    
+  // ];
 
   // Filtros disponibles
   const filters = [
@@ -162,6 +171,18 @@ export default function HomeScreen() {
     (filter === 'all' || e.type === filter) &&
     (e.title.toLowerCase().includes(search.toLowerCase()) || e.location.toLowerCase().includes(search.toLowerCase()))
   );
+
+  // if (loading) {
+  //   return (
+  //     <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+  //       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+  //       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+  //         <ActivityIndicator size="large" color="#00ff00" /> 
+  //         <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+  //       </View>
+  //     </SafeAreaView>
+  //   );
+  // }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -194,12 +215,16 @@ export default function HomeScreen() {
                 <Text style={styles.loginBtnText}>Iniciar sesión</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-              <Image
-                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-                style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
-              />
-            </TouchableOpacity>
+            {
+              isLogged && (
+                <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
+                  <Image
+                    source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                    style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
+                  />
+                </TouchableOpacity>
+              )
+            }
           </View>
         </View>
 
@@ -298,42 +323,7 @@ export default function HomeScreen() {
         </Pressable>
       </Modal>
 
-      {/* Modal de Login
-      <Modal
-        visible={loginVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setLoginVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Pressable style={styles.modalClose} onPress={() => setLoginVisible(false)}>
-              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
-            </Pressable>
-            <Text style={styles.loginTitle}>Iniciar sesión</Text>
-            <TextInput style={styles.loginInput} placeholder="Correo electrónico" placeholderTextColor="#888" keyboardType="email-address" />
-            <TextInput style={styles.loginInput} placeholder="Contraseña" placeholderTextColor="#888" secureTextEntry />
-            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin}>
-              <Text style={styles.loginBtnText}>Ingresar</Text>
-            </TouchableOpacity>
-            <View style={styles.loginLinks}>
-              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
-              <Text style={styles.loginLink}>|</Text>
-              <TouchableOpacity onPress={() => {
-                setLoginVisible(false);
-                navigation.navigate('Registro');
-              }}>
-                <Text style={styles.loginLink}>Regístrate</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
-  );
-} */}
-
-{/* Modal de Login */}
+      {/* Modal de Login */}
       <Modal
         visible={loginVisible}
         animationType="slide"
@@ -379,7 +369,7 @@ export default function HomeScreen() {
               <TouchableOpacity
                 onPress={() => {
                   setLoginVisible(false);
-                  navigation.navigate('Registro');
+                  navigation.navigate('AccountTypeScreen');
                 }}
               >
                 <Text style={styles.loginLink}>Regístrate</Text>

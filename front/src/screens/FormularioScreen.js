@@ -1,20 +1,24 @@
-
-
-
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, ScrollView, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, ScrollView, Animated, Alert } from 'react-native';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export default function FormularioScreen({ navigation }) {
+export default function FormularioScreen({ navigation, route }) {
   const [nombre, setNombre] = useState('');
   const [rif, setRif] = useState('');
   const [lugar, setLugar] = useState('');
   const [telefono, setTelefono] = useState('');
   const [correo, setCorreo] = useState('');
   const [redes, setRedes] = useState('');
+  const [descripcion, setDescripcion] = useState(''); // si lo necesitas en actualizar
   const [errores, setErrores] = useState({});
   const [cargando, setCargando] = useState(false);
   const [verificado, setVerificado] = useState(false);
+
   const pollitoAnim = useRef(new Animated.Value(0)).current;
+  const ipAddress = "192.168.1.236"; // Cambia esto por tu IP real
+
+  // Si viene de perfil empresa
+  const empresaId = route?.params?.empresaId || null;
 
   useEffect(() => {
     let timeout;
@@ -37,7 +41,8 @@ export default function FormularioScreen({ navigation }) {
     };
   }, [cargando]);
 
-  const handleEnviar = () => {
+  // ✅ Validación
+  const validarCampos = () => {
     const nuevosErrores = {};
     if (!nombre.trim()) nuevosErrores.nombre = 'Este campo es obligatorio';
     if (!rif.trim()) nuevosErrores.rif = 'Este campo es obligatorio';
@@ -45,11 +50,126 @@ export default function FormularioScreen({ navigation }) {
     if (!telefono.trim()) nuevosErrores.telefono = 'Este campo es obligatorio';
     if (!correo.trim()) nuevosErrores.correo = 'Este campo es obligatorio';
     setErrores(nuevosErrores);
-    if (Object.keys(nuevosErrores).length === 0) {
+    console.log("Errores de validación:", nuevosErrores);
+    return Object.keys(nuevosErrores).length === 0;
+  };
+
+const handleEnviar = async () => {
+
+  
+  if (!validarCampos()) return;
+
+  const empresaId = await AsyncStorage.getItem("empresaId");
+  if (empresaId) {
+    Alert.alert("Atención", "Ya tienes una empresa creada.");
+    navigation.navigate("Empresa", { empresaId });
+    return;
+  }
+
+  console.log("Campos validados");
+  const formatearRif = (input, defaultLetter = 'J') => {
+    if (!input) return null;
+    const raw = String(input).trim().toUpperCase();
+    const letraMatch = raw.match(/^[VEJGPC]/);
+    const letra = letraMatch ? letraMatch[0] : defaultLetter;
+    const soloNumeros = raw.replace(/\D/g, '');
+    if (soloNumeros.length !== 9) return null;
+    return `${letra}-${soloNumeros.slice(0, 8)}-${soloNumeros.slice(8)}`;
+  };
+
+  const rifFormateado = formatearRif(rif);
+  if (!rifFormateado) {
+    Alert.alert("Error", "Debes ingresar 9 dígitos para el RIF");
+    return;
+  }
+
+  try {
+    setCargando(true);
+    const token = await AsyncStorage.getItem("accessToken");
+
+    const res = await fetch(`http://${ipAddress}:8000/api/empresas/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        nombre,
+        rif: rifFormateado,
+        lugar,
+        telefono,
+        email_contacto: correo,
+        redes_sociales: redes || ""
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error("Error backend:", data);
+      Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
+      return;
+    }
+
+    // Solo si todo salió bien
+    if (data.id) {
+      await AsyncStorage.setItem("empresaId", data.id.toString());
+      await AsyncStorage.setItem("accessToken", token);
+    }
+
+    console.log("Empresa creada:", data);
+    navigation.navigate("Empresa", { empresaId: data.id });
+
+  } catch (error) {
+    console.error("Error de conexión:", error);
+    Alert.alert("Error", "No se pudo conectar con el servidor");
+  } finally {
+    setCargando(false);
+  }
+};
+
+
+const handleActualizar = async () => {
+  if (!validarCampos()) return;
+
+    try {
       setCargando(true);
-      setVerificado(false);
+      const token = await AsyncStorage.getItem("accessToken");
+      console.log("Token en fetch:", token);
+
+      const res = await fetch(`http://${ipAddress}:8000/empresa/empresas/${empresaId}/`, {
+        method: "PATCH", // o "PUT" si envías todos los campos
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nombre,
+          rif,
+          descripcion,
+          lugar,
+          telefono,
+          email_contacto: correo,
+          redes_sociales: redes
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setErrores(data);
+      } else {
+        console.log("Empresa actualizada:", data);
+        navigation.goBack();
+      }
+    } catch (error) {
+      console.error("Error de conexión:", error);
+    } finally {
+      setCargando(false);
     }
   };
+
+
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -87,6 +207,14 @@ export default function FormularioScreen({ navigation }) {
           </View>
         ) : (
           <ScrollView contentContainerStyle={styles.formContainer}>
+            {/* Botón Volver */}
+            <TouchableOpacity
+              style={styles.backBtn}
+              onPress={() => navigation.navigate('AccountTypeScreen')}
+            >
+              <Text style={styles.backArrow}>←</Text>
+              <Text style={styles.backText}>Volver</Text>
+            </TouchableOpacity>
             <Text style={styles.formTitle}>Formulario de empresa</Text>
             <Text style={styles.label}>Nombre de la empresa</Text>
             <TextInput
@@ -157,8 +285,7 @@ export default function FormularioScreen({ navigation }) {
       </View>
     </SafeAreaView>
   );
-}
-// ...existing code...
+};
 
 const styles = StyleSheet.create({
   header: {
@@ -293,5 +420,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 16,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0ea5e9',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 12,
+    marginTop: 12,
+  },
+  backArrow: {
+    fontSize: 24,
+    color: '#161414ff',
+    marginRight: 8,
+  },
+  backText: {
+    color: '#171616ff',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });

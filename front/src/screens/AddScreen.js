@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function AddScreen() {
   const navigation = useNavigation();
@@ -37,6 +38,25 @@ export default function AddScreen() {
   const [edadModalVisible, setEdadModalVisible] = useState(false);
   const [ubicacionModalVisible, setUbicacionModalVisible] = useState(false);
   const [categoriaSearchText, setCategoriaSearchText] = useState('');
+  const [empresaId, setEmpresaId] = useState(null);
+
+    useEffect(() => {
+
+      const fetchMiEmpresa = async () => {
+
+        const token = await AsyncStorage.getItem('authToken');
+        const res   = await fetch(`https://${ipAddress}/api/empresa/`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setEmpresaId(data.id);
+        }
+      };
+      fetchMiEmpresa();
+    }, []);
+
+  const ipAddress = '192.168.1.236'; // Cambia esto por la IP de tu servidor
 
   // Opciones predefinidas
   const categorias = [
@@ -50,15 +70,13 @@ export default function AddScreen() {
   ];
 
   const edadesMinimas = [
-    'Todas las edades',
-    'Mayores de 13 años',
-    'Mayores de 16 años', 
-    'Mayores de 18 años',
-    'Mayores de 21 años',
-    'Mayores de 25 años',
-    // Removido 'Solo adultos (18+)' ya que es duplicado
-    'Familiar (Todas las edades)'
-  ];
+  { label: 'Todas las edades',       value: 0  },
+  { label: 'Mayores de 13 años',     value: 13 },
+  { label: 'Mayores de 16 años',     value: 16 },
+  { label: 'Mayores de 18 años',     value: 18 },
+  { label: 'Mayores de 21 años',     value: 21 },
+  { label: 'Mayores de 25 años',     value: 25 },
+];
 
   // Función para formatear precio con comas y decimales
   const formatPrice = (text) => {
@@ -87,25 +105,84 @@ export default function AddScreen() {
     categoria.toLowerCase().includes(categoriaSearchText.toLowerCase())
   );
 
-  const handleSubmit = () => {
-    if (!formData.titulo || formData.categoria.length === 0 || !formData.ubicacion) {
+
+  const handleCreateEvent = async () => {
+    const empresaId = await AsyncStorage.getItem('empresaId');
+
+
+    console.log('boton presionado')
+
+    console.log('empresaId:', empresaId)
+  if (!empresaId) {
+    Alert.alert('Error', 'No se ha recuperado el ID de tu empresa');
+    return;
+  }
+  if (!formData.titulo || formData.categoria.length === 0 || !formData.ubicacion) {
       Alert.alert('Error', 'Por favor completa los campos obligatorios (título, categoría y ubicación)');
       return;
     }
-    
-    // Validar capacidad si se ingresó
-    if (formData.capacidad) {
-      const capacidadNum = parseInt(formData.capacidad.replace(/,/g, ''));
-      if (capacidadNum < 10 || capacidadNum > 50000) {
-        Alert.alert('Error', 'La capacidad debe estar entre 10 y 50,000 personas');
-        return;
-      }
-    }
-    
-    Alert.alert('Éxito', 'Evento agregado correctamente', [
-      { text: 'OK', onPress: () => navigation.goBack() }
-    ]);
+
+  // Validar capacidad si se ingresó
+  if (formData.capacidad) {
+    const capacidadNum = parseInt(formData.capacidad.replace(/,/g, ''));
+    if (capacidadNum < 10 || capacidadNum > 50000) {
+      Alert.alert('Error', 'La capacidad debe estar entre 10 y 50,000 personas');
+      return;
+    }}
+  // Construye payload (JSON o FormData si llevas archivo)
+  const payload = {
+    titulo: formData.titulo,
+    categoria: formData.categoria,
+    codigo_vestimenta: formData.codigoVestimenta,
+    descripcion_vestimenta: formData.descripcionVestimenta,
+    edad_minima: parseInt(formData.edad_minima, 10),
+    ubicacion: formData.ubicacion,
+    capacidad: parseInt(formData.capacidad, 10),
+    descripcion: formData.descripcion,
+    precio: formData.precio === 'Entrada libre' ? 0 : parseFloat(formData.precio),
+  moneda: formData.moneda || 'USD',
+    // si fuera archivo, usar FormData y append('imagen', file)
   };
+  console.log('titulo', typeof(payload.titulo));
+  console.log('categoria', typeof(payload.categoria));
+  console.log('codigo_vestimenta', typeof(payload.codigo_vestimenta));
+  console.log('descripcion_vestimenta', typeof(payload.descripcion_vestimenta));
+  console.log('edad_minima', typeof(payload.edad_minima));
+  console.log('ubicacion', typeof(payload.ubicacion));
+  console.log('capacidad', typeof(payload.capacidad));
+  console.log('descripcion', typeof(payload.descripcion));
+  console.log('precio', typeof(payload.precio));
+  console.log('moneda', typeof(payload.moneda));
+
+  console.log('payload:', payload);
+
+  const token    = await AsyncStorage.getItem('accessToken');
+  const endpoint = `http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`;
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      Alert.alert('Error al crear evento', JSON.stringify(err));
+      return;
+    }
+
+    const newEvent = await res.json();
+    Alert.alert('Éxito', 'Evento agregado correctamente', [
+      { text: 'OK', onPress: () => navigation.navigate("Empresa") }
+    ]);
+  } catch (e) {
+    Alert.alert('Error de red', e.message);
+  }
+};
 
   const handleImageUpload = () => {
     Alert.alert(
@@ -305,16 +382,18 @@ export default function AddScreen() {
           </View>
           <FlatList
             data={edadesMinimas}
-            keyExtractor={(item) => item}
+            keyExtractor={(item) => item.value.toString()}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.modalItem}
                 onPress={() => {
-                  setFormData({ ...formData, edadMinima: item });
+                  const formEdades = { ...formData, edad_minima: item.value };
+                  setFormData(formEdades);
+                  console.log('edadMinima seleccionada:', formEdades.edad_minima);
                   setEdadModalVisible(false);
                 }}
               >
-                <Text style={styles.modalItemText}>{item}</Text>
+                <Text style={styles.modalItemText}>{item.label}</Text>
               </TouchableOpacity>
             )}
           />
@@ -583,7 +662,7 @@ export default function AddScreen() {
               />
             </View>
 
-            {/* Precio */}
+             {/* Precio */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Precio</Text>
               <View style={styles.precioOptionsContainer}>
@@ -686,7 +765,7 @@ export default function AddScreen() {
                )}
             </View>
 
-            <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
+            <TouchableOpacity style={styles.submitButton} onPress={handleCreateEvent}>
               <Text style={styles.submitButtonText}>Crear Evento</Text>
             </TouchableOpacity>
           </View>

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarModal from '../components/CalendarModal';
 import HamburgerMenu from '../components/HamburgerMenu';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image, Modal, Animated } from 'react-native';
@@ -20,6 +21,67 @@ const sectionTitles = {
 
 export default function PerfilScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false });
+  const [userName, setUserName] = useState('');
+
+  useEffect(() => {
+    
+  // Función que lee el nombre guardado en AsyncStorage
+  const fetchUserName = async () => {
+    try {
+      const name = await AsyncStorage.getItem('userName');
+
+      if (name) {
+        setUserName(name);
+      } else {
+        setUserName('');
+      }
+    } catch (error) {
+      console.log('Error al leer userName:', error);
+      setUserName('');
+    }
+  };
+  // Suscribirse al evento 'focus' de React Navigation:
+  // cada vez que la pantalla vuelva al frente, se ejecuta fetchUserName
+  const focusListener = navigation.addListener('focus', fetchUserName);
+
+  // Llamada inicial al montar la pantalla
+  fetchUserName();
+
+  // Limpiar el listener cuando el componente se desmonta
+  return () => {
+    if (focusListener) {
+      focusListener(); // quita la suscripción
+    }
+  };
+}, [navigation]);
+
+
+ const handleLogout = async () => {
+  await Promise.all([
+    AsyncStorage.removeItem('userName'),
+    AsyncStorage.removeItem('userEmail'),
+    AsyncStorage.removeItem('accessToken'),
+    AsyncStorage.removeItem('empresaId'),
+  ]);
+
+  setUserName('');
+
+  Alert.alert(
+    'Sesión cerrada',
+    'Has cerrado sesión correctamente',
+    [
+      {
+        text: 'OK',
+        onPress: () => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'HomeScreen' }], // nombre exacto en el Stack
+          });
+        },
+      },
+    ]
+  );
+};
   const [notifAnim] = useState(new Animated.Value(0));
   const [ticketAnim] = useState(new Animated.Value(0));
   const [menuVisible, setMenuVisible] = useState(false);
@@ -123,7 +185,7 @@ export default function PerfilScreen({ navigation }) {
             if (item === 'tickets') setModalVisible({ ...modalVisible, cart: true });
             else if (item === 'calendar') setModalVisible({ ...modalVisible, calendar: true });
             else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
-            else if (item === 'inicio') navigation.navigate('Inicio');
+            else if (item === 'inicio') navigation.navigate('HomeScreen');
             else if (item === 'register') navigation.navigate('Empresa');
             else if (item === 'empresa_form') navigation.navigate('Formulario');
           }}
@@ -138,7 +200,13 @@ export default function PerfilScreen({ navigation }) {
             style={styles.profileImage}
           />
         </TouchableOpacity>
-        <Text style={styles.userName}>Usuario</Text>
+        <Text style={styles.userName}>{userName ? userName : 'Usuario'}</Text>
+        {/* Botón cerrar sesión si hay usuario logueado */}
+        {userName ? (
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
+            <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
+          </TouchableOpacity>
+        ) : null}
         <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>30</Text></Text>
         {renderSectionButtons()}
       </View>
@@ -390,6 +458,20 @@ const styles = StyleSheet.create({
   editButton: { borderWidth: 1, borderColor: '#d1d5db', padding: 8, borderRadius: 8, backgroundColor: '#f3f4f6', marginBottom: 8 },
   editButtonText: { color: '#374151', fontSize: 14 },
   userName: { fontSize: 24, fontWeight: '600', color: '#fff', marginBottom: 4 },
+  logoutButton: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+    marginBottom: 8,
+    alignItems: 'center',
+    alignSelf: 'center',
+  },
+  logoutButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
   userStats: { fontSize: 16, color: '#fff', marginBottom: 8 },
   highlight: { color: '#ff007f', fontWeight: 'bold' },
   buttonRow: {
