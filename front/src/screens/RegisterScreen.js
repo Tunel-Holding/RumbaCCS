@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { Alert } from 'react-native';
-import { Alert } from 'react-native';
 import { Modal } from 'react-native';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
@@ -73,7 +71,7 @@ export const registerUser = async (formData) => {
 
 
 
-export default function RegisterScreen({ navigation }) {
+export default function RegisterScreen({ navigation, route }) {
   const [showEdadModal, setShowEdadModal] = useState(false);
   const [sexo, setSexo] = useState('masculino');
   const [user, setUser] = useState('');
@@ -86,28 +84,12 @@ export default function RegisterScreen({ navigation }) {
   const [repeatPass, setRepeatPass] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [showRepeatPass, setShowRepeatPass] = useState(false);
+  const { accountType } = route.params ?? {};
 
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
 
-  const onSubmit = async () => {
-    setErrors({});
-    setFormError('');
-    try {
-      await registerUser({ username, email, password });
-      // navegación o éxito
-    } catch (e) {
-      if (e.fields) {
-        setErrors(e.fields); // Ej: { email: ["Este correo ya está registrado"] }
-        setFormError(e.message);
-      } else {
-        setFormError('Error al registrar');
-      }
-    }
-  };
-
-
-const handleRegister = async () => {
+  const handleRegister = async () => {
   try {
 
     const birthday = fechaNacimiento instanceof Date
