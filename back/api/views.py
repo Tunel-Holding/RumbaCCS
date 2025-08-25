@@ -44,6 +44,28 @@ class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
     
 
+class RegistroUsuarioView(generics.CreateAPIView):
+    serializer_class = RegisterSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'message': 'Usuario creado con éxito',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'username': user.username,
+                'phone': user.phone,
+                'birthday': str(user.birthday),
+                'region': user.region,
+                'gender': user.gender
+            },
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_201_CREATED)
 
 class SendVerificationCodeView(APIView):
     def post(self, request):
@@ -81,9 +103,12 @@ class VerifyCodeView(APIView):
             return Response({'error': 'Código incorrecto.'}, status=status.HTTP_400_BAD_REQUEST)
         if verification.expires_at < timezone.now():
             return Response({'error': 'Código expirado.'}, status=status.HTTP_400_BAD_REQUEST)
+        
         verification.is_verified = True
         verification.save()
+        
         return Response({'message': 'Correo verificado.'}, status=status.HTTP_200_OK)
+
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UserPublicSerializer

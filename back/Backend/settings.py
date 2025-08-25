@@ -174,3 +174,12 @@ SIMPLE_JWT = {
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
 }
+
+# Configuración de correo para envío de códigos de verificación
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'noreplyrumbaccs@gmail.com'  # Cambia por tu correo real si usas Gmail
+EMAIL_HOST_PASSWORD = 'savq xntq kvon efmo'
+DEFAULT_FROM_EMAIL = 'noreplyrumbaccs@gmail.com'

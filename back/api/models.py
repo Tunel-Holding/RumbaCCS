@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.utils import timezone
 
 from django.contrib.auth.models import BaseUserManager
 
@@ -85,10 +86,8 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     def __str__(self):
         return self.username
 
-    import uuid
-    from django.utils import timezone
 
-    class EmailVerification(models.Model):
+class EmailVerification(models.Model):
         email = models.EmailField(unique=True)
         code = models.CharField(max_length=6)
         created_at = models.DateTimeField(auto_now_add=True)
