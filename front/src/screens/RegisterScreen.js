@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Alert } from 'react-native';
+import { Alert } from 'react-native';
 import { Modal } from 'react-native';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,10 +8,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-const ipAddress ='192.168.1.236'; // Cambia esto por la IP de tu servidor
+const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
 const API_URL = `http://${ipAddress}:8000/api`;
 
@@ -70,7 +72,8 @@ export const registerUser = async (formData) => {
 
 
 
-export default function RegisterScreen({ navigation, route }) {
+
+export default function RegisterScreen({ navigation }) {
   const [showEdadModal, setShowEdadModal] = useState(false);
   const [sexo, setSexo] = useState('masculino');
   const [user, setUser] = useState('');
@@ -86,8 +89,6 @@ export default function RegisterScreen({ navigation, route }) {
 
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
-
-  const accountType = route?.params?.accountType || 'normal'; // 'normal' o 'empresa'
 
   const onSubmit = async () => {
     setErrors({});

@@ -19,8 +19,6 @@ export default function HomeScreen() {
   const [isLogged, setIsLogged] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const ipAddress = '192.168.1.236'; // Cambia esto por la IP de tu servidor
-
 
   useEffect(() => {
     const checkSession = async () => {
@@ -133,6 +131,8 @@ export default function HomeScreen() {
 
     fetchEventos();
   }, []);
+
+
 
   // Eventos de ejemplo
   // const events = [

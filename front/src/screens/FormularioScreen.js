@@ -15,7 +15,7 @@ export default function FormularioScreen({ navigation, route }) {
   const [verificado, setVerificado] = useState(false);
 
   const pollitoAnim = useRef(new Animated.Value(0)).current;
-  const ipAddress = "192.168.1.236"; // Cambia esto por tu IP real
+  const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
 
   // Si viene de perfil empresa
   const empresaId = route?.params?.empresaId || null;
@@ -286,6 +286,8 @@ const handleActualizar = async () => {
     </SafeAreaView>
   );
 };
+
+// ...existing code...
 
 const styles = StyleSheet.create({
   header: {

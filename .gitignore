@@ -1,2 +1,28 @@
-venv/
 node_modules/
+# 🚫 Caches de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# 📦 Entornos virtuales
+venv/
+.env/
+.envrc
+
+# 🛠️ Archivos de compilación o bases temporales
+*.sqlite3
+*.log
+*.db
+
+# 🧪 Archivos de testing temporales
+*.coverage
+htmlcov/
+nosetests.xml
+coverage.xml
+*.pytest_cache/
+
+# 🪟 Archivos ocultos comunes
+.DS_Store
+Thumbs.db
