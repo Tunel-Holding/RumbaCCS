@@ -1,3 +1,4 @@
+import email
 from django.shortcuts import render
 from rest_framework import viewsets, permissions, generics, status
 from django.contrib.auth import get_user_model, authenticate
@@ -10,27 +11,9 @@ from .models import EmailVerification
 from django.core.mail import send_mail
 from django.utils import timezone
 import random
+from django.conf import settings
 
 Usuario = get_user_model()
-class RegisterView(generics.CreateAPIView):
-    permission_classes = [permissions.AllowAny]
-    serializer_class = RegisterSerializer
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-
-        # Generar tokens al registrar
-        refresh = RefreshToken.for_user(user)
-        user_payload = UserPublicSerializer(user).data
-
-        return Response({
-            "message": "Usuario creado con éxito",
-            "user": user_payload,
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-        }, status=status.HTTP_201_CREATED)
 
 class MeView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -51,9 +34,35 @@ class RegistroUsuarioView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        
+        # Enviar código de verificación al correo
+        email = user.email
+        code = str(random.randint(100000, 999999))
+        expires_at = timezone.now() + timezone.timedelta(minutes=10)
+        print(f"Enviando código de verificación: {code} a {email}")
+        EmailVerification.objects.update_or_create(
+            email=email,
+            defaults={
+                'code': code,
+                'expires_at': expires_at,
+                'is_verified': False
+            }
+        )
+        print("FROM:", settings.DEFAULT_FROM_EMAIL, "TO:", email)
+        
+        send_mail(
+            'Tu código de verificación',
+            f'Tu código es: {code}',
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+        )
+        
+        
+        
         refresh = RefreshToken.for_user(user)
         return Response({
-            'message': 'Usuario creado con éxito',
+            'message': 'Usuario creado con éxito, se ha enviado un código de verificación a tu correo.',
             'user': {
                 'id': user.id,
                 'email': user.email,
@@ -82,10 +91,13 @@ class SendVerificationCodeView(APIView):
                 'is_verified': False
             }
         )
+        
+        print(settings.EMAIL_HOST_USER)
+        
         send_mail(
             'Tu código de verificación',
             f'Tu código es: {code}',
-            'noreply@rumbaccs.com',
+            settings.DEFAULT_FROM_EMAIL,
             [email],
             fail_silently=False,
         )
