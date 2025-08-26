@@ -25,51 +25,6 @@ class MeView(generics.RetrieveUpdateAPIView):
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
-    
-class RegistroUsuarioView(generics.CreateAPIView):
-    serializer_class = RegisterSerializer
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-
-        # Enviar código de verificación al correo
-        email = user.email
-        code = str(random.randint(100000, 999999))
-        expires_at = timezone.now() + timezone.timedelta(minutes=10)
-        print(f"Enviando código de verificación: {code} a {email}")
-        EmailVerification.objects.update_or_create(
-            email=email,
-            defaults={
-                'code': code,
-                'expires_at': expires_at,
-                'is_verified': False
-            }
-        )
-        send_mail(
-            'Tu código de verificación',
-            f'Tu código es: {code}',
-            'noreplyrumbaccs@gmail.com',
-            [email],
-            fail_silently=False,
-        )
-
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'message': 'Usuario creado con éxito. Código enviado al correo.',
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'username': user.username,
-                'phone': user.phone,
-                'birthday': str(user.birthday),
-                'region': user.region,
-                'gender': user.gender
-            },
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }, status=status.HTTP_201_CREATED)
 
 class RegistroUsuarioView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
