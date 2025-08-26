@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,12 +12,21 @@ import {
   Modal,
   FlatList,
   Image,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeMargins, getDeviceType, hasNotch } from '../utils/safeAreaUtils';
+import { getResponsiveStyles, getBottomSafeAreaHeight, getTopSafeAreaHeight } from '../utils/deviceConfig';
 
 export default function AddScreen() {
   const navigation = useNavigation();
+  const safeMargins = useSafeMargins();
+  const deviceType = getDeviceType();
+  const hasNotchDevice = hasNotch();
+  const responsiveStyles = getResponsiveStyles();
+  
   const [formData, setFormData] = useState({
     titulo: '',
     categoria: [], // Cambiado de string a array para múltiples selecciones
@@ -38,25 +47,6 @@ export default function AddScreen() {
   const [edadModalVisible, setEdadModalVisible] = useState(false);
   const [ubicacionModalVisible, setUbicacionModalVisible] = useState(false);
   const [categoriaSearchText, setCategoriaSearchText] = useState('');
-  const [empresaId, setEmpresaId] = useState(null);
-
-    useEffect(() => {
-
-      const fetchMiEmpresa = async () => {
-
-        const token = await AsyncStorage.getItem('authToken');
-        const res   = await fetch(`https://${ipAddress}/api/empresa/`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setEmpresaId(data.id);
-        }
-      };
-      fetchMiEmpresa();
-    }, []);
-
-  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
   // Opciones predefinidas
   const categorias = [
@@ -70,13 +60,15 @@ export default function AddScreen() {
   ];
 
   const edadesMinimas = [
-  { label: 'Todas las edades',       value: 0  },
-  { label: 'Mayores de 13 años',     value: 13 },
-  { label: 'Mayores de 16 años',     value: 16 },
-  { label: 'Mayores de 18 años',     value: 18 },
-  { label: 'Mayores de 21 años',     value: 21 },
-  { label: 'Mayores de 25 años',     value: 25 },
-];
+    'Todas las edades',
+    'Mayores de 13 años',
+    'Mayores de 16 años', 
+    'Mayores de 18 años',
+    'Mayores de 21 años',
+    'Mayores de 25 años',
+    // Removido 'Solo adultos (18+)' ya que es duplicado
+    'Familiar (Todas las edades)'
+  ];
 
   // Función para formatear precio con comas y decimales
   const formatPrice = (text) => {
@@ -105,84 +97,25 @@ export default function AddScreen() {
     categoria.toLowerCase().includes(categoriaSearchText.toLowerCase())
   );
 
-
-  const handleCreateEvent = async () => {
-    const empresaId = await AsyncStorage.getItem('empresaId');
-
-
-    console.log('boton presionado')
-
-    console.log('empresaId:', empresaId)
-  if (!empresaId) {
-    Alert.alert('Error', 'No se ha recuperado el ID de tu empresa');
-    return;
-  }
-  if (!formData.titulo || formData.categoria.length === 0 || !formData.ubicacion) {
+  const handleSubmit = () => {
+    if (!formData.titulo || formData.categoria.length === 0 || !formData.ubicacion) {
       Alert.alert('Error', 'Por favor completa los campos obligatorios (título, categoría y ubicación)');
       return;
     }
-
-  // Validar capacidad si se ingresó
-  if (formData.capacidad) {
-    const capacidadNum = parseInt(formData.capacidad.replace(/,/g, ''));
-    if (capacidadNum < 10 || capacidadNum > 50000) {
-      Alert.alert('Error', 'La capacidad debe estar entre 10 y 50,000 personas');
-      return;
-    }}
-  // Construye payload (JSON o FormData si llevas archivo)
-  const payload = {
-    titulo: formData.titulo,
-    categoria: formData.categoria,
-    codigo_vestimenta: formData.codigoVestimenta,
-    descripcion_vestimenta: formData.descripcionVestimenta,
-    edad_minima: parseInt(formData.edad_minima, 10),
-    ubicacion: formData.ubicacion,
-    capacidad: parseInt(formData.capacidad, 10),
-    descripcion: formData.descripcion,
-    precio: formData.precio === 'Entrada libre' ? 0 : parseFloat(formData.precio),
-  moneda: formData.moneda || 'USD',
-    // si fuera archivo, usar FormData y append('imagen', file)
-  };
-  console.log('titulo', typeof(payload.titulo));
-  console.log('categoria', typeof(payload.categoria));
-  console.log('codigo_vestimenta', typeof(payload.codigo_vestimenta));
-  console.log('descripcion_vestimenta', typeof(payload.descripcion_vestimenta));
-  console.log('edad_minima', typeof(payload.edad_minima));
-  console.log('ubicacion', typeof(payload.ubicacion));
-  console.log('capacidad', typeof(payload.capacidad));
-  console.log('descripcion', typeof(payload.descripcion));
-  console.log('precio', typeof(payload.precio));
-  console.log('moneda', typeof(payload.moneda));
-
-  console.log('payload:', payload);
-
-  const token    = await AsyncStorage.getItem('accessToken');
-  const endpoint = `http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`;
-
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const err = await res.json();
-      Alert.alert('Error al crear evento', JSON.stringify(err));
-      return;
+    
+    // Validar capacidad si se ingresó
+    if (formData.capacidad) {
+      const capacidadNum = parseInt(formData.capacidad.replace(/,/g, ''));
+      if (capacidadNum < 10 || capacidadNum > 50000) {
+        Alert.alert('Error', 'La capacidad debe estar entre 10 y 50,000 personas');
+        return;
+      }
     }
-
-    const newEvent = await res.json();
+    
     Alert.alert('Éxito', 'Evento agregado correctamente', [
-      { text: 'OK', onPress: () => navigation.navigate("Empresa") }
+      { text: 'OK', onPress: () => navigation.goBack() }
     ]);
-  } catch (e) {
-    Alert.alert('Error de red', e.message);
-  }
-};
+  };
 
   const handleImageUpload = () => {
     Alert.alert(
@@ -382,18 +315,16 @@ export default function AddScreen() {
           </View>
           <FlatList
             data={edadesMinimas}
-            keyExtractor={(item) => item.value.toString()}
+            keyExtractor={(item) => item}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.modalItem}
                 onPress={() => {
-                  const formEdades = { ...formData, edad_minima: item.value };
-                  setFormData(formEdades);
-                  console.log('edadMinima seleccionada:', formEdades.edad_minima);
+                  setFormData({ ...formData, edadMinima: item });
                   setEdadModalVisible(false);
                 }}
               >
-                <Text style={styles.modalItemText}>{item.label}</Text>
+                <Text style={styles.modalItemText}>{item}</Text>
               </TouchableOpacity>
             )}
           />
@@ -475,11 +406,15 @@ export default function AddScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+    <SafeAreaView style={[styles.container, { paddingTop: safeMargins.top }]}>
+      <StatusBar 
+        barStyle="light-content" 
+        translucent={Platform.OS === 'android'}
+        backgroundColor="transparent"
+      />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: hasNotchDevice ? 8 : 12 }]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -490,8 +425,12 @@ export default function AddScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: safeMargins.bottom + 20 }}
+      >
+        <View style={[styles.content, { paddingHorizontal: safeMargins.horizontal }]}>
           <Text style={styles.title}>Crear Nuevo Evento</Text>
           
           <View style={styles.form}>
@@ -662,7 +601,7 @@ export default function AddScreen() {
               />
             </View>
 
-             {/* Precio */}
+            {/* Precio */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Precio</Text>
               <View style={styles.precioOptionsContainer}>
@@ -765,8 +704,21 @@ export default function AddScreen() {
                )}
             </View>
 
-            <TouchableOpacity style={styles.submitButton} onPress={handleCreateEvent}>
-              <Text style={styles.submitButtonText}>Crear Evento</Text>
+            <TouchableOpacity 
+              style={[
+                styles.submitButton, 
+                { 
+                  height: responsiveStyles.button.height,
+                  paddingHorizontal: responsiveStyles.button.paddingHorizontal,
+                  borderRadius: responsiveStyles.button.borderRadius,
+                  marginBottom: getBottomSafeAreaHeight() + 20
+                }
+              ]} 
+              onPress={handleSubmit}
+            >
+              <Text style={[styles.submitButtonText, responsiveStyles.text.large]}>
+                Crear Evento
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -794,6 +746,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#1e293b',
+    // Asegurar que el header esté por encima del status bar en Android
+    elevation: Platform.OS === 'android' ? 4 : 0,
+    shadowColor: Platform.OS === 'ios' ? '#000' : undefined,
+    shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 2 } : undefined,
+    shadowOpacity: Platform.OS === 'ios' ? 0.1 : undefined,
+    shadowRadius: Platform.OS === 'ios' ? 4 : undefined,
   },
   backButton: {
     padding: 8,
@@ -819,6 +777,8 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     alignSelf: 'center',
     width: '100%',
+    // Asegurar que el contenido no se superponga con elementos del sistema
+    paddingBottom: Platform.OS === 'ios' ? 34 : 48, // Home indicator / Navigation bar
   },
   title: {
     color: '#fff',
@@ -926,6 +886,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 20,
+    // Asegurar que el botón sea accesible
+    minHeight: 56,
+    justifyContent: 'center',
   },
   submitButtonText: {
     color: '#fff',
@@ -938,6 +901,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    // Asegurar que el modal respete los márgenes seguros
+    paddingTop: Platform.OS === 'ios' ? 44 : 0, // Status bar height
+    paddingBottom: Platform.OS === 'ios' ? 34 : 0, // Home indicator
   },
   modalContent: {
     backgroundColor: '#1e293b',
@@ -945,6 +911,14 @@ const styles = StyleSheet.create({
     padding: 20,
     width: '90%',
     maxHeight: '80%',
+    // Asegurar que el modal se adapte a diferentes tamaños de pantalla
+    maxWidth: Platform.OS === 'tablet' ? 500 : '90%',
+    // Añadir sombra para mejor visibilidad
+    elevation: Platform.OS === 'android' ? 8 : 0,
+    shadowColor: Platform.OS === 'ios' ? '#000' : undefined,
+    shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 4 } : undefined,
+    shadowOpacity: Platform.OS === 'ios' ? 0.3 : undefined,
+    shadowRadius: Platform.OS === 'ios' ? 8 : undefined,
   },
   modalHeader: {
     flexDirection: 'row',
