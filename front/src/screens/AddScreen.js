@@ -29,9 +29,9 @@ export default function AddScreen() {
   
   const [formData, setFormData] = useState({
     titulo: '',
-    categoria: [], // Cambiado de string a array para múltiples selecciones
+    categoria: [],
     codigoVestimenta: '',
-    descripcionVestimenta: '', // Nuevo campo para descripción de vestimenta
+    descripcionVestimenta: '',
     edadMinima: '',
     ubicacion: '',
     capacidad: '',
@@ -40,6 +40,7 @@ export default function AddScreen() {
     moneda: 'USD',
     imagen: '',
   });
+  const [showPrecio, setShowPrecio] = useState(false);
 
   // Estados para los modales
   const [categoriaModalVisible, setCategoriaModalVisible] = useState(false);
@@ -102,7 +103,14 @@ export default function AddScreen() {
       Alert.alert('Error', 'Por favor completa los campos obligatorios (título, categoría y ubicación)');
       return;
     }
-    
+    // Validar precio distinto de 0 cuando se usa precio (no entrada libre)
+    if (showPrecio && formData.precio !== 'Entrada libre') {
+      const numericPrice = parseFloat(cleanPrice(formData.precio || '0')) || 0;
+      if (numericPrice <= 0) {
+        Alert.alert('Precio inválido', 'Debes ingresar un precio mayor a 0.');
+        return;
+      }
+    }
     // Validar capacidad si se ingresó
     if (formData.capacidad) {
       const capacidadNum = parseInt(formData.capacidad.replace(/,/g, ''));
@@ -111,7 +119,6 @@ export default function AddScreen() {
         return;
       }
     }
-    
     Alert.alert('Éxito', 'Evento agregado correctamente', [
       { text: 'OK', onPress: () => navigation.goBack() }
     ]);
@@ -610,7 +617,10 @@ export default function AddScreen() {
                     styles.precioOptionButton,
                     formData.precio === 'Entrada libre' && styles.precioOptionButtonActive
                   ]}
-                  onPress={() => setFormData({...formData, precio: 'Entrada libre'})}
+                  onPress={() => {
+                    setShowPrecio(false);
+                    setFormData({ ...formData, precio: 'Entrada libre' });
+                  }}
                 >
                   <Text style={[
                     styles.precioOptionText,
@@ -619,89 +629,81 @@ export default function AddScreen() {
                     🆓 Entrada libre
                   </Text>
                 </TouchableOpacity>
-                
-                                 <TouchableOpacity
-                   style={[
-                     styles.precioOptionButton,
-                     formData.precio && formData.precio !== 'Entrada libre' && styles.precioOptionButtonActive
-                   ]}
-                   onPress={() => {
-                     if (formData.precio === 'Entrada libre') {
-                       setFormData({...formData, precio: '', moneda: 'USD'});
-                     } else {
-                       setFormData({...formData, precio: '0', moneda: 'USD'});
-                     }
-                   }}
-                 >
-                   <Text style={[
-                     styles.precioOptionText,
-                     formData.precio && formData.precio !== 'Entrada libre' && styles.precioOptionTextActive
-                   ]}>
-                     💰 Precio
-                   </Text>
-                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.precioOptionButton,
+                    showPrecio && formData.precio !== 'Entrada libre' && styles.precioOptionButtonActive
+                  ]}
+                  onPress={() => {
+                    // Toggle del modo precio
+                    if (!showPrecio) {
+                      setShowPrecio(true);
+                      // Reiniciar a vacío (permitir borrar sin ocultar input)
+                      setFormData({ ...formData, precio: '', moneda: 'USD' });
+                    } else {
+                      setShowPrecio(false);
+                      setFormData({ ...formData, precio: '' });
+                    }
+                  }}
+                >
+                  <Text style={[
+                    styles.precioOptionText,
+                    showPrecio && formData.precio !== 'Entrada libre' && styles.precioOptionTextActive
+                  ]}>
+                    💰 Precio
+                  </Text>
+                </TouchableOpacity>
               </View>
-              
-                             {formData.precio && formData.precio !== 'Entrada libre' && (
-                 <View style={styles.precioInputContainer}>
-                   <Text style={styles.precioInputLabel}>Ingresa el precio:</Text>
-                   
-                   {/* Selector de moneda */}
-                   <View style={styles.monedaSelectorContainer}>
-                     <TouchableOpacity
-                       style={[
-                         styles.monedaOption,
-                         formData.moneda === 'USD' && styles.monedaOptionActive
-                       ]}
-                       onPress={() => setFormData({...formData, moneda: 'USD'})}
-                     >
-                       <Text style={[
-                         styles.monedaOptionText,
-                         formData.moneda === 'USD' && styles.monedaOptionTextActive
-                       ]}>
-                         💵 USD
-                       </Text>
-                     </TouchableOpacity>
-                     
-                     <TouchableOpacity
-                       style={[
-                         styles.monedaOption,
-                         formData.moneda === 'VES' && styles.monedaOptionActive
-                       ]}
-                       onPress={() => setFormData({...formData, moneda: 'VES'})}
-                     >
-                       <Text style={[
-                         styles.monedaOptionText,
-                         formData.moneda === 'VES' && styles.monedaOptionTextActive
-                       ]}>
-                         💰 VES
-                       </Text>
-                     </TouchableOpacity>
-                   </View>
-                   
-                   {/* Input de precio con formato */}
-                   <TextInput
-                     style={styles.precioInput}
-                     value={formData.precio}
-                     onChangeText={(text) => {
-                       const formatted = formatPrice(text);
-                       setFormData({...formData, precio: formatted});
-                     }}
-                     placeholder={formData.moneda === 'USD' ? "Ej: 25,000.00" : "Ej: 1,250,000.00"}
-                     placeholderTextColor="#64748b"
-                     keyboardType="numeric"
-                   />
-                   
-                   {/* Precio formateado mostrado */}
-                   {formData.precio && formData.precio !== '0' && (
-                     <View style={styles.precioFormateadoContainer}>
-                       <Text style={styles.precioFormateadoText}>
-                         Precio: {formData.moneda === 'USD' ? '$' : 'Bs '}{formData.precio}
-                       </Text>
-                     </View>
-                   )}
-                 </View>
-               )}
+              {showPrecio && formData.precio !== 'Entrada libre' && (
+                <View style={styles.precioInputContainer}>
+                  <Text style={styles.precioInputLabel}>Ingresa el precio:</Text>
+                  <View style={styles.monedaSelectorContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.monedaOption,
+                        formData.moneda === 'USD' && styles.monedaOptionActive
+                      ]}
+                      onPress={() => setFormData({ ...formData, moneda: 'USD' })}
+                    >
+                      <Text style={[
+                        styles.monedaOptionText,
+                        formData.moneda === 'USD' && styles.monedaOptionTextActive
+                      ]}>💵 USD</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.monedaOption,
+                        formData.moneda === 'VES' && styles.monedaOptionActive
+                      ]}
+                      onPress={() => setFormData({ ...formData, moneda: 'VES' })}
+                    >
+                      <Text style={[
+                        styles.monedaOptionText,
+                        formData.moneda === 'VES' && styles.monedaOptionTextActive
+                      ]}>💰 VES</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    style={styles.precioInput}
+                    value={formData.precio}
+                    onChangeText={(text) => {
+                      const formatted = formatPrice(text);
+                      setFormData({ ...formData, precio: formatted });
+                      // Eliminados console.log de cambios de precio
+                    }}
+                    placeholder={formData.moneda === 'USD' ? 'Ej: 25,000.00' : 'Ej: 1,250,000.00'}
+                    placeholderTextColor="#64748b"
+                    keyboardType="numeric"
+                  />
+                  {formData.precio && formData.precio !== '0' && (
+                    <View style={styles.precioFormateadoContainer}>
+                      <Text style={styles.precioFormateadoText}>
+                        Precio: {formData.moneda === 'USD' ? '$' : 'Bs '}{formData.precio}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
 
             <TouchableOpacity 

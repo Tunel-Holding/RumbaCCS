@@ -176,7 +176,7 @@ const handleActualizar = async () => {
 
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top }}>
       <View style={styles.header} />
       <View style={styles.body}>
         {cargando ? (

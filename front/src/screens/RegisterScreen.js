@@ -370,55 +370,83 @@ export default function RegisterScreen({ navigation, route }) {
 
 // Nueva pantalla para seleccionar tipo de cuenta
 export function AccountTypeScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', alignItems: 'center' }}>
-      <View style={{
-        backgroundColor: 'rgba(30,41,59,0.92)',
-        borderRadius: 16,
-        maxWidth: 400,
-        width: width < 400 ? width - 32 : 400,
-        padding: 24,
-        alignItems: 'center',
-        shadowColor: '#e9dbdbff',
-        shadowOpacity: 0.2,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 8,
-        elevation: 8,
-      }}>
-        <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#ec4899', marginBottom: 16 }}>Tipo de Cuenta</Text>
-        <TouchableOpacity
-          style={{
-            backgroundColor: '#2563eb',
-            borderRadius: 8,
-            paddingVertical: 16,
-            paddingHorizontal: 24,
-            marginBottom: 16,
-            width: '100%',
-            alignItems: 'center',
-          }}
-          onPress={() => navigation.navigate('RegisterScreen', { accountType: 'normal' })}
-        >
-          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Normal</Text>
-          <Text style={{ color: '#fff', fontSize: 14, marginTop: 4, textAlign: 'center' }}>
-            Cuenta de usuario para ver eventos y RUMBEAR
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{
-            backgroundColor: '#0ea5e9',
-            borderRadius: 8,
-            paddingVertical: 16,
-            paddingHorizontal: 24,
-            width: '100%',
-            alignItems: 'center',
-          }}
-          onPress={() => navigation.navigate('FormularioScreen', { accountType: 'empresa' })}
-        >
-          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Empresa</Text>
-          <Text style={{ color: '#fff', fontSize: 14, marginTop: 4, textAlign: 'center' }}>
-            Cuenta empresarial para publicar eventos y ser tu el que prende la RUMBA
-          </Text>
-        </TouchableOpacity>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top }}>
+      {/* Botón volver al menú principal mejorado (azul) */}
+      <TouchableOpacity
+        onPress={() => navigation.navigate('HomeScreen')}
+        style={{
+          position: 'absolute',
+          top: insets.top + 10,
+          left: 16,
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: '#3b82f6', // Azul agradable
+          paddingVertical: 12,
+          paddingHorizontal: 22,
+          borderRadius: 32,
+          zIndex: 10,
+          shadowColor: '#1e40af',
+          shadowOpacity: 0.35,
+          shadowOffset: { width: 0, height: 4 },
+          shadowRadius: 8,
+          elevation: 6,
+        }}
+        activeOpacity={0.9}
+      >
+        <Text style={{ color: '#fff', fontSize: 22, fontWeight: '900', marginRight: 8 }}>←</Text>
+        <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 }}>Volver</Text>
+      </TouchableOpacity>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 16 }}>
+        <View style={{
+          backgroundColor: 'rgba(30,41,59,0.92)',
+          borderRadius: 16,
+          maxWidth: 400,
+          width: width < 400 ? width - 32 : 400,
+          padding: 24,
+          alignItems: 'center',
+          shadowColor: '#e9dbdbff',
+          shadowOpacity: 0.2,
+          shadowOffset: { width: 0, height: 2 },
+          shadowRadius: 8,
+          elevation: 8,
+        }}>
+          <Text style={{ fontSize: 28, fontWeight: 'bold', color: '#ec4899', marginBottom: 16 }}>Tipo de Cuenta</Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#2563eb',
+              borderRadius: 8,
+              paddingVertical: 16,
+              paddingHorizontal: 24,
+              marginBottom: 16,
+              width: '100%',
+              alignItems: 'center',
+            }}
+            onPress={() => navigation.navigate('RegisterScreen', { accountType: 'normal' })}
+          >
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Normal</Text>
+            <Text style={{ color: '#fff', fontSize: 14, marginTop: 4, textAlign: 'center' }}>
+              Cuenta de usuario para ver eventos y RUMBEAR
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#0ea5e9',
+              borderRadius: 8,
+              paddingVertical: 16,
+              paddingHorizontal: 24,
+              width: '100%',
+              alignItems: 'center',
+            }}
+            onPress={() => navigation.navigate('FormularioScreen', { accountType: 'empresa' })}
+          >
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Empresa</Text>
+            <Text style={{ color: '#fff', fontSize: 14, marginTop: 4, textAlign: 'center' }}>
+              Cuenta empresarial para publicar eventos y ser tu el que prende la RUMBA
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
