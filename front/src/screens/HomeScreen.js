@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const [isLogged, setIsLogged] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
   useEffect(() => {
     const checkSession = async () => {
@@ -195,36 +196,38 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 48, paddingTop: 48 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header unificado */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Rumba<Text style={{ color: '#ec4899' }}>CCS</Text></Text>
-          {/* Botón iniciar sesión y foto de perfil */}
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {isLogged ? (
-              <TouchableOpacity
-                style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
-                onPress={handleLogout}
-              >
-                <Text style={styles.loginBtnText}>Cerrar sesión</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.loginBtn}
-                onPress={() => setLoginVisible(true)}
-              >
-                <Text style={styles.loginBtnText}>Iniciar sesión</Text>
-              </TouchableOpacity>
-            )}
-            {
-              isLogged && (
+          <View style={styles.headerContainer}>
+            <View style={styles.logoContainer}>
+              <Text style={styles.logoText}>R U M B A</Text>
+              <Text style={styles.logoSubtext}>CCS</Text>
+            </View>
+            <View style={styles.headerRight}>
+              {isLogged ? (
+                <TouchableOpacity
+                  style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
+                  onPress={handleLogout}
+                >
+                  <Text style={styles.loginBtnText}>Cerrar sesión</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.loginBtn}
+                  onPress={() => setLoginVisible(true)}
+                >
+                  <Text style={styles.loginBtnText}>Iniciar sesión</Text>
+                </TouchableOpacity>
+              )}
+              {isLogged && (
                 <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
                   <Image
                     source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
                     style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
                   />
                 </TouchableOpacity>
-              )
-            }
+              )}
+            </View>
           </View>
         </View>
 
@@ -255,6 +258,9 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        {/* Botón para ir a Empresa */}
+  {/* Botón a Empresa removido según solicitud */}
 
         {/* Eventos */}
         <Text style={styles.sectionTitle}>Próximos eventos</Text>
@@ -404,7 +410,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     zIndex: 10,
   },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 8 },
+  header: { backgroundColor: '#0f172a', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', marginBottom: 12 },
+  headerContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  logoContainer: { flexDirection: 'row', alignItems: 'flex-end' },
+  logoText: { fontSize: 24, fontWeight: 'bold', color: '#ffffff' },
+  logoSubtext: { fontSize: 16, fontWeight: '600', color: '#db2777', marginLeft: 4 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
   menuBtn: {
     width: 40,
     height: 40,
@@ -420,7 +431,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   logo: { width: 40, height: 40, borderRadius: 20 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginLeft: 8, flex: 1 },
   loginBtn: { backgroundColor: '#0ea5e9', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
   loginBtnText: { color: '#fff', fontWeight: 'bold' },
   heroSection: { height: width < 600 ? 180 : 260, marginBottom: 16, borderRadius: 16, overflow: 'hidden', position: 'relative' },

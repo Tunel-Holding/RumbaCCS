@@ -12,12 +12,22 @@ import {
   Modal,
   FlatList,
   Image,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeMargins, getDeviceType, hasNotch } from '../utils/safeAreaUtils';
+import { getResponsiveStyles, getBottomSafeAreaHeight, getTopSafeAreaHeight } from '../utils/deviceConfig';
 
 export default function AddScreen() {
   const navigation = useNavigation();
+  const safeMargins = useSafeMargins();
+  const deviceType = getDeviceType();
+  const hasNotchDevice = hasNotch();
+  const responsiveStyles = getResponsiveStyles();
+  
   const [formData, setFormData] = useState({
     titulo: '',
     categoria: [], // Cambiado de string a array para múltiples selecciones
@@ -76,7 +86,7 @@ export default function AddScreen() {
   { label: 'Mayores de 18 años',     value: 18 },
   { label: 'Mayores de 21 años',     value: 21 },
   { label: 'Mayores de 25 años',     value: 25 },
-];
+  ];
 
   // Función para formatear precio con comas y decimales
   const formatPrice = (text) => {
@@ -117,17 +127,17 @@ export default function AddScreen() {
     Alert.alert('Error', 'No se ha recuperado el ID de tu empresa');
     return;
   }
-  if (!formData.titulo || formData.categoria.length === 0 || !formData.ubicacion) {
+    if (!formData.titulo || formData.categoria.length === 0 || !formData.ubicacion) {
       Alert.alert('Error', 'Por favor completa los campos obligatorios (título, categoría y ubicación)');
       return;
     }
-
-  // Validar capacidad si se ingresó
-  if (formData.capacidad) {
-    const capacidadNum = parseInt(formData.capacidad.replace(/,/g, ''));
-    if (capacidadNum < 10 || capacidadNum > 50000) {
-      Alert.alert('Error', 'La capacidad debe estar entre 10 y 50,000 personas');
-      return;
+    
+    // Validar capacidad si se ingresó
+    if (formData.capacidad) {
+      const capacidadNum = parseInt(formData.capacidad.replace(/,/g, ''));
+      if (capacidadNum < 10 || capacidadNum > 50000) {
+        Alert.alert('Error', 'La capacidad debe estar entre 10 y 50,000 personas');
+        return;
     }}
   // Construye payload (JSON o FormData si llevas archivo)
   const payload = {
@@ -182,7 +192,7 @@ export default function AddScreen() {
   } catch (e) {
     Alert.alert('Error de red', e.message);
   }
-};
+  };
 
   const handleImageUpload = () => {
     Alert.alert(
@@ -475,11 +485,15 @@ export default function AddScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+    <SafeAreaView style={[styles.container, { paddingTop: safeMargins.top }]}>
+      <StatusBar 
+        barStyle="light-content" 
+        translucent={Platform.OS === 'android'}
+        backgroundColor="transparent"
+      />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: hasNotchDevice ? 8 : 12 }]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -490,8 +504,12 @@ export default function AddScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.content}>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: safeMargins.bottom + 20 }}
+      >
+        <View style={[styles.content, { paddingHorizontal: safeMargins.horizontal }]}>
           <Text style={styles.title}>Crear Nuevo Evento</Text>
           
           <View style={styles.form}>
@@ -662,7 +680,7 @@ export default function AddScreen() {
               />
             </View>
 
-             {/* Precio */}
+            {/* Precio */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Precio</Text>
               <View style={styles.precioOptionsContainer}>
@@ -765,8 +783,21 @@ export default function AddScreen() {
                )}
             </View>
 
-            <TouchableOpacity style={styles.submitButton} onPress={handleCreateEvent}>
-              <Text style={styles.submitButtonText}>Crear Evento</Text>
+            <TouchableOpacity 
+              style={[
+                styles.submitButton, 
+                { 
+                  height: responsiveStyles.button.height,
+                  paddingHorizontal: responsiveStyles.button.paddingHorizontal,
+                  borderRadius: responsiveStyles.button.borderRadius,
+                  marginBottom: getBottomSafeAreaHeight() + 20
+                }
+              ]} 
+              onPress={handleCreateEvent}
+            >
+              <Text style={[styles.submitButtonText, responsiveStyles.text.large]}>
+                Crear Evento
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -794,6 +825,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#1e293b',
+    // Asegurar que el header esté por encima del status bar en Android
+    elevation: Platform.OS === 'android' ? 4 : 0,
+    shadowColor: Platform.OS === 'ios' ? '#000' : undefined,
+    shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 2 } : undefined,
+    shadowOpacity: Platform.OS === 'ios' ? 0.1 : undefined,
+    shadowRadius: Platform.OS === 'ios' ? 4 : undefined,
   },
   backButton: {
     padding: 8,
@@ -819,6 +856,8 @@ const styles = StyleSheet.create({
     maxWidth: 600,
     alignSelf: 'center',
     width: '100%',
+    // Asegurar que el contenido no se superponga con elementos del sistema
+    paddingBottom: Platform.OS === 'ios' ? 34 : 48, // Home indicator / Navigation bar
   },
   title: {
     color: '#fff',
@@ -926,6 +965,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 20,
+    // Asegurar que el botón sea accesible
+    minHeight: 56,
+    justifyContent: 'center',
   },
   submitButtonText: {
     color: '#fff',
@@ -938,6 +980,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    // Asegurar que el modal respete los márgenes seguros
+    paddingTop: Platform.OS === 'ios' ? 44 : 0, // Status bar height
+    paddingBottom: Platform.OS === 'ios' ? 34 : 0, // Home indicator
   },
   modalContent: {
     backgroundColor: '#1e293b',
@@ -945,6 +990,14 @@ const styles = StyleSheet.create({
     padding: 20,
     width: '90%',
     maxHeight: '80%',
+    // Asegurar que el modal se adapte a diferentes tamaños de pantalla
+    maxWidth: Platform.OS === 'tablet' ? 500 : '90%',
+    // Añadir sombra para mejor visibilidad
+    elevation: Platform.OS === 'android' ? 8 : 0,
+    shadowColor: Platform.OS === 'ios' ? '#000' : undefined,
+    shadowOffset: Platform.OS === 'ios' ? { width: 0, height: 4 } : undefined,
+    shadowOpacity: Platform.OS === 'ios' ? 0.3 : undefined,
+    shadowRadius: Platform.OS === 'ios' ? 8 : undefined,
   },
   modalHeader: {
     flexDirection: 'row',

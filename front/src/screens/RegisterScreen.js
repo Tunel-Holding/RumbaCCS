@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Alert } from 'react-native';
-import { Alert } from 'react-native';
 import { Modal } from 'react-native';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
@@ -73,7 +72,10 @@ export const registerUser = async (formData) => {
 
 
 
-export default function RegisterScreen({ navigation }) {
+export default function RegisterScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
+  const topSpacer = insets.top + 8;
+  const bottomSpacer = insets.bottom + 24; // espacio para no tapar botón final
   const [showEdadModal, setShowEdadModal] = useState(false);
   const [sexo, setSexo] = useState('masculino');
   const [user, setUser] = useState('');
@@ -86,58 +88,36 @@ export default function RegisterScreen({ navigation }) {
   const [repeatPass, setRepeatPass] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [showRepeatPass, setShowRepeatPass] = useState(false);
+  const { accountType } = route.params ?? {};
 
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
 
-  const onSubmit = async () => {
-    setErrors({});
-    setFormError('');
-    try {
-      await registerUser({ username, email, password });
-      // navegación o éxito
-    } catch (e) {
-      if (e.fields) {
-        setErrors(e.fields); // Ej: { email: ["Este correo ya está registrado"] }
-        setFormError(e.message);
-      } else {
-        setFormError('Error al registrar');
-      }
-    }
-  };
-
-
-const handleRegister = async () => {
+  const handleRegister = async () => {
   try {
-
     const birthday = fechaNacimiento instanceof Date
-    ? `${fechaNacimiento.getFullYear()}-${String(fechaNacimiento.getMonth() + 1).padStart(2, '0')}-${String(fechaNacimiento.getDate()).padStart(2, '0')}`
-    : (() => {
-        const [d, m, y] = fechaNacimiento.split('/');
-        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-      })();
+      ? `${fechaNacimiento.getFullYear()}-${String(fechaNacimiento.getMonth() + 1).padStart(2, '0')}-${String(fechaNacimiento.getDate()).padStart(2, '0')}`
+      : (() => {
+          const [d, m, y] = fechaNacimiento.split('/');
+          return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+        })();
 
-    if (!user.trim() || !email.trim() || !pass) {
-      Alert.alert('Campos incompletos', 'Por favor llena usuario, email y contraseña');
+    const newErrors = {};
+    if (!user.trim()) newErrors.user = 'Este campo es obligatorio';
+    if (!telefono.trim()) newErrors.telefono = 'Este campo es obligatorio';
+    if (!region) newErrors.region = 'Este campo es obligatorio';
+    if (!email.trim()) newErrors.email = 'Este campo es obligatorio';
+    if (!pass) newErrors.pass = 'Este campo es obligatorio';
+    if (!repeatPass) newErrors.repeatPass = 'Este campo es obligatorio';
+
+    if (pass && pass.length < 8) newErrors.pass = 'Debe tener mínimo 8 caracteres';
+    if (pass && repeatPass && pass !== repeatPass) newErrors.repeatPass = 'Las contraseñas no coinciden';
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
-    if (!region) {
-      Alert.alert('Campo requerido', 'Selecciona tu estado antes de continuar');
-      return;
-    }
-
-    if (pass.length < 8) {
-      Alert.alert('Contraseña', 'Debe tener mínimo 8 caracteres');
-      return;
-    }
-
-    if (pass !== repeatPass) {
-      Alert.alert('Contraseña', 'Las contraseñas no coinciden');
-      return;
-    }
-
-    // Usamos el mismo birthday formateado en dd/mm/aaaa para enviar
     const formData = {
       username: user.trim(),
       phone: telefono.replace(/[^\d]/g, ''),
@@ -149,22 +129,16 @@ const handleRegister = async () => {
     };
 
     console.log('Datos del formulario:', formData);
-
     const res = await registerUser(formData);
-    
     Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
     console.log('Usuario registrado:', res.user.username);
 
     await AsyncStorage.setItem('accessToken', res.access);
-    await AsyncStorage.setItem("refreshToken", res.refresh);
-    await AsyncStorage.setItem("user", JSON.stringify(res.user));
-    await AsyncStorage.setItem("userName", res.user.username);
+    await AsyncStorage.setItem('refreshToken', res.refresh);
+    await AsyncStorage.setItem('user', JSON.stringify(res.user));
+    await AsyncStorage.setItem('userName', res.user.username);
 
-    navigation.reset({
-          index: 0,
-          routes: [{ name: 'HomeScreen' }], // Usa el nombre exacto de tu screen de inicio en el stack
-        });
-
+    navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
   } catch (err) {
     Alert.alert('Error', err.message || 'Algo salió mal');
   }
@@ -174,11 +148,24 @@ const handleRegister = async () => {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 16 }}>
+      <View style={{ flex: 1, width: '100%' }}>
+        {/* Spacer fijo superior */}
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: topSpacer, backgroundColor: '#0f172a', zIndex: 5 }} />
+        <ScrollView
+          style={{ flex: 1, width: '100%' }}
+          contentContainerStyle={{
+            alignItems: 'center',
+            paddingHorizontal: 16,
+            paddingTop: topSpacer,
+            paddingBottom: bottomSpacer,
+          }}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.bgImageContainer}>
           <Image source={require('../../assets/register-bg.jpg')} style={styles.bgImage} resizeMode="cover" />
         </View>
-        <View style={styles.registerContainer}>
+  <View style={[styles.registerContainer, { marginTop: 0 }]}> 
           {/* Flecha para volver */}
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('AccountTypeScreen')}>
             <Text style={styles.backArrow}>←</Text>
@@ -194,23 +181,25 @@ const handleRegister = async () => {
           )}
           <View style={styles.inputGroup}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.user && styles.inputError]}
               placeholder="Nombre de Usuario"
               placeholderTextColor="#888"
               value={user}
-              onChangeText={setUser}
+              onChangeText={text => { setUser(text); if (errors.user) setErrors(e => ({ ...e, user: undefined })); }}
             />
+            {errors.user && <Text style={styles.errorMsg}>{errors.user}</Text>}
           </View>
           <View style={styles.inputGroup}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.telefono && styles.inputError]}
               placeholder="Número de teléfono"
               placeholderTextColor="#888"
               value={telefono}
-              onChangeText={setTelefono}
+              onChangeText={text => { setTelefono(text); if (errors.telefono) setErrors(e => ({ ...e, telefono: undefined })); }}
               keyboardType="phone-pad"
               maxLength={15}
             />
+            {errors.telefono && <Text style={styles.errorMsg}>{errors.telefono}</Text>}
           </View>
           <View style={styles.inputGroup}>
             <TouchableOpacity
@@ -323,62 +312,58 @@ const handleRegister = async () => {
                 <Picker.Item label="Zulia" value="Zulia" color="#000" />
               </Picker>
             </View>
+            {errors.region && <Text style={styles.errorMsg}>{errors.region}</Text>}
           </View>
           <View style={styles.inputGroup}>
             <TextInput
-              style={[
-                styles.input,
-                errors?.email ? { borderColor: 'red', borderWidth: 1 } : null,
-              ]}
+              style={[styles.input, errors.email && styles.inputError]}
               placeholder="Email"
               placeholderTextColor="#888"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={text => { setEmail(text); if (errors.email) setErrors(e => ({ ...e, email: undefined })); }}
               keyboardType="email-address"
             />
-            
-            {errors?.email && (
-              <Text style={{ color: 'red', marginTop: 4, fontSize: 13 }}>
-                {Array.isArray(errors.email) ? errors.email[0] : errors.email}
-              </Text>
-            )}
-        </View>
+            {errors.email && <Text style={styles.errorMsg}>{Array.isArray(errors.email) ? errors.email[0] : errors.email}</Text>}
+          </View>
 
           <View style={styles.inputGroup}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TextInput
-                style={[styles.input, { flex: 1 }]}
+                style={[styles.input, { flex: 1 }, errors.pass && styles.inputError]}
                 placeholder="Contraseña"
                 placeholderTextColor="#888"
                 value={pass}
-                onChangeText={setPass}
+                onChangeText={text => { setPass(text); if (errors.pass) setErrors(e => ({ ...e, pass: undefined })); }}
                 secureTextEntry={!showPass}
               />
               <TouchableOpacity onPress={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 12 }}>
                 <Ionicons name={showPass ? 'eye-off' : 'eye'} size={24} color="#888" />
               </TouchableOpacity>
             </View>
+            {errors.pass && <Text style={styles.errorMsg}>{errors.pass}</Text>}
           </View>
           <View style={styles.inputGroup}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TextInput
-                style={[styles.input, { flex: 1 }]}
+                style={[styles.input, { flex: 1 }, errors.repeatPass && styles.inputError]} 
                 placeholder="Repetir contraseña"
                 placeholderTextColor="#888"
                 value={repeatPass}
-                onChangeText={setRepeatPass}
+                onChangeText={text => { setRepeatPass(text); if (errors.repeatPass) setErrors(e => ({ ...e, repeatPass: undefined })); }}
                 secureTextEntry={!showRepeatPass}
               />
               <TouchableOpacity onPress={() => setShowRepeatPass(!showRepeatPass)} style={{ position: 'absolute', right: 12 }}>
                 <Ionicons name={showRepeatPass ? 'eye-off' : 'eye'} size={24} color="#888" />
               </TouchableOpacity>
             </View>
+            {errors.repeatPass && <Text style={styles.errorMsg}>{errors.repeatPass}</Text>}
           </View>
           <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
             <Text style={styles.registerBtnText}>Registrarse</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -535,5 +520,16 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
     fontSize: 18,
+  },
+  inputError: {
+    borderColor: '#ef4444',
+    borderWidth: 1.5,
+  },
+  errorMsg: {
+    color: '#ef4444',
+    fontSize: 13,
+    marginTop: 4,
+    fontWeight: 'bold',
+    alignSelf: 'flex-start',
   },
 });

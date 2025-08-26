@@ -10,6 +10,7 @@ __pycache__/
 venv/
 .env/
 .envrc
+.venv/
 
 # 🛠️ Archivos de compilación o bases temporales
 *.sqlite3
@@ -23,6 +24,29 @@ nosetests.xml
 coverage.xml
 *.pytest_cache/
 
-# 🪟 Archivos ocultos comunes
+# Expo / React Native / JS caches
+.expo/
+.expo-shared/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.cache/
+.parcel-cache/
+.next/
+dist/
+build/
+
+# IDE / Editor
+.vscode/
+.idea/
+
+# Android / Gradle
+.gradle/
+android/.gradle/
+android/app/build/
+android/build/
+
+# Otros
 .DS_Store
 Thumbs.db

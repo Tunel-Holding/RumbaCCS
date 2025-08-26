@@ -1,8 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, ScrollView, Animated, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, Animated, Alert, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function FormularioScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
+  const topSpacer = insets.top + 8; // pequeño margen superior
+  //  únicamente
   const [nombre, setNombre] = useState('');
   const [rif, setRif] = useState('');
   const [lugar, setLugar] = useState('');
@@ -206,7 +210,12 @@ const handleActualizar = async () => {
             </TouchableOpacity>
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.formContainer}>
+          <ScrollView
+            style={{ flex: 1, width: '100%' }}
+            contentContainerStyle={[styles.formContainer, { paddingTop: topSpacer, paddingBottom: insets.bottom + 24 }]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             {/* Botón Volver */}
             <TouchableOpacity
               style={styles.backBtn}
@@ -309,7 +318,7 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
-    justifyContent: 'center',
+    // Dejamos que el scroll ocupe todo y se inicie desde arriba
     alignItems: 'center',
     width: '100%',
   },
@@ -322,7 +331,7 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignItems: 'stretch',
-    padding: 24,
+    paddingHorizontal: 24,
     backgroundColor: 'rgba(30,41,59,0.92)',
     borderRadius: 16,
     shadowColor: '#000',
@@ -330,7 +339,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 8,
     elevation: 8,
-    marginTop: 40,
   },
   formTitle: {
     color: '#ec4899',

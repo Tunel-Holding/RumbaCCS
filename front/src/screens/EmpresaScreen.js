@@ -362,39 +362,43 @@ useEffect(() => {
       </View>
 
       <View style={styles.eventosGrid}>
-        {eventos.map((evento) => (
-          <View key={evento.id} style={styles.eventoCard}>
-            <View style={styles.eventoImageContainer}>
-              <Image 
-                source={{ uri: evento.imagen }} 
-                style={styles.eventoImage}
-                resizeMode="cover"
-              />
-              <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
-                <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
+        {eventos.length === 0 ? (
+          <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
+        ) : (
+          eventos.map((evento) => (
+            <View key={evento.id} style={styles.eventoCard}>
+              <View style={styles.eventoImageContainer}>
+                <Image 
+                  source={{ uri: evento.imagen }} 
+                  style={styles.eventoImage}
+                  resizeMode="cover"
+                />
+                <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
+                  <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.eventoContent}>
+                <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
+                
+                <View style={styles.eventoInfo}>
+                  <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
+                </View>
+                
+                <View style={styles.eventoInfo}>
+                  <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
+                </View>
+                
+                <View style={styles.eventoFooter}>
+                  <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                  <TouchableOpacity style={styles.verDetallesButton}>
+                    <Text style={styles.verDetallesText}>Ver detalles</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-            
-            <View style={styles.eventoContent}>
-              <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-              
-              <View style={styles.eventoInfo}>
-                <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
-              </View>
-              
-              <View style={styles.eventoInfo}>
-                <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
-              </View>
-              
-              <View style={styles.eventoFooter}>
-                <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                <TouchableOpacity style={styles.verDetallesButton}>
-                  <Text style={styles.verDetallesText}>Ver detalles</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        ))}
+          ))
+        )}
       </View>
     </View>
   );
@@ -419,7 +423,7 @@ useEffect(() => {
              {renderHeader()}
        {renderNotificationsModal()}
       
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+  <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
           {renderEventos()}
@@ -457,21 +461,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  logoText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  logoSubtext: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#db2777',
-    marginLeft: 4,
-  },
+  logoContainer: { flexDirection: 'row', alignItems: 'flex-end' },
+  logoText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  logoSubtext: { fontSize: 18, fontWeight: '600', color: '#ff007f', marginLeft: 8 },
   
      
 
@@ -619,6 +611,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+  },
+  eventosEmptyText: {
+    color: '#94a3b8',
+    fontSize: 16,
+    textAlign: 'center',
+    width: '100%',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
   eventoCard: {
     backgroundColor: '#1e293b',
