@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSafeMargins, getDeviceType, hasNotch } from '../utils/safeAreaUtils';
 import { getResponsiveStyles, getBottomSafeAreaHeight, getTopSafeAreaHeight } from '../utils/deviceConfig';
@@ -29,10 +30,11 @@ export default function AddScreen() {
   
   const [formData, setFormData] = useState({
     titulo: '',
-    categoria: [],
+    categoria: [], // múltiples selecciones
     codigoVestimenta: '',
     descripcionVestimenta: '',
-    edadMinima: '',
+    edadMinima: '', // etiqueta para mostrar (ej: "Mayores de 18 años")
+    edad_minima: null, // valor numérico para backend
     ubicacion: '',
     capacidad: '',
     descripcion: '',
@@ -48,6 +50,25 @@ export default function AddScreen() {
   const [edadModalVisible, setEdadModalVisible] = useState(false);
   const [ubicacionModalVisible, setUbicacionModalVisible] = useState(false);
   const [categoriaSearchText, setCategoriaSearchText] = useState('');
+  const [empresaId, setEmpresaId] = useState(null);
+
+    useEffect(() => {
+
+      const fetchMiEmpresa = async () => {
+
+        const token = await AsyncStorage.getItem('authToken');
+        const res   = await fetch(`https://${ipAddress}/api/empresa/`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setEmpresaId(data.id);
+        }
+      };
+      fetchMiEmpresa();
+    }, []);
+
+  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
   // Opciones predefinidas
   const categorias = [
@@ -61,14 +82,13 @@ export default function AddScreen() {
   ];
 
   const edadesMinimas = [
-    'Todas las edades',
-    'Mayores de 13 años',
-    'Mayores de 16 años', 
-    'Mayores de 18 años',
-    'Mayores de 21 años',
-    'Mayores de 25 años',
-    // Removido 'Solo adultos (18+)' ya que es duplicado
-    'Familiar (Todas las edades)'
+    { label: 'Todas las edades', value: 0 },
+    { label: 'Mayores de 13 años', value: 13 },
+    { label: 'Mayores de 16 años', value: 16 },
+    { label: 'Mayores de 18 años', value: 18 },
+    { label: 'Mayores de 21 años', value: 21 },
+    { label: 'Mayores de 25 años', value: 25 },
+    { label: 'Familiar (Todas las edades)', value: 0 }, // etiqueta adicional
   ];
 
   // Función para formatear precio con comas y decimales
@@ -98,12 +118,23 @@ export default function AddScreen() {
     categoria.toLowerCase().includes(categoriaSearchText.toLowerCase())
   );
 
-  const handleSubmit = () => {
+
+  const handleCreateEvent = async () => {
+    const empresaId = await AsyncStorage.getItem('empresaId');
+
+
+    console.log('boton presionado')
+
+    console.log('empresaId:', empresaId)
+  if (!empresaId) {
+    Alert.alert('Error', 'No se ha recuperado el ID de tu empresa');
+    return;
+  }
     if (!formData.titulo || formData.categoria.length === 0 || !formData.ubicacion) {
       Alert.alert('Error', 'Por favor completa los campos obligatorios (título, categoría y ubicación)');
       return;
     }
-    // Validar precio distinto de 0 cuando se usa precio (no entrada libre)
+    // Validar precio > 0 si el modo precio está activo (showPrecio) y no es entrada libre
     if (showPrecio && formData.precio !== 'Entrada libre') {
       const numericPrice = parseFloat(cleanPrice(formData.precio || '0')) || 0;
       if (numericPrice <= 0) {
@@ -111,17 +142,67 @@ export default function AddScreen() {
         return;
       }
     }
+    
     // Validar capacidad si se ingresó
     if (formData.capacidad) {
       const capacidadNum = parseInt(formData.capacidad.replace(/,/g, ''));
       if (capacidadNum < 10 || capacidadNum > 50000) {
         Alert.alert('Error', 'La capacidad debe estar entre 10 y 50,000 personas');
         return;
-      }
+    }}
+  // Construye payload (JSON o FormData si llevas archivo)
+  const payload = {
+    titulo: formData.titulo,
+    categoria: formData.categoria,
+    codigo_vestimenta: formData.codigoVestimenta || null,
+    descripcion_vestimenta: formData.descripcionVestimenta || '',
+    edad_minima: typeof formData.edad_minima === 'number' ? formData.edad_minima : 0,
+    ubicacion: formData.ubicacion,
+    capacidad: formData.capacidad ? parseInt(formData.capacidad.replace(/,/g, ''), 10) : null,
+    descripcion: formData.descripcion || '',
+    precio: formData.precio === 'Entrada libre' ? 0 : (formData.precio ? parseFloat(cleanPrice(formData.precio)) : 0),
+    moneda: formData.moneda || 'USD',
+    // imagen: (si luego se maneja archivo)
+  };
+  console.log('titulo', typeof(payload.titulo));
+  console.log('categoria', typeof(payload.categoria));
+  console.log('codigo_vestimenta', typeof(payload.codigo_vestimenta));
+  console.log('descripcion_vestimenta', typeof(payload.descripcion_vestimenta));
+  console.log('edad_minima', typeof(payload.edad_minima));
+  console.log('ubicacion', typeof(payload.ubicacion));
+  console.log('capacidad', typeof(payload.capacidad));
+  console.log('descripcion', typeof(payload.descripcion));
+  console.log('precio', typeof(payload.precio));
+  console.log('moneda', typeof(payload.moneda));
+
+  console.log('payload:', payload);
+
+  const token    = await AsyncStorage.getItem('accessToken');
+  const endpoint = `http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`;
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      Alert.alert('Error al crear evento', JSON.stringify(err));
+      return;
     }
+
+    const newEvent = await res.json();
     Alert.alert('Éxito', 'Evento agregado correctamente', [
-      { text: 'OK', onPress: () => navigation.goBack() }
+      { text: 'OK', onPress: () => navigation.navigate("Empresa") }
     ]);
+  } catch (e) {
+    Alert.alert('Error de red', e.message);
+  }
   };
 
   const handleImageUpload = () => {
@@ -321,17 +402,19 @@ export default function AddScreen() {
             </TouchableOpacity>
           </View>
           <FlatList
-            data={edadesMinimas}
-            keyExtractor={(item) => item}
+    data={edadesMinimas}
+    keyExtractor={(item) => `${item.label}-${item.value}`}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.modalItem}
                 onPress={() => {
-                  setFormData({ ...formData, edadMinima: item });
+      const next = { ...formData, edad_minima: item.value, edadMinima: item.label };
+      setFormData(next);
+      console.log('edadMinima seleccionada:', next.edad_minima, next.edadMinima);
                   setEdadModalVisible(false);
                 }}
               >
-                <Text style={styles.modalItemText}>{item}</Text>
+                <Text style={styles.modalItemText}>{item.label}</Text>
               </TouchableOpacity>
             )}
           />
@@ -615,7 +698,7 @@ export default function AddScreen() {
                 <TouchableOpacity
                   style={[
                     styles.precioOptionButton,
-                    formData.precio === 'Entrada libre' && styles.precioOptionButtonActive
+                    !showPrecio && (formData.precio === 'Entrada libre') && styles.precioOptionButtonActive
                   ]}
                   onPress={() => {
                     setShowPrecio(false);
@@ -624,7 +707,7 @@ export default function AddScreen() {
                 >
                   <Text style={[
                     styles.precioOptionText,
-                    formData.precio === 'Entrada libre' && styles.precioOptionTextActive
+                    !showPrecio && (formData.precio === 'Entrada libre') && styles.precioOptionTextActive
                   ]}>
                     🆓 Entrada libre
                   </Text>
@@ -632,23 +715,26 @@ export default function AddScreen() {
                 <TouchableOpacity
                   style={[
                     styles.precioOptionButton,
-                    showPrecio && formData.precio !== 'Entrada libre' && styles.precioOptionButtonActive
+                    showPrecio && styles.precioOptionButtonActive
                   ]}
                   onPress={() => {
-                    // Toggle del modo precio
-                    if (!showPrecio) {
-                      setShowPrecio(true);
-                      // Reiniciar a vacío (permitir borrar sin ocultar input)
-                      setFormData({ ...formData, precio: '', moneda: 'USD' });
+                    const nextShow = !showPrecio;
+                    setShowPrecio(nextShow);
+                    if (!nextShow) {
+                      // al cerrar, limpia el precio si no es entrada libre
+                      if (formData.precio !== 'Entrada libre') {
+                        setFormData({ ...formData, precio: '' });
+                      }
                     } else {
-                      setShowPrecio(false);
-                      setFormData({ ...formData, precio: '' });
+                      if (formData.precio === 'Entrada libre') {
+                        setFormData({ ...formData, precio: '', moneda: 'USD' });
+                      }
                     }
                   }}
                 >
                   <Text style={[
                     styles.precioOptionText,
-                    showPrecio && formData.precio !== 'Entrada libre' && styles.precioOptionTextActive
+                    showPrecio && styles.precioOptionTextActive
                   ]}>
                     💰 Precio
                   </Text>
@@ -659,28 +745,16 @@ export default function AddScreen() {
                   <Text style={styles.precioInputLabel}>Ingresa el precio:</Text>
                   <View style={styles.monedaSelectorContainer}>
                     <TouchableOpacity
-                      style={[
-                        styles.monedaOption,
-                        formData.moneda === 'USD' && styles.monedaOptionActive
-                      ]}
+                      style={[styles.monedaOption, formData.moneda === 'USD' && styles.monedaOptionActive]}
                       onPress={() => setFormData({ ...formData, moneda: 'USD' })}
                     >
-                      <Text style={[
-                        styles.monedaOptionText,
-                        formData.moneda === 'USD' && styles.monedaOptionTextActive
-                      ]}>💵 USD</Text>
+                      <Text style={[styles.monedaOptionText, formData.moneda === 'USD' && styles.monedaOptionTextActive]}>💵 USD</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={[
-                        styles.monedaOption,
-                        formData.moneda === 'VES' && styles.monedaOptionActive
-                      ]}
+                      style={[styles.monedaOption, formData.moneda === 'VES' && styles.monedaOptionActive]}
                       onPress={() => setFormData({ ...formData, moneda: 'VES' })}
                     >
-                      <Text style={[
-                        styles.monedaOptionText,
-                        formData.moneda === 'VES' && styles.monedaOptionTextActive
-                      ]}>💰 VES</Text>
+                      <Text style={[styles.monedaOptionText, formData.moneda === 'VES' && styles.monedaOptionTextActive]}>💰 VES</Text>
                     </TouchableOpacity>
                   </View>
                   <TextInput
@@ -689,7 +763,6 @@ export default function AddScreen() {
                     onChangeText={(text) => {
                       const formatted = formatPrice(text);
                       setFormData({ ...formData, precio: formatted });
-                      // Eliminados console.log de cambios de precio
                     }}
                     placeholder={formData.moneda === 'USD' ? 'Ej: 25,000.00' : 'Ej: 1,250,000.00'}
                     placeholderTextColor="#64748b"
@@ -716,7 +789,7 @@ export default function AddScreen() {
                   marginBottom: getBottomSafeAreaHeight() + 20
                 }
               ]} 
-              onPress={handleSubmit}
+              onPress={handleCreateEvent}
             >
               <Text style={[styles.submitButtonText, responsiveStyles.text.large]}>
                 Crear Evento

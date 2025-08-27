@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,11 @@ import {
   Dimensions,
   TouchableOpacity,
   SafeAreaView,
+  Modal,
+  TextInput,
+  Pressable,
+  StatusBar,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
@@ -44,6 +49,7 @@ const eventDetails = {
   vestimenta: 'Casual/Verano',
   ubicacion: 'Av. Principal, Caracas',
   empresa: 'Eventos Caracas', // Nombre de la empresa que publica el evento
+  fecha: 'Sábado 30 de Agosto, 8:00 PM', // Campo presente en prueba.js
 };
   // Más eventos de la empresa (ejemplo)
   const moreFromCompany = [
@@ -79,14 +85,40 @@ const eventDetails = {
 const { width } = Dimensions.get('window');
 
 export default function BuyScreen() {
+  const topPadding = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
   const navigation = useNavigation();
+  // Estado de modal de login y campos (traído desde prueba.js)
+  const [loginVisible, setLoginVisible] = useState(false);
+  const [user, setUser] = useState('');
+  const [pass, setPass] = useState('');
+
+  // Carousel refs y medidas
+  const scrollRef = useRef(null);
+  const autoplayRef = useRef(null);
+  const slideWidth = width; // ancho completo del dispositivo
 
   const handleScroll = (event) => {
-    const slide = Math.round(event.nativeEvent.contentOffset.x / width);
-    setActiveIndex(slide);
+    const slide = Math.round(event.nativeEvent.contentOffset.x / slideWidth);
+    if (slide !== activeIndex) setActiveIndex(slide);
   };
+
+  const goTo = (index) => {
+    const next = (index + eventImages.length) % eventImages.length;
+    setActiveIndex(next);
+    scrollRef.current?.scrollTo({ x: next * slideWidth, animated: true });
+  };
+  const goPrev = () => goTo(activeIndex - 1);
+  const goNext = () => goTo(activeIndex + 1);
+
+  useEffect(() => {
+    if (autoplayRef.current) clearInterval(autoplayRef.current);
+    autoplayRef.current = setInterval(() => {
+      goNext();
+    }, 4500);
+    return () => clearInterval(autoplayRef.current);
+  }, [activeIndex, slideWidth]);
     const [relatedIndex, setRelatedIndex] = useState(0);
     // Eventos relacionados de ejemplo
     const relatedEvents = [
@@ -134,7 +166,7 @@ export default function BuyScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <TouchableOpacity
           style={styles.loginBtn}
-          onPress={() => navigation.navigate('Register')}
+          onPress={() => setLoginVisible(true)}
         >
           <Text style={styles.loginBtnText}>Iniciar sesión</Text>
         </TouchableOpacity>
@@ -163,27 +195,37 @@ export default function BuyScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={[styles.safeArea, { paddingTop: topPadding }]}> 
       <Header />
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
-        {/* Carrusel de Evento Principal */}
-        <Text style={styles.sectionTitle}>Carrusel de Evento Principal</Text>
-        <View style={styles.carouselWrapper}>
+        {/* Carrusel de Evento Principal Mejorado */}
+        <Text style={styles.sectionTitle}>Evento Principal</Text>
+  <View style={[styles.carouselEnhancedWrapper, styles.fullBleed]}>
+          <TouchableOpacity style={styles.carouselArrowLeft} onPress={goPrev} activeOpacity={0.7}>
+            <Text style={styles.carouselArrowText}>‹</Text>
+          </TouchableOpacity>
           <ScrollView
+            ref={scrollRef}
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             onScroll={handleScroll}
             scrollEventThrottle={16}
-            style={styles.carousel}
+            decelerationRate="fast"
+            snapToInterval={slideWidth}
+            snapToAlignment="center"
+            style={[styles.carousel, { width: slideWidth }]}
             contentContainerStyle={{ alignItems: 'center' }}
           >
             {eventImages.map((img, idx) => (
-              <View key={idx} style={styles.squareImageFrame}>
-                <Image source={img} style={styles.squareImage} />
+              <View key={idx} style={[styles.squareImageFrame, { width: slideWidth, height: Math.min(slideWidth * 0.55, 320) }]}> 
+                <Image source={img} style={styles.squareImage} resizeMode="cover" />
               </View>
             ))}
           </ScrollView>
+          <TouchableOpacity style={styles.carouselArrowRight} onPress={goNext} activeOpacity={0.7}>
+            <Text style={styles.carouselArrowText}>›</Text>
+          </TouchableOpacity>
           <View style={styles.indicatorContainer}>
             {eventImages.map((_, idx) => (
               <View
@@ -195,6 +237,23 @@ export default function BuyScreen() {
               />
             ))}
           </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.thumbRow}
+            style={{ marginTop: 6 }}
+          >
+            {eventImages.map((img, idx) => (
+              <TouchableOpacity
+                key={idx}
+                onPress={() => goTo(idx)}
+                style={[styles.thumbWrapper, activeIndex === idx && styles.thumbActive]}
+                activeOpacity={0.85}
+              >
+                <Image source={img} style={styles.thumbImage} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
         {/* Título y Descripción */}
@@ -206,6 +265,12 @@ export default function BuyScreen() {
         {/* Detalles del evento */}
         <View style={styles.detailsContainer}>
           <Text style={styles.detailsTitle}>Detalles del evento</Text>
+          {eventDetails.fecha && (
+            <View style={styles.detailRow}>
+              <Text style={styles.label}>Fecha: </Text>
+              <Text style={styles.detail}>{eventDetails.fecha}</Text>
+            </View>
+          )}
           <View style={styles.detailRow}>
             <Text style={styles.label}>Lugar: </Text>
             <Text style={styles.detail}>{eventDetails.lugar}</Text>
@@ -222,6 +287,12 @@ export default function BuyScreen() {
             <Text style={styles.label}>Ubicación: </Text>
             <Text style={styles.detail}>{eventDetails.ubicacion}</Text>
           </View>
+          {eventDetails.empresa && (
+            <View style={styles.detailRow}>
+              <Text style={styles.label}>Empresa: </Text>
+              <Text style={styles.detail}>{eventDetails.empresa}</Text>
+            </View>
+          )}
         </View>
 
         {/* Eventos Relacionados */}
@@ -289,6 +360,52 @@ export default function BuyScreen() {
         </View>
         <Footer />
       </ScrollView>
+      {/* Modal de Login (traído desde prueba.js) */}
+      <Modal
+        visible={loginVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLoginVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative' }}>
+            <Pressable style={{ position: 'absolute', top: 8, right: 12, zIndex: 2 }} onPress={() => setLoginVisible(false)}>
+              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
+            </Pressable>
+            <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>Iniciar sesión</Text>
+            <TextInput
+              style={{ backgroundColor: '#fff', borderRadius: 8, padding: 10, width: '100%', marginBottom: 12 }}
+              placeholder="Correo electrónico"
+              placeholderTextColor="#888"
+              keyboardType="email-address"
+              value={user}
+              onChangeText={setUser}
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+            <TextInput
+              style={{ backgroundColor: '#fff', borderRadius: 8, padding: 10, width: '100%', marginBottom: 12 }}
+              placeholder="Contraseña"
+              placeholderTextColor="#888"
+              secureTextEntry
+              value={pass}
+              onChangeText={setPass}
+              autoCapitalize="none"
+              autoComplete="password"
+            />
+            <TouchableOpacity style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 }} onPress={() => {/* lógica de login */}}>
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ingresar</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', marginTop: 12 }}>
+              <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>¿Olvidaste tu contraseña?</Text>
+              <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>|</Text>
+              <TouchableOpacity onPress={() => { setLoginVisible(false); navigation.navigate('Register'); }}>
+                <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>Regístrate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -345,17 +462,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   squareImageFrame: {
-    width: 210,
-    height: 210,
     backgroundColor: COLORS.card,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
-    marginHorizontal: 8,
+    borderRadius: 0,
+    borderWidth: 0,
+    marginHorizontal: 0,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    elevation: 4,
   },
   squareImage: {
     width: '100%',
@@ -420,15 +533,49 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   indicator: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#444',
-    marginHorizontal: 4,
+    marginHorizontal: 3,
   },
   activeIndicator: {
     backgroundColor: COLORS.primary,
   },
+  carouselEnhancedWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    position: 'relative',
+  },
+  fullBleed: { marginHorizontal: -18, width: width, alignSelf: 'center' },
+  carouselArrowLeft: {
+    position: 'absolute',
+    left: 4,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  carouselArrowRight: {
+    position: 'absolute',
+    right: 4,
+    zIndex: 10,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  carouselArrowText: { color: '#fff', fontSize: 28, fontWeight: 'bold', marginTop: -2 },
+  thumbRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4 },
+  thumbWrapper: { borderRadius: 10, overflow: 'hidden', marginHorizontal: 4, borderWidth: 2, borderColor: 'transparent' },
+  thumbActive: { borderColor: COLORS.primary },
+  thumbImage: { width: 48, height: 48, resizeMode: 'cover' },
   title: {
     fontSize: 28,
     fontWeight: 'bold',

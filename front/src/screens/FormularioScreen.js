@@ -17,6 +17,25 @@ export default function FormularioScreen({ navigation, route }) {
   const [errores, setErrores] = useState({});
   const [cargando, setCargando] = useState(false);
   const [verificado, setVerificado] = useState(false);
+  const [pinDigits, setPinDigits] = useState(['','','','','','']);
+  const pinRefs = useRef([]);
+  const PIN_LENGTH = 6;
+
+
+  // Simulación de PIN correcto (cambiar por valor de backend cuando esté listo)
+  const PIN_CORRECTO_SIMULADO = '123456';
+
+
+  
+  const [pinResendAvailable, setPinResendAvailable] = useState(false);
+  // Inicia temporizador cuando comienza 'cargando'
+  useEffect(() => {
+    if (cargando) {
+      setPinResendAvailable(false);
+      const t = setTimeout(() => setPinResendAvailable(true), 15000);
+      return () => clearTimeout(t);
+    }
+  }, [cargando]);
 
   const pollitoAnim = useRef(new Animated.Value(0)).current;
   const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
@@ -34,10 +53,10 @@ export default function FormularioScreen({ navigation, route }) {
         ])
       ).start();
       timeout = setTimeout(() => {
+        // Solo dejamos de cargar; verificado se setea tras validar PIN
         setCargando(false);
-        setVerificado(true);
         pollitoAnim.stopAnimation();
-      }, 5000);
+      }, 1500);
     }
     return () => {
       if (timeout) clearTimeout(timeout);
@@ -181,32 +200,79 @@ const handleActualizar = async () => {
       <View style={styles.body}>
         {cargando ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.loadingTitle}>Verificando información...</Text>
-            <Animated.View style={{
-              marginVertical: 32,
-              width: '100%',
-              flexDirection: 'row',
-              justifyContent: 'flex-start',
-              alignItems: 'center',
-              height: 60,
-              overflow: 'hidden',
-              // El ancho de movimiento se ajusta a la pantalla
-              transform: [{ translateX: pollitoAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 260] }) }],
-            }}>
-              <Text style={styles.letterAnimOnly}>✉️</Text>
-            </Animated.View>
-            <Text style={styles.loadingText}>Por favor espera mientras verificamos tu formulario.</Text>
+            <Text style={styles.loadingTitle}>Se ha enviado un PIN a su correo</Text>
+            <Text style={[styles.loadingText, { marginTop: 12 }]}>Por favor, coloque los números de confirmación</Text>
+            {pinResendAvailable ? (
+              <TouchableOpacity onPress={() => { setPinResendAvailable(false); /* reenviar ping */ const t2=setTimeout(()=>setPinResendAvailable(true),15000); }}>
+                <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el ping? Presione aquí.</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo ping en 15 segundos…</Text>
+            )}
+            <View style={{ flexDirection: 'row', marginTop: 28, gap: 10 }}>
+              {pinDigits.map((val, i) => (
+                <TextInput
+                  key={i}
+                  ref={el => pinRefs.current[i] = el}
+                  style={{
+                    width: 44,
+                    height: 56,
+                    backgroundColor: '#1e293b',
+                    borderRadius: 10,
+                    textAlign: 'center',
+                    fontSize: 22,
+                    fontWeight: 'bold',
+                    color: '#fff',
+                    borderWidth: 2,
+                    borderColor: '#334155'
+                  }}
+                  value={val}
+                  onChangeText={(txt) => {
+                    const onlyNum = txt.replace(/\D/g,'');
+                    const nextDigits = [...pinDigits];
+                    nextDigits[i] = onlyNum.slice(-1);
+                    setPinDigits(nextDigits);
+                    if (onlyNum && i < PIN_LENGTH -1) {
+                      pinRefs.current[i+1]?.focus();
+                    }
+                  }}
+                  onKeyPress={({ nativeEvent }) => {
+                    if (nativeEvent.key === 'Backspace' && !pinDigits[i] && i>0) {
+                      pinRefs.current[i-1]?.focus();
+                    }
+                  }}
+                  maxLength={1}
+                  keyboardType="number-pad"
+                  returnKeyType="next"
+                  autoCapitalize='none'
+                />
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.enviarBtn, { marginTop: 32, paddingHorizontal: 32 }]} 
+              onPress={() => {
+                const pinIngresado = pinDigits.join('');
+                if (pinIngresado.length !== PIN_LENGTH) {
+                  Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
+                  return;
+                }
+                // Aquí se llamaría al backend para validar el PIN
+                if (pinIngresado === PIN_CORRECTO_SIMULADO) {
+                  setVerificado(true);
+                } else {
+                  Alert.alert('PIN incorrecto', 'El PIN ingresado no es válido.');
+                }
+              }}
+            >
+              <Text style={styles.enviarBtnText}>Confirmar PIN</Text>
+            </TouchableOpacity>
           </View>
         ) : verificado ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.successTitle}>¡Formulario enviado con éxito!</Text>
-            <Text style={styles.successText}>Tu información fue verificada correctamente.</Text>
-            <TouchableOpacity style={styles.enviarBtn} onPress={() => {
-              setVerificado(false);
-              setNombre(''); setRif(''); setLugar(''); setTelefono(''); setCorreo(''); setRedes(''); setErrores({});
-              navigation.navigate('Empresa');
-            }}>
-              <Text style={styles.enviarBtnText}>Aceptar</Text>
+            <Text style={styles.successTitle}>Su correo ha sido comprobado</Text>
+            <Text style={styles.successText}>Se le enviará un correo con la respuesta a su solicitud.</Text>
+            <TouchableOpacity style={styles.enviarBtn} onPress={() => navigation.navigate('HomeScreen')}>
+              <Text style={styles.enviarBtnText}>Volver al inicio</Text>
             </TouchableOpacity>
           </View>
         ) : (

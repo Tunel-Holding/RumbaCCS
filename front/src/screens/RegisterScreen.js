@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { Modal } from 'react-native';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform } from 'react-native';
@@ -80,7 +80,8 @@ export default function RegisterScreen({ navigation, route }) {
   const [sexo, setSexo] = useState('masculino');
   const [user, setUser] = useState('');
   const [telefono, setTelefono] = useState('');
-  const [fechaNacimiento, setFechaNacimiento] = useState(new Date());
+  // Fecha de nacimiento: se mantiene null hasta que el usuario seleccione una
+  const [fechaNacimiento, setFechaNacimiento] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [region, setRegion] = useState('');
   const [email, setEmail] = useState('');
@@ -93,56 +94,82 @@ export default function RegisterScreen({ navigation, route }) {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState('');
 
-  const handleRegister = async () => {
-  try {
-    const birthday = fechaNacimiento instanceof Date
-      ? `${fechaNacimiento.getFullYear()}-${String(fechaNacimiento.getMonth() + 1).padStart(2, '0')}-${String(fechaNacimiento.getDate()).padStart(2, '0')}`
-      : (() => {
-          const [d, m, y] = fechaNacimiento.split('/');
-          return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
-        })();
+  // --- Flujo PIN (similar a FormularioScreen) ---
+  const [cargando, setCargando] = useState(false); // reutilizado como paso de verificación activo
+  const [verificado, setVerificado] = useState(false);
+  const PIN_LENGTH = 6;
+  const [pinDigits, setPinDigits] = useState(['','','','','','']);
+  const pinRefs = useRef([]);
+  const PIN_CORRECTO_SIMULADO = '123456';
+  const [pinResendAvailable, setPinResendAvailable] = useState(false);
+  const [focusedPinIndex, setFocusedPinIndex] = useState(-1);
 
-    const newErrors = {};
-    if (!user.trim()) newErrors.user = 'Este campo es obligatorio';
-    if (!telefono.trim()) newErrors.telefono = 'Este campo es obligatorio';
-    if (!region) newErrors.region = 'Este campo es obligatorio';
-    if (!email.trim()) newErrors.email = 'Este campo es obligatorio';
-    if (!pass) newErrors.pass = 'Este campo es obligatorio';
-    if (!repeatPass) newErrors.repeatPass = 'Este campo es obligatorio';
-
-    if (pass && pass.length < 8) newErrors.pass = 'Debe tener mínimo 8 caracteres';
-    if (pass && repeatPass && pass !== repeatPass) newErrors.repeatPass = 'Las contraseñas no coinciden';
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+  useEffect(() => {
+    if (cargando) {
+      setPinResendAvailable(false);
+      const t = setTimeout(() => setPinResendAvailable(true), 15000);
+      return () => clearTimeout(t);
     }
+  }, [cargando]);
 
-    const formData = {
-      username: user.trim(),
-      phone: telefono.replace(/[^\d]/g, ''),
-      birthday,
-      region,
-      gender: sexo,
-      email: email.trim(),
-      password: pass
-    };
+  const handleRegister = async () => {
+    try {
+      let birthday = '';
+      if (fechaNacimiento instanceof Date) {
+        birthday = `${fechaNacimiento.getFullYear()}-${String(fechaNacimiento.getMonth() + 1).padStart(2, '0')}-${String(fechaNacimiento.getDate()).padStart(2, '0')}`;
+      }
 
-    console.log('Datos del formulario:', formData);
-    const res = await registerUser(formData);
-    Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
-    console.log('Usuario registrado:', res.user.username);
+      const newErrors = {};
+      if (!user.trim()) newErrors.user = 'Este campo es obligatorio';
+      if (!telefono.trim()) newErrors.telefono = 'Este campo es obligatorio';
+      if (!region) newErrors.region = 'Este campo es obligatorio';
+      if (!email.trim()) newErrors.email = 'Este campo es obligatorio';
+      if (!pass) newErrors.pass = 'Este campo es obligatorio';
+      if (!repeatPass) newErrors.repeatPass = 'Este campo es obligatorio';
+      if (pass && pass.length < 8) newErrors.pass = 'Debe tener mínimo 8 caracteres';
+      if (pass && repeatPass && pass !== repeatPass) newErrors.repeatPass = 'Las contraseñas no coinciden';
+      if (!fechaNacimiento) newErrors.fechaNacimiento = 'Selecciona tu fecha de nacimiento';
+      if (fechaNacimiento instanceof Date) {
+        const hoy = new Date();
+        let edad = hoy.getFullYear() - fechaNacimiento.getFullYear();
+        const m = hoy.getMonth() - fechaNacimiento.getMonth();
+        if (m < 0 || (m === 0 && hoy.getDate() < fechaNacimiento.getDate())) edad--;
+        if (edad < 15) newErrors.fechaNacimiento = 'Debes tener al menos 15 años';
+      }
 
-    await AsyncStorage.setItem('accessToken', res.access);
-    await AsyncStorage.setItem('refreshToken', res.refresh);
-    await AsyncStorage.setItem('user', JSON.stringify(res.user));
-    await AsyncStorage.setItem('userName', res.user.username);
+      if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
+        return;
+      }
 
-    navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
-  } catch (err) {
-    Alert.alert('Error', err.message || 'Algo salió mal');
-  }
-};
+      const formData = {
+        username: user.trim(),
+        phone: telefono.replace(/[^\d]/g, ''),
+        birthday,
+        region,
+        gender: sexo,
+        email: email.trim(),
+        password: pass
+      };
+
+      console.log('Datos del formulario (enviando y mostrando PIN inmediato):', formData);
+      setPinDigits(['','','','','','']);
+      setVerificado(false);
+      setCargando(true);
+      let res;
+      try {
+        res = await registerUser(formData);
+      } catch (e) {
+        setCargando(false);
+        throw e;
+      }
+      console.log('Usuario registrado (pendiente verificación PIN):', res.user.username);
+      await AsyncStorage.setItem('pending_user', JSON.stringify(res.user));
+      await AsyncStorage.setItem('pending_tokens', JSON.stringify({ access: res.access, refresh: res.refresh }));
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Algo salió mal');
+    }
+  };
 
 
 
@@ -151,6 +178,100 @@ export default function RegisterScreen({ navigation, route }) {
       <View style={{ flex: 1, width: '100%' }}>
         {/* Spacer fijo superior */}
         <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: topSpacer, backgroundColor: '#0f172a', zIndex: 5 }} />
+        {cargando ? (
+          <View style={styles.loadingContainer}>
+            <TouchableOpacity
+              onPress={() => { setCargando(false); setPinDigits(['','','','','','']); }}
+              style={{ alignSelf:'center', marginBottom: 14, backgroundColor: '#0ea5e9', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 18, shadowColor:'#000', shadowOpacity:0.25, shadowOffset:{width:0,height:2}, shadowRadius:6, elevation:6 }}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#0f172a', fontWeight: 'bold', fontSize: 16 }}>← Volver al registro</Text>
+            </TouchableOpacity>
+            <Text style={styles.loadingTitle}>Verificación de correo</Text>
+            <Text style={styles.pinInstructions}>Te enviamos un PIN a tu correo. Ingresa los 6 dígitos para continuar.</Text>
+            {pinResendAvailable ? (
+              <TouchableOpacity onPress={() => { setPinResendAvailable(false); setPinDigits(['','','','','','']); const t2=setTimeout(()=>setPinResendAvailable(true),15000); }}>
+                <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el pin? Presione aquí.</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo pin en 15 segundos…</Text>
+            )}
+            <View style={styles.pinRow}>
+              {pinDigits.map((val, i) => (
+                <TextInput
+                  key={i}
+                  ref={el => pinRefs.current[i] = el}
+                  style={[
+                    styles.pinBox,
+                    focusedPinIndex === i && styles.pinBoxFocused,
+                    val && { borderColor: '#0ea5e9' }
+                  ]}
+                  value={val}
+                  onChangeText={(txt) => {
+                    const onlyNum = txt.replace(/\D/g,'');
+                    const nextDigits = [...pinDigits];
+                    nextDigits[i] = onlyNum.slice(-1);
+                    setPinDigits(nextDigits);
+                    if (onlyNum && i < PIN_LENGTH -1) {
+                      pinRefs.current[i+1]?.focus();
+                    }
+                  }}
+                  onKeyPress={({ nativeEvent }) => {
+                    if (nativeEvent.key === 'Backspace' && !pinDigits[i] && i>0) {
+                      pinRefs.current[i-1]?.focus();
+                    }
+                  }}
+                  maxLength={1}
+                  keyboardType="number-pad"
+                  returnKeyType="next"
+                  autoCapitalize='none'
+                  onFocus={() => setFocusedPinIndex(i)}
+                  onBlur={() => setFocusedPinIndex(prev => prev === i ? -1 : prev)}
+                />
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.registerBtn, { marginTop: 32 }]} 
+              onPress={async () => {
+                const pinIngresado = pinDigits.join('');
+                if (pinIngresado.length !== PIN_LENGTH) {
+                  Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
+                  return;
+                }
+                if (pinIngresado === PIN_CORRECTO_SIMULADO) {
+                  setVerificado(true);
+                  setCargando(false); // pasamos a pantalla de éxito
+                } else {
+                  Alert.alert('PIN incorrecto', 'El PIN ingresado no es válido.');
+                }
+              }}
+            >
+              <Text style={styles.registerBtnText}>Confirmar PIN</Text>
+            </TouchableOpacity>
+          </View>
+        ) : verificado ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.successTitle}>Su correo ha sido comprobado</Text>
+            <Text style={styles.successText}>Tu registro ha sido verificado correctamente.</Text>
+            <TouchableOpacity style={styles.registerBtn} onPress={async () => {
+              try {
+                const pending = await AsyncStorage.getItem('pending_user');
+                const tokens = await AsyncStorage.getItem('pending_tokens');
+                if (pending && tokens) {
+                  const userObj = JSON.parse(pending);
+                  const tok = JSON.parse(tokens);
+                  await AsyncStorage.setItem('accessToken', tok.access);
+                  await AsyncStorage.setItem('refreshToken', tok.refresh);
+                  await AsyncStorage.setItem('user', JSON.stringify(userObj));
+                  await AsyncStorage.setItem('userName', userObj.username);
+                }
+              } catch(e) {}
+              navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
+            }}>
+              <Text style={styles.registerBtnText}>Ir al inicio</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <ScrollView
           style={{ flex: 1, width: '100%' }}
           contentContainerStyle={{
@@ -204,11 +325,11 @@ export default function RegisterScreen({ navigation, route }) {
           <View style={styles.inputGroup}>
             <TouchableOpacity
               onPress={() => setShowEdadModal(true)}
-              style={[styles.input, { justifyContent: 'center', flexDirection: 'row', alignItems: 'center' }]}
+              style={[styles.input, { justifyContent: 'start', flexDirection: 'row', alignItems: 'start' }]}
               activeOpacity={0.8}
             >
               <Text style={{ color: fechaNacimiento ? '#fff' : '#888', fontSize: 16 }}>
-                Fecha de nacimiento {fechaNacimiento ? `(${fechaNacimiento.toLocaleDateString()})` : '(ej: 01/01/2000)'}
+                {fechaNacimiento ? ` ${fechaNacimiento.toLocaleDateString()}` : 'Fecha de nacimiento'}
               </Text>
             </TouchableOpacity>
             {/* Modal de advertencia de edad mínima */}
@@ -221,7 +342,7 @@ export default function RegisterScreen({ navigation, route }) {
               <View style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.85)', justifyContent: 'center', alignItems: 'center' }}>
                 <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, alignItems: 'center', maxWidth: 320 }}>
                   <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>
-                    Para registrarte debes tener al menos 18 años de edad. Selecciona tu fecha de nacimiento y asegúrate de cumplir con este requisito.
+                    Para registrarte debes tener al menos 15 años de edad. Selecciona tu fecha de nacimiento y asegúrate de cumplir con este requisito.
                   </Text>
                   <TouchableOpacity onPress={() => { setShowEdadModal(false); setShowDatePicker(true); }} style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 32, marginTop: 8 }}>
                     <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Aceptar</Text>
@@ -243,18 +364,16 @@ export default function RegisterScreen({ navigation, route }) {
               }}>
                 <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 16, elevation: 10 }}>
                   <DateTimePicker
-                    value={fechaNacimiento}
+                    value={fechaNacimiento || new Date()}
                     mode="date"
                     display={Platform.OS === 'android' ? 'calendar' : 'spinner'}
                     themeVariant="dark"
                     onChange={(event, selectedDate) => {
-                      setShowDatePicker(false);
+                      // no cerramos hasta seleccionar explícitamente (en Android se cierra solo)
+                      if (Platform.OS === 'android') setShowDatePicker(false);
                       if (selectedDate) setFechaNacimiento(selectedDate);
                     }}
-                    maximumDate={(() => {
-                      const today = new Date();
-                      return new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
-                    })()}
+                    maximumDate={new Date()} // ahora permite seleccionar fechas recientes
                   />
                   <TouchableOpacity onPress={() => setShowDatePicker(false)} style={{ marginTop: 12, alignSelf: 'center' }}>
                     <Text style={{ color: '#ec4899', fontWeight: 'bold', fontSize: 16 }}>Cerrar</Text>
@@ -262,6 +381,7 @@ export default function RegisterScreen({ navigation, route }) {
                 </View>
               </View>
             )}
+            {errors.fechaNacimiento && <Text style={styles.errorMsg}>{errors.fechaNacimiento}</Text>}
           </View>
 
           {/* Selector de sexo tipo radio */}
@@ -361,8 +481,9 @@ export default function RegisterScreen({ navigation, route }) {
           <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
             <Text style={styles.registerBtnText}>Registrarse</Text>
           </TouchableOpacity>
-        </View>
-        </ScrollView>
+  </View>
+  </ScrollView>
+  )}
       </View>
     </SafeAreaView>
   );
@@ -559,5 +680,86 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontWeight: 'bold',
     alignSelf: 'flex-start',
+  },
+  // Estilos reutilizados del flujo de PIN (similar a FormularioScreen)
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30,41,59,0.92)',
+    borderRadius: 28,
+    margin: 24,
+    paddingHorizontal: 40,
+    paddingVertical: 56,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 14,
+    elevation: 12,
+    width: 'auto',
+    maxWidth: 480,
+    alignSelf: 'center'
+  },
+  loadingTitle: {
+    color: '#facc15',
+    fontSize: 26,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  pinInstructions: {
+    color: '#cbd5e1',
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 12,
+    lineHeight: 22,
+    maxWidth: 360
+  },
+  successTitle: {
+    color: '#22c55e',
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  successText: {
+    color: '#fff',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  pinRow: {
+  flexDirection: 'row',
+  marginTop: 36,
+  width: '100%',
+  maxWidth: 340,
+  justifyContent: 'space-between'
+  },
+  pinBox: {
+  width: 52,
+  height: 62,
+    backgroundColor: '#1e293b',
+    borderRadius: 14,
+    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#fff',
+    borderWidth: 2,
+    borderColor: '#334155',
+    shadowColor: 'transparent'
+  },
+  pinBoxFocused: {
+    borderColor: '#0ea5e9',
+    shadowColor: '#0ea5e9',
+  shadowOpacity: 0.55,
+  shadowOffset: { width: 0, height: 3 },
+  shadowRadius: 8,
+  elevation: 8,
   },
 });
