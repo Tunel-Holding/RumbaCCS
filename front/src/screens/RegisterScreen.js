@@ -168,8 +168,8 @@ export default function RegisterScreen({ navigation, route }) {
         console.log('Usuario registrado (pendiente verificación PIN):', res.user.username);
         await AsyncStorage.setItem('accessToken', res.access);
         await AsyncStorage.setItem('refreshToken', res.refresh);
-        await AsyncStorage.setItem('user', JSON.stringify(res.user));
         await AsyncStorage.setItem('userName', res.user.username);
+        await AsyncStorage.setItem('pending_user', JSON.stringify(res.user));
         await AsyncStorage.setItem('pending_tokens', JSON.stringify({ access: res.access, refresh: res.refresh }));
         Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
         console.log('Usuario registrado:', res.user.username);
@@ -179,22 +179,11 @@ export default function RegisterScreen({ navigation, route }) {
         throw e;
       }
       
+    navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
     } catch (err) {
       Alert.alert('Error', err.message || 'Algo salió mal');
     }
   };
-    
-    
-
-    
-
-    navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
-  } catch (err) {
-    Alert.alert('Error', err.message || 'Algo salió mal');
-  }
-};
-
-
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
