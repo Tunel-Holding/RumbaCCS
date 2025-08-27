@@ -5,7 +5,6 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimens
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -84,6 +83,8 @@ export default function RegisterScreen({ navigation, route }) {
   const [fechaNacimiento, setFechaNacimiento] = useState(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [region, setRegion] = useState('');
+  const [showRegionModal, setShowRegionModal] = useState(false);
+  const [regionSearch, setRegionSearch] = useState('');
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [repeatPass, setRepeatPass] = useState('');
@@ -103,6 +104,10 @@ export default function RegisterScreen({ navigation, route }) {
   const PIN_CORRECTO_SIMULADO = '123456';
   const [pinResendAvailable, setPinResendAvailable] = useState(false);
   const [focusedPinIndex, setFocusedPinIndex] = useState(-1);
+
+  const ESTADOS_VE = [
+    'Amazonas','Anzoátegui','Apure','Aragua','Barinas','Bolívar','Carabobo','Cojedes','Delta Amacuro','Distrito Capital','Falcón','Guárico','Lara','Mérida','Miranda','Monagas','Nueva Esparta','Portuguesa','Sucre','Táchira','Trujillo','La Guaira','Yaracuy','Zulia'
+  ];
 
   useEffect(() => {
     if (cargando) {
@@ -397,43 +402,53 @@ export default function RegisterScreen({ navigation, route }) {
           </View>
 
           <View style={styles.inputGroup}>
-            <View style={{ backgroundColor: '#1e293b', borderRadius: 8, borderWidth: 1, borderColor: '#0ea5e9', overflow: 'hidden' }}>
-              <Picker
-                selectedValue={region}
-                style={{ color: '#fff', backgroundColor: '#1e293b', height: 56, paddingVertical: 8 }}
-                dropdownIconColor="#fff"
-                onValueChange={(itemValue) => setRegion(itemValue)}
-                mode="dropdown"
-              >
-                <Picker.Item label="Selecciona tu estado" value="" color="#888" />
-                <Picker.Item label="Amazonas" value="Amazonas" color="#000" />
-                <Picker.Item label="Anzoátegui" value="Anzoátegui" color="#000" />
-                <Picker.Item label="Apure" value="Apure" color="#000" />
-                <Picker.Item label="Aragua" value="Aragua" color="#000" />
-                <Picker.Item label="Barinas" value="Barinas" color="#000" />
-                <Picker.Item label="Bolívar" value="Bolívar" color="#000" />
-                <Picker.Item label="Carabobo" value="Carabobo" color="#000" />
-                <Picker.Item label="Cojedes" value="Cojedes" color="#000" />
-                <Picker.Item label="Delta Amacuro" value="Delta Amacuro" color="#000" />
-                <Picker.Item label="Distrito Capital" value="Distrito Capital" color="#000" />
-                <Picker.Item label="Falcón" value="Falcón" color="#000" />
-                <Picker.Item label="Guárico" value="Guárico" color="#000" />
-                <Picker.Item label="Lara" value="Lara" color="#000" />
-                <Picker.Item label="Mérida" value="Mérida" color="#000" />
-                <Picker.Item label="Miranda" value="Miranda" color="#000" />
-                <Picker.Item label="Monagas" value="Monagas" color="#000" />
-                <Picker.Item label="Nueva Esparta" value="Nueva Esparta" color="#000" />
-                <Picker.Item label="Portuguesa" value="Portuguesa" color="#000" />
-                <Picker.Item label="Sucre" value="Sucre" color="#000" />
-                <Picker.Item label="Táchira" value="Táchira" color="#000" />
-                <Picker.Item label="Trujillo" value="Trujillo" color="#000" />
-                <Picker.Item label="La Guaira" value="La Guaira" color="#000" />
-                <Picker.Item label="Yaracuy" value="Yaracuy" color="#000" />
-                <Picker.Item label="Zulia" value="Zulia" color="#000" />
-              </Picker>
-            </View>
+            <TouchableOpacity
+              style={styles.regionSelector}
+              activeOpacity={0.8}
+              onPress={() => { setShowRegionModal(true); setRegionSearch(''); }}
+            >
+              <Text style={[styles.regionSelectorText, !region && { color: '#64748b' }]}>{region || 'Selecciona tu estado'}</Text>
+              <Ionicons name={showRegionModal ? 'chevron-up' : 'chevron-down'} size={20} color='#0ea5e9' style={{ marginLeft: 8 }} />
+            </TouchableOpacity>
             {errors.region && <Text style={styles.errorMsg}>{errors.region}</Text>}
           </View>
+
+          {/* Modal selector región consistente iOS/Android */}
+          {showRegionModal && (
+            <Modal transparent animationType='fade' onRequestClose={() => setShowRegionModal(false)}>
+              <View style={styles.regionModalOverlay}>
+                <View style={styles.regionModalContent}>
+                  <Text style={styles.regionModalTitle}>Selecciona tu estado</Text>
+                  <TextInput
+                    value={regionSearch}
+                    onChangeText={setRegionSearch}
+                    placeholder='Buscar...'
+                    placeholderTextColor='#64748b'
+                    style={styles.regionSearchInput}
+                  />
+                  <ScrollView style={{ maxHeight: 300, width: '100%', marginTop: 4 }} keyboardShouldPersistTaps='handled' showsVerticalScrollIndicator={false}>
+                    {ESTADOS_VE.filter(e => e.toLowerCase().includes(regionSearch.toLowerCase())).map(est => (
+                      <TouchableOpacity
+                        key={est}
+                        activeOpacity={0.9}
+                        style={[styles.regionOption, est === region && styles.regionOptionActive]}
+                        onPress={() => { setRegion(est); setShowRegionModal(false); if (errors.region) setErrors(e=>({...e, region: undefined})); }}
+                      >
+                        <Text style={styles.regionOptionText}>{est}</Text>
+                        {est === region && <Ionicons name='checkmark-circle' size={20} color='#10b981' />}
+                      </TouchableOpacity>
+                    ))}
+                    {ESTADOS_VE.filter(e => e.toLowerCase().includes(regionSearch.toLowerCase())).length === 0 && (
+                      <Text style={styles.regionEmptyText}>Sin resultados</Text>
+                    )}
+                  </ScrollView>
+                  <TouchableOpacity style={styles.regionCloseBtn} onPress={() => setShowRegionModal(false)}>
+                    <Text style={styles.regionCloseText}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          )}
           <View style={styles.inputGroup}>
             <TextInput
               style={[styles.input, errors.email && styles.inputError]}
@@ -761,5 +776,105 @@ const styles = StyleSheet.create({
   shadowOffset: { width: 0, height: 3 },
   shadowRadius: 8,
   elevation: 8,
+  },
+  /* ---- Region custom selector styles (added) ---- */
+  regionSelector: {
+    backgroundColor: '#1e293b',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#0ea5e9',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  regionSelectorText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1
+  },
+  regionModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  regionModalContent: {
+    backgroundColor: '#0f172a',
+    borderRadius: 22,
+    padding: 22,
+    width: width < 400 ? width - 40 : 380,
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowOffset: { width: 0, height: 8 },
+    shadowRadius: 18,
+    elevation: 14,
+    alignItems: 'center'
+  },
+  regionModalTitle: {
+    color: '#ec4899',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    textAlign: 'center'
+  },
+  regionSearchInput: {
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    color: '#fff',
+    width: '100%',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  regionOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: '#1e293b',
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  regionOptionActive: {
+    backgroundColor: '#334155',
+    borderWidth: 1,
+    borderColor: '#0ea5e9'
+  },
+  regionOptionText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
+    marginRight: 12,
+    flex: 1
+  },
+  regionEmptyText: {
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 24,
+    fontSize: 15,
+  },
+  regionCloseBtn: {
+    marginTop: 14,
+    backgroundColor: '#0ea5e9',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 14,
+    alignSelf: 'center'
+  },
+  regionCloseText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16
   },
 });
