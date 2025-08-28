@@ -30,15 +30,13 @@ class RegistroUsuarioView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        
-        # Enviar código de verificación al correo
-        email = user.email
+        data = request.data
+        email = data.get('email')
+        if not email:
+            return Response({'error': 'Email requerido.'}, status=status.HTTP_400_BAD_REQUEST)
         code = str(random.randint(100000, 999999))
         expires_at = timezone.now() + timezone.timedelta(minutes=10)
-        print(f"Enviando código de verificación: {code} a {email}")
+        # Si ya existe, actualiza el código y la expiración
         EmailVerification.objects.update_or_create(
             email=email,
             defaults={
@@ -47,8 +45,6 @@ class RegistroUsuarioView(generics.CreateAPIView):
                 'is_verified': False
             }
         )
-        print("FROM:", settings.DEFAULT_FROM_EMAIL, "TO:", email)
-        
         send_mail(
             'Tu código de verificación',
             f'Tu código es: {code}',
@@ -56,24 +52,7 @@ class RegistroUsuarioView(generics.CreateAPIView):
             [email],
             fail_silently=False,
         )
-        
-        
-        
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            'message': 'Usuario creado con éxito, se ha enviado un código de verificación a tu correo.',
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'username': user.username,
-                'phone': user.phone,
-                'birthday': str(user.birthday),
-                'region': user.region,
-                'gender': user.gender
-            },
-            'refresh': str(refresh),
-            'access': str(refresh.access_token),
-        }, status=status.HTTP_201_CREATED)
+        return Response({'message': 'Se ha enviado un código de verificación a tu correo.'}, status=status.HTTP_200_OK)
 
 class SendVerificationCodeView(APIView):
     def post(self, request):
@@ -123,3 +102,36 @@ class VerifyCodeView(APIView):
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UserPublicSerializer
+
+
+class FinalizeRegisterView(APIView):
+    def post(self, request):
+        data = request.data
+        email = data.get('email')
+        code = data.get('code')
+        # Verifica que el correo esté verificado
+        try:
+            verification = EmailVerification.objects.get(email=email, is_verified=True)
+        except EmailVerification.DoesNotExist:
+            return Response({'error': 'Correo no verificado.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Crea el usuario si no existe
+        if Usuario.objects.filter(email=email).exists():
+            return Response({'error': 'El usuario ya existe.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = RegisterSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            'message': 'Usuario creado exitosamente.',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'username': user.username,
+                'phone': user.phone,
+                'birthday': str(user.birthday),
+                'region': user.region,
+                'gender': user.gender
+            },
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+        }, status=status.HTTP_201_CREATED)

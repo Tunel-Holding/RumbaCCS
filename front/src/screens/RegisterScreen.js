@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+const ipAddress = '192.168.0.101'; // Cambia esto por la IP de tu servidor
 
 const API_URL = `http://${ipAddress}:8000/api`;
 
@@ -59,9 +59,7 @@ export const registerUser = async (formData) => {
 
     console.log('Registro exitoso:', data.user);
 
-    await AsyncStorage.setItem('access', data.access);
-    await AsyncStorage.setItem('refresh', data.refresh);
-    await AsyncStorage.setItem('user', JSON.stringify(data.user));
+  // No guardar access, refresh ni user aquí
     return data;
   } catch (error) {
     throw error;
@@ -157,29 +155,27 @@ export default function RegisterScreen({ navigation, route }) {
         password: pass
       };
 
-      console.log('Datos del formulario (enviando y mostrando PIN inmediato):', formData);
       setPinDigits(['','','','','','']);
       setVerificado(false);
       setCargando(true);
-      let res;
       try {
-        res = await registerUser(formData);
-
-        console.log('Usuario registrado (pendiente verificación PIN):', res.user.username);
-        await AsyncStorage.setItem('accessToken', res.access);
-        await AsyncStorage.setItem('refreshToken', res.refresh);
-        await AsyncStorage.setItem('userName', res.user.username);
-        await AsyncStorage.setItem('pending_user', JSON.stringify(res.user));
-        await AsyncStorage.setItem('pending_tokens', JSON.stringify({ access: res.access, refresh: res.refresh }));
-        Alert.alert('Registro exitoso', `Bienvenido ${res.user.username}`);
-        console.log('Usuario registrado:', res.user.username);
-
+        // Solo envía el formulario y espera el PIN
+        const res = await registerUser(formData);
+        if (res && res.error) {
+          Alert.alert('Error', res.error);
+          setCargando(false);
+          return;
+        }
+        await AsyncStorage.setItem('pending_user', JSON.stringify(formData));
+        if (res && res.message) {
+          Alert.alert('Verificación', res.message);
+        }
+        // No guardar access, refresh ni user aquí
       } catch (e) {
         setCargando(false);
-        throw e;
+        Alert.alert('Error', e.message || 'Error en el registro');
+        return;
       }
-      
-    navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
     } catch (err) {
       Alert.alert('Error', err.message || 'Algo salió mal');
     }
@@ -250,11 +246,41 @@ export default function RegisterScreen({ navigation, route }) {
                   Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
                   return;
                 }
-                if (pinIngresado === PIN_CORRECTO_SIMULADO) {
+                try {
+                  // Verifica el PIN con el backend
+                  const pendingUser = await AsyncStorage.getItem('pending_user');
+                  const userData = JSON.parse(pendingUser);
+                  const response = await fetch(`${API_URL}/verify-code/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userData.email, code: pinIngresado })
+                  });
+                  const result = await response.json();
+                  if (!response.ok) {
+                    Alert.alert('PIN incorrecto', result.error || 'El PIN ingresado no es válido.');
+                    return;
+                  }
+                  // Si el PIN es correcto, ahora crea el usuario realmente
+                  const createResponse = await fetch(`${API_URL}/finalize-register/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                  });
+                  const createResult = await createResponse.json();
+                  if (!createResponse.ok) {
+                    Alert.alert('Error', createResult.error || 'No se pudo crear el usuario.');
+                    return;
+                  }
+                  // Solo aquí guardar los tokens y datos del usuario
+                  if (createResult.access && createResult.refresh && createResult.user) {
+                    await AsyncStorage.setItem('accessToken', createResult.access);
+                    await AsyncStorage.setItem('refreshToken', createResult.refresh);
+                    await AsyncStorage.setItem('userName', createResult.user.username);
+                  }
                   setVerificado(true);
-                  setCargando(false); // pasamos a pantalla de éxito
-                } else {
-                  Alert.alert('PIN incorrecto', 'El PIN ingresado no es válido.');
+                  setCargando(false);
+                } catch (err) {
+                  Alert.alert('Error', err.message || 'No se pudo verificar el PIN.');
                 }
               }}
             >
@@ -274,7 +300,10 @@ export default function RegisterScreen({ navigation, route }) {
                   const tok = JSON.parse(tokens);
                   await AsyncStorage.setItem('accessToken', tok.access);
                   await AsyncStorage.setItem('refreshToken', tok.refresh);
-                  await AsyncStorage.setItem('user', JSON.stringify(userObj));
+                  // Guardar el usuario solo si existe y es válido
+                  if (userObj) {
+                    await AsyncStorage.setItem('user', JSON.stringify(userObj));
+                  }
                   await AsyncStorage.setItem('userName', userObj.username);
                 }
               } catch(e) {}
