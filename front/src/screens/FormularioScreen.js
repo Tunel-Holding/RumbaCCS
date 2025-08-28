@@ -79,8 +79,6 @@ export default function FormularioScreen({ navigation, route }) {
   };
 
 const handleEnviar = async () => {
-
-  
   if (!validarCampos()) return;
 
   const empresaId = await AsyncStorage.getItem("empresaId");
@@ -111,38 +109,105 @@ const handleEnviar = async () => {
     setCargando(true);
     const token = await AsyncStorage.getItem("accessToken");
 
-    const res = await fetch(`http://${ipAddress}:8000/api/empresas/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        nombre,
-        rif: rifFormateado,
-        lugar,
-        telefono,
-        email_contacto: correo,
-        redes_sociales: redes || ""
-      })
-    });
+    let res;
+    if (token) {
+      // ✅ FLUJO 1: El usuario YA existe y está logueado
 
-    const data = await res.json();
+      res = await fetch(`http://${ipAddress}:8000/api/empresas/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nombre,
+          rif: rifFormateado,
+          lugar,
+          telefono,
+          email_contacto: correo,
+          redes_sociales: redes || ""
+        })
+      });
+    } else {
+      // ✅ FLUJO 2: Registro DIRECTO como empresa (sin user previo)
 
-    if (!res.ok) {
-      console.error("Error backend:", data);
-      Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
+      // 🔹 Este endpoint nuevo debe crearte user + empresa en backend
+      res = await fetch(`http://${ipAddress}:8000/api/registro-empresa/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre,
+          rif: rifFormateado,
+          lugar,
+          telefono,
+          gender: 'masculino', // o pedir en el form
+          region: 'Carabobo', // o pedir en el form
+          phone : telefono,
+          email_contacto: correo,
+          redes_sociales: redes || "",
+          // 👇 Estos campos extra son necesarios SOLO cuando no hay user previo
+          password: "00000000", // aquí deberías pedirlo en un campo input
+          email: correo
+        })
+      });
+    }
+
+  
+  const text = await res.text(); // <- primero leo como texto
+  let data;
+
+  try {
+    data = JSON.parse(text); // intento parsear a JSON
+  } catch {
+    console.error("Respuesta no-JSON del backend:", text);
+    Alert.alert("Error", "El servidor devolvió un error inesperado");
+    return;
+  }
+
+  if (!res.ok) {
+    console.error("Error backend:", data);
+    Alert.alert(
+      "Error",
+      data?.non_field_errors?.[0] || data?.detail || "No se pudo crear la empresa"
+    );
+    return;
+  }
+
+    // // ✅ Guardamos empresaId y token (según flujo)
+    // if (data.id) {
+    //   await AsyncStorage.setItem("empresaId", data.id.toString());
+
+    //   if (data.access) {
+    //     await AsyncStorage.setItem("accessToken", data.access);
+    //   } else {
+    //     await AsyncStorage.setItem("accessToken", token);
+    //   }
+    // }
+
+    console.log("Empresa creada:", data);
+
+   // 6. Extraer ID real
+    const empresaIdReal = data.id ?? data.empresa?.id;
+    if (!empresaIdReal) {
+      console.error("Falta campo id en respuesta:", data);
+      Alert.alert("Error", "El servidor no devolvió el ID de la empresa");
       return;
     }
 
-    // Solo si todo salió bien
-    if (data.id) {
-      await AsyncStorage.setItem("empresaId", data.id.toString());
-      await AsyncStorage.setItem("accessToken", token);
+    // 7. Guardar empresaId
+    await AsyncStorage.setItem("empresaId", empresaIdReal.toString());
+
+    // 8. Guardar o eliminar token
+    const nuevoToken = data.access || prevToken;
+    if (nuevoToken) {
+      await AsyncStorage.setItem("accessToken", nuevoToken);
+    } else {
+      await AsyncStorage.removeItem("accessToken");
     }
 
-    console.log("Empresa creada:", data);
-    navigation.navigate("Empresa", { empresaId: data.id });
+    // 9. Navegar
+    navigation.navigate("Empresa", { empresaId: empresaIdReal });
+    
 
   } catch (error) {
     console.error("Error de conexión:", error);
@@ -151,6 +216,7 @@ const handleEnviar = async () => {
     setCargando(false);
   }
 };
+
 
 
 const handleActualizar = async () => {

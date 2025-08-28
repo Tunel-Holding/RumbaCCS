@@ -46,6 +46,15 @@ export default function EmpresaScreen() {
         const token = await AsyncStorage.getItem("accessToken");
         const empresaId = await AsyncStorage.getItem("empresaId");
 
+        console.log("🔑 token:", token);
+        console.log("🏷 empresaId:", empresaId);
+
+        if (!empresaId || !token) {
+      console.warn("Falta token o empresaId");
+      setLoading(false);
+      return;
+    }
+
         // if (empresaId) {
         //   try {
         //     const res = await axios.get(`http://${ipAddress}:8000/api/empresa/${empresaId}/`);
@@ -68,12 +77,13 @@ export default function EmpresaScreen() {
         const response = await axios.get(
           `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
           {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { 
+              "Content-Type":  "application/json",
+              Authorization: `Bearer ${token}` },
           }
         );
-
-        console.log("termino la api")
-
+        console.log("✅ Empresa data:", response.data);
+        
         setEmpresaData(response.data);
       } catch (error) {
         console.error("Error al traer empresa:", error);
