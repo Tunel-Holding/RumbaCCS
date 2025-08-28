@@ -1,7 +1,8 @@
 from rest_framework import serializers
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
-from .models import Empresa, Evento2
+from django.db import IntegrityError
+from .models import Empresa, Evento2, Usuario
 
 class EventoSerializer(serializers.ModelSerializer):
     categoria = serializers.ListField(
@@ -95,4 +96,131 @@ class EmpresaSerializer(serializers.ModelSerializer):
             raise ValidationError("Ya tienes una empresa registrada con este usuario.")
         return attrs
 
+class EmpresaRegistroSerializer(serializers.ModelSerializer):
+    # Campos para crear el usuario
+    email = serializers.EmailField(write_only=True)
+    password = serializers.CharField(write_only=True)
+    
+    phone = serializers.IntegerField(write_only=True)
+    birthday = serializers.DateField(required=False, allow_null=True)
+    region = serializers.ChoiceField(write_only=True, choices=Usuario.ESTADO_CHOICES)
+    gender = serializers.ChoiceField(write_only=True, choices=Usuario.GENERO_CHOICES)
 
+    class Meta:
+        model = Empresa
+        fields = [
+            "id",
+            "nombre",
+            "rif",
+            "descripcion",
+            "lugar",
+            "telefono",
+            "email_contacto",
+            "redes_sociales",
+            "logo",
+            "email",      # para user
+            "password",   # para user
+            "phone",      # para user
+            "birthday",   # para user
+            "region",     # para user
+            "gender"      # para user
+        ]
+
+    def create(self, validated_data):
+        # Extraer campos del usuario
+        email = validated_data.pop("email")
+        password = validated_data.pop("password")
+        phone = validated_data.pop("phone", None)
+        birthday = validated_data.pop("birthday", None)
+        region = validated_data.pop("region", None)
+        gender = validated_data.pop("gender", None)
+
+        nombre_empresa = validated_data.get("nombre")  # usar nombre de empresa como username
+
+        # Crear usuario
+        try:
+            usuario = Usuario.objects.create_user(
+                email=email,
+                password=password,
+                username=nombre_empresa,
+                phone=phone,
+                birthday=birthday,
+                region=region,
+                gender=gender
+            )
+        except IntegrityError:
+            raise ValidationError({"usuario": "El correo ya está en uso o el nombre de empresa ya está registrado"})
+
+        # Crear empresa asociada
+        empresa = Empresa.objects.create(usuario=usuario, **validated_data)
+
+        return empresa
+
+# class EmpresaRegistroSerializer(serializers.ModelSerializer):
+#     # Campos usuario
+#     email = serializers.EmailField(write_only=True)
+#     password = serializers.CharField(write_only=True)
+    
+#     phone = serializers.CharField(write_only=True)
+#     birthday = serializers.DateField(write_only=True)
+#     region = serializers.ChoiceField(write_only=True, choices=Usuario.ESTADO_CHOICES)
+#     gender = serializers.ChoiceField(write_only=True, choices=Usuario.GENERO_CHOICES)
+
+#     class Meta:
+#         model = Empresa
+#         fields = [
+#             "nombre",
+#             "rif",
+#             "descripcion",
+#             "lugar",
+#             "telefono",        # teléfono de la empresa (opcional)
+#             "email_contacto",
+#             "redes_sociales",
+#             "logo",
+#             "email",
+#             "password",
+#             "username",
+#             "phone",
+#             "birthday",
+#             "region",
+#             "gender",
+#         ]
+
+#     def create(self, validated_data):
+#         email = validated_data.pop("email")
+#         password = validated_data.pop("password")
+#         nombre_empresa = validated_data.pop("nombre")
+#         phone = validated_data.pop("phone")
+#         birthday = validated_data.pop("birthday")
+#         region = validated_data.pop("region")
+#         gender = validated_data.pop("gender")
+        
+#         # 🔹 Si ya existe un usuario logueado, usarlo
+#         request = self.context.get("request")
+#         if request and request.user.is_authenticated:
+#             usuario = request.user
+#             # Solo actualizar el phone si no tiene
+#             if not usuario.phone:
+#                 usuario.phone = phone
+#                 usuario.save()
+#         else:
+#             # Crear nuevo usuario
+#             usuario = Usuario.objects.create_user(
+#                 email=email,
+#                 password=password,
+#                 username=nombre_empresa,
+#                 phone=phone,
+#                 birthday=birthday,
+#                 region=region,
+#                 gender=gender
+#             )
+
+#         # Crear empresa, usar telefono de empresa si viene del form
+#         empresa_telefono = validated_data.pop("telefono", phone)  # si no hay telefono, usamos phone
+#         empresa = Empresa.objects.create(
+#             usuario=usuario,
+#             nombre=nombre_empresa,
+#             telefono=empresa_telefono,
+#             **validated_data
+#         )
+#         return empresa

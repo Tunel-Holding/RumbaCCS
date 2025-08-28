@@ -4,10 +4,13 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Empresa, Evento2
-from .serializers import EmpresaSerializer, EventoSerializer
+from .models import Empresa, Evento2,Usuario
+from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer
+from rest_framework import generics
 from .permissions import IsEmpresaUser
 from rest_framework import viewsets, permissions
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.renderers import JSONRenderer
 # -----------------------------
 # ViewSet principal para Empresa
 # -----------------------------
@@ -92,3 +95,50 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Evento2.objects.all().order_by('-id')  # orden por id
     serializer_class = EventoSerializer
     permission_classes = [AllowAny]  # público, no requiere token
+
+def get_tokens_for_user(user):
+    refresh = RefreshToken.for_user(user)
+    return {
+        'refresh': str(refresh),
+        'access': str(refresh.access_token),
+    }
+
+class EmpresaRegistroView(generics.CreateAPIView):
+    serializer_class = EmpresaRegistroSerializer
+    renderer_classes   = [JSONRenderer]
+    permission_classes = [AllowAny]  # porque es registro inicial
+    
+    
+    def create(self, request, *args, **kwargs):
+        
+        # 1. Validar datos de entrada
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # 2. Crear el objeto Empresa (internamente crea al Usuario)
+        empresa = serializer.save()
+
+        # 3. Generar tokens JWT para el usuario recién creado
+        usuario = empresa.usuario
+        tokens  = get_tokens_for_user(usuario)
+
+        # 4. Serializar la empresa para incluir id y demás campos
+        empresa_data = EmpresaSerializer(
+            empresa,
+            context={"request": request}
+        ).data
+
+        # 5. Unir la info de empresa con los tokens
+        response_data = {
+            **empresa_data,
+            "access":  tokens["access"],
+            "refresh": tokens["refresh"],
+        }
+
+        # 6. Devolver respuesta con status 201
+        headers = self.get_success_headers(response_data)
+        return Response(
+            response_data,
+            status=status.HTTP_201_CREATED,
+            headers=headers
+        )

@@ -14,7 +14,7 @@ class Empresa(models.Model):
         Usuario,
         on_delete=models.CASCADE,
         related_name="empresa",
-        help_text="Usuario administrador de esta empresa"
+        help_text="Usuario administrador de esta empresa",
     )
 
     nombre = models.CharField(
