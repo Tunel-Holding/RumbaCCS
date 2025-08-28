@@ -110,7 +110,7 @@ export default function RegisterScreen({ navigation, route }) {
   useEffect(() => {
     if (cargando) {
       setPinResendAvailable(false);
-      const t = setTimeout(() => setPinResendAvailable(true), 15000);
+      const t = setTimeout(() => setPinResendAvailable(true), 60000); // 1 minuto
       return () => clearTimeout(t);
     }
   }, [cargando]);
@@ -198,11 +198,11 @@ export default function RegisterScreen({ navigation, route }) {
             <Text style={styles.loadingTitle}>Verificación de correo</Text>
             <Text style={styles.pinInstructions}>Te enviamos un PIN a tu correo. Ingresa los 6 dígitos para continuar.</Text>
             {pinResendAvailable ? (
-              <TouchableOpacity onPress={() => { setPinResendAvailable(false); setPinDigits(['','','','','','']); const t2=setTimeout(()=>setPinResendAvailable(true),15000); }}>
+              <TouchableOpacity onPress={() => { setPinResendAvailable(false); setPinDigits(['','','','','','']); const t2=setTimeout(()=>setPinResendAvailable(true),60000); }}>
                 <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el pin? Presione aquí.</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo pin en 15 segundos…</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo pin en 1 minuto…</Text>
             )}
             <View style={styles.pinRow}>
               {pinDigits.map((val, i) => (
