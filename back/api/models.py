@@ -70,7 +70,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     phone = models.BigIntegerField(
         validators=[MinValueValidator(1000000000), MaxValueValidator(9999999999)]
     )
-    birthday = models.DateField()
+    birthday = models.DateField(null=True, blank=True)
     region = models.CharField(max_length=20, choices=ESTADO_CHOICES)
     gender = models.CharField(max_length=9, choices=GENERO_CHOICES)
 
