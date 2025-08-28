@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-const ipAddress = '192.168.0.101'; // Cambia esto por la IP de tu servidor
+const ipAddress = '192.168.1.236'; // Cambia esto por la IP de tu servidor
 
 const API_URL = `http://${ipAddress}:8000/api`;
 
@@ -99,7 +99,6 @@ export default function RegisterScreen({ navigation, route }) {
   const PIN_LENGTH = 6;
   const [pinDigits, setPinDigits] = useState(['','','','','','']);
   const pinRefs = useRef([]);
-  const PIN_CORRECTO_SIMULADO = '123456';
   const [pinResendAvailable, setPinResendAvailable] = useState(false);
   const [focusedPinIndex, setFocusedPinIndex] = useState(-1);
 
