@@ -19,7 +19,7 @@ export default function HomeScreen() {
   const [isLogged, setIsLogged] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const ipAddress = '192.168.1.236'; // Cambia esto por la IP de tu servidor
+  const ipAddress = '192.168.0.101'; // Cambia esto por la IP de tu servidor
 
   useEffect(() => {
     const checkSession = async () => {
@@ -49,7 +49,7 @@ export default function HomeScreen() {
       return; // Detiene la función si faltan datos
     }
     try {
-      const response = await fetch(`http://${ipAddress}:8000/api/login/`, {
+  const response = await fetch(`http://${ipAddress}:8000/api/login/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -103,7 +103,7 @@ export default function HomeScreen() {
     const fetchEventos = async () => {
       try {
         // Endpoint público, no requiere token
-        const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
+  const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
         if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
 
         const data = await res.json();

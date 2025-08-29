@@ -48,6 +48,7 @@ class EventoSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         empresa = self.context["request"].user.empresa
         return Evento2.objects.create(empresa=empresa, **validated_data)
+    
 class EmpresaSerializer(serializers.ModelSerializer):
     
     total_seguidores = serializers.SerializerMethodField()
@@ -127,7 +128,7 @@ class EmpresaRegistroSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
-        # Extraer campos del usuario
+        logo = serializers.ImageField(required=False, allow_null=True, allow_empty_file=True)
         email = validated_data.pop("email")
         password = validated_data.pop("password")
         phone = validated_data.pop("phone", None)

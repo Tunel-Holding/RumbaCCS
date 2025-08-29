@@ -68,7 +68,7 @@ export default function AddScreen() {
       fetchMiEmpresa();
     }, []);
 
-  const ipAddress = '192.168.1.236'; // Cambia esto por la IP de tu servidor
+  const ipAddress = '192.168.0.101'; // Cambia esto por la IP de tu servidor
 
   // Opciones predefinidas
   const categorias = [

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function FormularioScreen({ navigation, route }) {
+  const [mostrarPin, setMostrarPin] = useState(false);
   const insets = useSafeAreaInsets();
   const topSpacer = insets.top + 8; // pequeño margen superior
   //  únicamente
@@ -21,7 +22,7 @@ export default function FormularioScreen({ navigation, route }) {
   const pinRefs = useRef([]);
   const PIN_LENGTH = 6;
 
-  const ipAddress = "192.168.1.236"; // Cambia esto por tu IP real
+  const ipAddress = "192.168.0.101"; // Cambia esto por tu IP real
   
   // Simulación de PIN correcto (cambiar por valor de backend cuando esté listo)
   const PIN_CORRECTO_SIMULADO = '123456';
@@ -81,196 +82,127 @@ export default function FormularioScreen({ navigation, route }) {
 const handleEnviar = async () => {
   if (!validarCampos()) return;
 
-  const empresaId = await AsyncStorage.getItem("empresaId");
-  if (empresaId) {
-    Alert.alert("Atención", "Ya tienes una empresa creada.");
-    navigation.navigate("Empresa", { empresaId });
-    return;
-  }
-
-  console.log("Campos validados");
-  const formatearRif = (input, defaultLetter = 'J') => {
-    if (!input) return null;
-    const raw = String(input).trim().toUpperCase();
-    const letraMatch = raw.match(/^[VEJGPC]/);
-    const letra = letraMatch ? letraMatch[0] : defaultLetter;
-    const soloNumeros = raw.replace(/\D/g, '');
-    if (soloNumeros.length !== 9) return null;
-    return `${letra}-${soloNumeros.slice(0, 8)}-${soloNumeros.slice(8)}`;
-  };
-
-  const rifFormateado = formatearRif(rif);
-  if (!rifFormateado) {
-    Alert.alert("Error", "Debes ingresar 9 dígitos para el RIF");
-    return;
-  }
-
+  // Solo registro temporal y envío de pin
   try {
     setCargando(true);
-    const token = await AsyncStorage.getItem("accessToken");
-
-    let res;
-    if (token) {
-      // ✅ FLUJO 1: El usuario YA existe y está logueado
-
-      res = await fetch(`http://${ipAddress}:8000/api/empresas/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          nombre,
-          rif: rifFormateado,
-          lugar,
-          telefono,
-          email_contacto: correo,
-          redes_sociales: redes || ""
-        })
-      });
-    } else {
-      // ✅ FLUJO 2: Registro DIRECTO como empresa (sin user previo)
-
-      // 🔹 Este endpoint nuevo debe crearte user + empresa en backend
-      res = await fetch(`http://${ipAddress}:8000/api/registro-empresa/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre,
-          rif: rifFormateado,
-          lugar,
-          telefono,
-          gender: 'masculino', // o pedir en el form
-          region: 'Carabobo', // o pedir en el form
-          phone : telefono,
-          email_contacto: correo,
-          redes_sociales: redes || "",
-          // 👇 Estos campos extra son necesarios SOLO cuando no hay user previo
-          password: "00000000", // aquí deberías pedirlo en un campo input
-          email: correo
-        })
-      });
+    // Validar teléfono: solo dígitos y opcional '+' al inicio
+    let telefonoValido = telefono;
+    if (!/^\+?\d{7,15}$/.test(telefono)) {
+      telefonoValido = telefono.replace(/[^\d+]/g, "");
+      if (telefonoValido.length < 7 || telefonoValido.length > 15) {
+        Alert.alert("Error", "El teléfono debe tener entre 7 y 15 dígitos y solo puede contener números y un '+' opcional.");
+        setCargando(false);
+        return;
+      }
     }
-
-  
-  const text = await res.text(); // <- primero leo como texto
-  let data;
-
-  try {
-    data = JSON.parse(text); // intento parsear a JSON
-  } catch {
-    console.error("Respuesta no-JSON del backend:", text);
-    Alert.alert("Error", "El servidor devolvió un error inesperado");
-    return;
-  }
-
-  if (!res.ok) {
-    console.error("Error backend:", data);
-    Alert.alert(
-      "Error",
-      data?.non_field_errors?.[0] || data?.detail || "No se pudo crear la empresa"
-    );
-    return;
-  }
-
-    // // ✅ Guardamos empresaId y token (según flujo)
-    // if (data.id) {
-    //   await AsyncStorage.setItem("empresaId", data.id.toString());
-
-    //   if (data.access) {
-    //     await AsyncStorage.setItem("accessToken", data.access);
-    //   } else {
-    //     await AsyncStorage.setItem("accessToken", token);
-    //   }
-    // }
-
-    console.log("Empresa creada:", data);
-
-   // 6. Extraer ID real
-    const empresaIdReal = data.id ?? data.empresa?.id;
-    if (!empresaIdReal) {
-      console.error("Falta campo id en respuesta:", data);
-      Alert.alert("Error", "El servidor no devolvió el ID de la empresa");
+    // Si redes sociales está vacío, enviar una URL válida por defecto
+    let redesValido = redes && redes.trim() ? redes : "https://facebook.com/tuempresa";
+    // Transformar el RIF a formato J-XXXXXXXX-X si el usuario solo ingresa números
+    let rifTransformado = rif;
+    if (/^\d{9}$/.test(rif)) {
+      rifTransformado = `J-${rif.slice(0,8)}-${rif.slice(8)}`;
+    }
+    const empresaData = {
+      nombre,
+      rif: rifTransformado,
+      descripcion: descripcion || "",
+      lugar,
+      telefono: telefonoValido,
+      email_contacto: correo,
+      redes_sociales: redesValido,
+      email: correo,
+      password: "00000000",
+      phone: telefonoValido,
+      birthday: null,
+      region: "Carabobo",
+      gender: "masculino"
+    };
+    // Solo agregar logo si existe en el formulario
+    // if (logo) empresaData.logo = logo;
+    const res = await fetch(`http://${ipAddress}:8000/api/registro-empresa/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(empresaData)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      // Mostrar el error completo recibido del backend
+      Alert.alert("Error", JSON.stringify(data));
+      setCargando(false);
       return;
     }
-
-    // 7. Guardar empresaId
-    await AsyncStorage.setItem("empresaId", empresaIdReal.toString());
-
-    // 8. Guardar o eliminar token
-    const nuevoToken = data.access || prevToken;
-    if (nuevoToken) {
-      await AsyncStorage.setItem("accessToken", nuevoToken);
-    } else {
-      await AsyncStorage.removeItem("accessToken");
-    }
-
-    // 9. Navegar
-    navigation.navigate("Empresa", { empresaId: empresaIdReal });
-    
-
+  setCargando(false);
+  setVerificado(false);
+  setMostrarPin(true); // Solo mostrar pantalla de pin tras registro temporal exitoso
   } catch (error) {
-    console.error("Error de conexión:", error);
-    Alert.alert("Error", "No se pudo conectar con el servidor");
-  } finally {
     setCargando(false);
+    Alert.alert("Error", "No se pudo conectar con el servidor");
   }
 };
 
-
-
-const handleActualizar = async () => {
-  if (!validarCampos()) return;
-
-    try {
-      setCargando(true);
-      const token = await AsyncStorage.getItem("accessToken");
-      console.log("Token en fetch:", token);
-
-      const res = await fetch(`http://${ipAddress}:8000/empresa/empresas/${empresaId}/`, {
-        method: "PATCH", // o "PUT" si envías todos los campos
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify({
+// Nueva función para validar el pin y crear usuario+empresa
+const handleValidarPin = async () => {
+  const pinIngresado = pinDigits.join('');
+  if (pinIngresado.length !== PIN_LENGTH) {
+    Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
+    return;
+  }
+  try {
+    setCargando(true);
+    const res = await fetch(`http://${ipAddress}:8000/api/validar-pin-empresa/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: correo,
+        pin: pinIngresado,
+        password: "00000000",
+        empresa: {
           nombre,
           rif,
-          descripcion,
           lugar,
           telefono,
           email_contacto: correo,
-          redes_sociales: redes
-        })
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setErrores(data);
-      } else {
-        console.log("Empresa actualizada:", data);
-        navigation.goBack();
-      }
-    } catch (error) {
-      console.error("Error de conexión:", error);
-    } finally {
+          redes_sociales: redes || "",
+          descripcion,
+          gender: 'masculino',
+        }
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      Alert.alert("Error", data?.detail || "No se pudo validar el pin");
       setCargando(false);
+      return;
     }
-  };
-
+    // Guardar tokens y datos de empresa en AsyncStorage
+    await AsyncStorage.setItem('access', data.access);
+    await AsyncStorage.setItem('refresh', data.refresh);
+    await AsyncStorage.setItem('empresa', JSON.stringify(data));
+    Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
+    setCargando(false);
+    // Redirigir automáticamente a la pantalla principal con sesión iniciada
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'HomeScreen', params: { empresaId: data.id } }],
+    });
+  } catch (error) {
+    setCargando(false);
+    Alert.alert("Error", "No se pudo conectar con el servidor");
+  }
+};
 
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top }}>
       <View style={styles.header} />
       <View style={styles.body}>
-        {cargando ? (
+        {mostrarPin && !verificado ? (
+          // Pantalla de PIN
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingTitle}>Se ha enviado un PIN a su correo</Text>
             <Text style={[styles.loadingText, { marginTop: 12 }]}>Por favor, coloque los números de confirmación</Text>
             {pinResendAvailable ? (
-              <TouchableOpacity onPress={() => { setPinResendAvailable(false); /* reenviar ping */ const t2=setTimeout(()=>setPinResendAvailable(true),15000); }}>
+              <TouchableOpacity onPress={() => { setPinResendAvailable(false); const t2=setTimeout(()=>setPinResendAvailable(true),15000); }}>
                 <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el ping? Presione aquí.</Text>
               </TouchableOpacity>
             ) : (
@@ -317,30 +249,15 @@ const handleActualizar = async () => {
             </View>
             <TouchableOpacity
               style={[styles.enviarBtn, { marginTop: 32, paddingHorizontal: 32 }]} 
-              onPress={() => {
-                const pinIngresado = pinDigits.join('');
-                if (pinIngresado.length !== PIN_LENGTH) {
-                  Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
-                  return;
-                }
-                // Aquí se llamaría al backend para validar el PIN
-                if (pinIngresado === PIN_CORRECTO_SIMULADO) {
-                  setVerificado(true);
-                } else {
-                  Alert.alert('PIN incorrecto', 'El PIN ingresado no es válido.');
-                }
-              }}
+              onPress={handleValidarPin}
             >
               <Text style={styles.enviarBtnText}>Confirmar PIN</Text>
             </TouchableOpacity>
           </View>
         ) : verificado ? (
           <View style={styles.loadingContainer}>
-            <Text style={styles.successTitle}>Su correo ha sido comprobado</Text>
-            <Text style={styles.successText}>Se le enviará un correo con la respuesta a su solicitud.</Text>
-            <TouchableOpacity style={styles.enviarBtn} onPress={() => navigation.navigate('HomeScreen')}>
-              <Text style={styles.enviarBtnText}>Volver al inicio</Text>
-            </TouchableOpacity>
+            <Text style={styles.successTitle}>Registro exitoso</Text>
+            <Text style={styles.successText}>¡Bienvenido! Tu empresa ha sido registrada.</Text>
           </View>
         ) : (
           <ScrollView
