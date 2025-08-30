@@ -240,16 +240,3 @@ class Evento2(models.Model):
     #     if self.fecha_fin and self.fecha_inicio and self.fecha_fin <= self.fecha_inicio:
     #         raise ValidationError("La fecha de fin debe ser posterior a la fecha de inicio.")
     
-# class Evento(models.Model):
-#     empresa = models.ForeignKey(
-#         Empresa,
-#         on_delete=models.CASCADE,
-#         related_name="eventos"
-#     )
-#     titulo = models.CharField(max_length=255)
-#     fecha = models.DateTimeField()
-#     descripcion = models.TextField(blank=True, null=True)
-#     lugar = models.CharField(max_length=255, blank=True, null=True)
-#     precio = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-#     categoria = models.CharField(max_length=100, blank=True, null=True)
-#     imagen = models.ImageField(upload_to="eventos/", blank=True, null=True)

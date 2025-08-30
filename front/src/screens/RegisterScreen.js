@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-const ipAddress = '192.168.0.101'; // Cambia esto por la IP de tu servidor
+const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
 const API_URL = `http://${ipAddress}:8000/api`;
 
@@ -56,6 +56,8 @@ export const registerUser = async (formData) => {
 
     // Éxito
     const data = payload; // ya está parseado
+
+
 
     console.log('Registro exitoso:', data.user);
 
@@ -271,11 +273,11 @@ export default function RegisterScreen({ navigation, route }) {
                     return;
                   }
                   // Solo aquí guardar los tokens y datos del usuario
-                  if (createResult.access && createResult.refresh && createResult.user) {
-                    await AsyncStorage.setItem('accessToken', createResult.access);
-                    await AsyncStorage.setItem('refreshToken', createResult.refresh);
-                    await AsyncStorage.setItem('userName', createResult.user.username);
-                  }
+                  
+                  await AsyncStorage.setItem('accessToken', createResult.access);
+                  await AsyncStorage.setItem('refreshToken', createResult.refresh);
+                  await AsyncStorage.setItem('userName', createResult.user.username);
+                  
                   setVerificado(true);
                   setCargando(false);
                 } catch (err) {
