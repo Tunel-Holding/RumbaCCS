@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.postgres.fields import ArrayField
 from django.utils import timezone
 from django.contrib.postgres.indexes import GinIndex
+from django.contrib.auth.hashers import make_password, check_password
 
 Usuario = get_user_model()
 
@@ -15,8 +16,18 @@ class Empresa(models.Model):
         on_delete=models.CASCADE,
         related_name="empresa",
         help_text="Usuario administrador de esta empresa",
+        blank= True, null= True,
     )
 
+    password = models.CharField(max_length=128, default="00000000", help_text="Contraseña para login de la empresa")
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+        self.save(update_fields=['password'])
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
+    
     nombre = models.CharField(
         max_length=255,
         unique=True,
@@ -60,6 +71,8 @@ class Empresa(models.Model):
         validators=[EmailValidator(message="Debe ser un correo electrónico válido.")]
     )
 
+    email = models.EmailField(unique=True, default="")  # para login de la empresa
+
     redes_sociales = models.URLField(
         blank=True, null=True,
         validators=[URLValidator(message="Debe ser una URL válida.")]
@@ -81,9 +94,7 @@ class Empresa(models.Model):
         verbose_name = "Empresa"
         verbose_name_plural = "Empresas"
         ordering = ["nombre"]
-        constraints = [
-            models.UniqueConstraint(fields=["usuario"], name="unique_usuario_empresa")
-        ]
+        
 
     def __str__(self):
         return self.nombre

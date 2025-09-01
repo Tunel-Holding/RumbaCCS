@@ -7,15 +7,29 @@ from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action, api_view
 from rest_framework import status
 from .models import Empresa, Evento2, Usuario
 from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer
-from .permissions import IsEmpresaUser
+from rest_framework.exceptions import ValidationError
 from rest_framework import viewsets, permissions
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.renderers import JSONRenderer
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.hashers import make_password, check_password
+import jwt
+import datetime
+from rest_framework.authentication import BaseAuthentication
+from rest_framework import exceptions
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import EmpresaTokenObtainPairSerializer
+from rest_framework.permissions import BasePermission
+
+class IsEmpresaAuthenticated(BasePermission):
+    def has_permission(self, request, view):
+        return hasattr(request.user, 'id') and getattr(request.user, 'is_empresa', False)
 
 class EmpresaPreRegistroView(generics.CreateAPIView):
     serializer_class = EmpresaRegistroSerializer
@@ -26,13 +40,12 @@ class EmpresaPreRegistroView(generics.CreateAPIView):
         if not serializer.is_valid():
             # Retornar los errores completos del serializer
             return Response(serializer.errors, status=400)
+
+        # 🔹 Campos necesarios para empresa
         email = serializer.validated_data['email']
-        password = serializer.validated_data['password']
+        password = serializer.validated_data['password']  # ✅ mantenido porque empresa debe loguearse
         nombre = serializer.validated_data['nombre']
         phone = serializer.validated_data.get('phone')
-        birthday = serializer.validated_data.get('birthday')
-        region = serializer.validated_data.get('region')
-        gender = serializer.validated_data.get('gender')
 
         # Generar y guardar pin y datos temporales
         pin = str(random.randint(100000, 999999))
@@ -45,6 +58,7 @@ class EmpresaPreRegistroView(generics.CreateAPIView):
                 'is_verified': False,
             }
         )
+
         # Enviar el correo con el pin usando Django
         send_mail(
             'Tu código de validación para empresa',
@@ -54,8 +68,8 @@ class EmpresaPreRegistroView(generics.CreateAPIView):
             fail_silently=False,
         )
 
-        # Puedes guardar los datos en el frontend y reenviarlos en la validación
         return Response({"detail": "Se ha enviado un pin de verificación al correo."}, status=201)
+
 
 # --- Validar pin y crear empresa ---
 class EmpresaValidarPinView(generics.CreateAPIView):
@@ -63,20 +77,20 @@ class EmpresaValidarPinView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
+        
+        password = request.data.get('password')
+        
+
         email = request.data.get('email')
         pin = request.data.get('pin')
         empresa_data = request.data.get('empresa', {})
         # Filtrar solo los campos válidos para Empresa
         empresa_fields = [
-            'nombre', 'rif', 'descripcion', 'lugar', 'telefono', 'email_contacto', 'redes_sociales', 'logo'
+            'nombre', 'rif', 'descripcion', 'lugar', 'telefono', 'email_contacto', 'redes_sociales', 'logo',
         ]
         empresa_data = {k: v for k, v in empresa_data.items() if k in empresa_fields}
+        empresa_data['email'] = email
 
-        password = request.data.get('password', "00000000")
-        nombre = empresa_data.get('nombre')
-        phone = empresa_data.get('telefono')
-        # Buscar gender en request principal, si no está, tomarlo de empresa_data
-        gender = request.data.get('gender', empresa_data.get('gender'))
 
         print(f"[VALIDAR PIN] email={email}, pin={pin}, empresa_data={empresa_data}")
 
@@ -91,60 +105,80 @@ class EmpresaValidarPinView(generics.CreateAPIView):
             print(f"[VALIDAR PIN] Pin expirado para email={email}, pin={pin}")
             return Response({"detail": "Pin expirado."}, status=400)
 
-        # Validar campos obligatorios para usuario
-        usuario_fields = {
-            'email': email,
-            'password': password,
-            'username': nombre,
-            'phone': phone,
-            'gender': gender,
-            'is_active': True
-        }
-        # Elimina los campos None para evitar IntegrityError
-        usuario_fields = {k: v for k, v in usuario_fields.items() if v is not None}
-        if 'gender' not in usuario_fields or usuario_fields['gender'] is None:
-            # Si no hay gender, pero el modelo lo requiere, poner un valor por defecto
-            usuario_fields['gender'] = 'masculino'
-
-        usuario = Usuario.objects.create_user(**usuario_fields)
+        # Marcar como verificado
         verif.is_verified = True
         verif.save()
 
-        empresa = Empresa.objects.create(usuario=usuario, **empresa_data)
+         # Crear empresa con contraseña hasheada
+        empresa_data.pop('password', None)  # eliminar si existía
+        empresa = Empresa.objects.create(
+            password=make_password(password),
+            **empresa_data
+        )
 
         print(f"[VALIDAR PIN] Empresa creada correctamente para email={email}")
-        # Generar tokens JWT para el usuario recién creado
-        tokens = get_tokens_for_user(usuario)
-        # Serializar la empresa para incluir id y demás campos
+
+        # Serializar la empresa
         empresa_data = EmpresaSerializer(
             empresa,
             context={"request": request}
         ).data
-        # Unir la info de empresa con los tokens
+
+        # después de crear empresa
+        refresh = RefreshToken.for_user(empresa)
         response_data = {
-            "message": "Registro exitoso",
-            **empresa_data,
-            "access": tokens["access"],
-            "refresh": tokens["refresh"],
+            "message": "Registro de empresa exitoso",
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            **empresa_data
         }
         return Response(response_data, status=201)
 
+
+class EmpresaJWTAuthentication(BaseAuthentication):
+    def authenticate(self, request):
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return None
+
+        token = auth_header.split(" ")[1]
+
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            empresa = Empresa.objects.get(id=payload['empresa_id'])
+        except (jwt.ExpiredSignatureError, jwt.DecodeError, Empresa.DoesNotExist):
+            raise exceptions.AuthenticationFailed("Token inválido o expirado")
+
+        # Django espera que el usuario tenga is_authenticated
+        empresa.is_authenticated = True
+        return (empresa, token)
 # -----------------------------
 # ViewSet principal para Empresa
 # -----------------------------
 class EmpresaViewSet(ModelViewSet):
     serializer_class = EmpresaSerializer
-    authentication_classes = [JWTAuthentication]
+    authentication_classes = [EmpresaJWTAuthentication]
     permission_classes = [IsAuthenticated]
-    
+
     queryset = Empresa.objects.all()
 
+    # def get_permissions(self):
+    #     # 🔒 protege solo acciones que modifican
+    #     if self.action in ['create', 'update', 'partial_update', 'destroy', 'seguir', 'dejar_de_seguir']:
+    #         return [IsAuthenticated()]
+    #     return [AllowAny()]
+    
     def get_queryset(self):
         # Devuelve todas las empresas (para que un usuario pueda seguir cualquier empresa)
         return Empresa.objects.all()
 
     def perform_create(self, serializer):
         # Vincula automáticamente la empresa con el usuario que la crea
+        
+        if hasattr(self.request.user, "empresa"):
+            
+            raise ValidationError({"detail": "Este usuario ya tiene una empresa asociada."})
+        
         serializer.save(usuario=self.request.user)
 
     # Acción para seguir una empresa
@@ -174,6 +208,7 @@ def empresa_detail(request, pk):
     serializer = EmpresaSerializer(empresa, context={'request': request})
     return Response(serializer.data)
 
+
 # -----------------------------
 # Endpoint para obtener la empresa del usuario logueado
 # -----------------------------
@@ -190,23 +225,29 @@ def mi_empresa(request):
     return Response(data, status=200)
 
 class EventoViewSet(viewsets.ModelViewSet):
-    
-    authentication_classes = [JWTAuthentication]
-    permission_classes       = [permissions.AllowAny]
-    serializer_class         = EventoSerializer
+    serializer_class = EventoSerializer
+    authentication_classes = [EmpresaJWTAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Si viene empresa_pk en la URL, filtra por esa empresa
-        empresa_id = self.kwargs.get('empresa_pk')
+        empresa_pk = self.kwargs.get('empresa_pk')
         qs = Evento2.objects.all().order_by('-id')
-        return qs.filter(empresa_id=empresa_id) if empresa_id else qs
+        if empresa_pk:
+            return qs.filter(empresa_id=empresa_pk)
+        return qs
 
     def perform_create(self, serializer):
-        empresa_id = self.kwargs.get('empresa_pk')
-        print("CREANDO EVENTO PARA EMPRESA:", empresa_id)
-        print("DATOS POST:", self.request.data)
+        user = self.request.user
 
-        serializer.save(empresa_id=empresa_id)
+        # Detecta flujo: user con empresa asociada o empresa login directo
+        if hasattr(user, "empresa"):
+            empresa = user.empresa
+        else:
+            empresa = user
+
+        serializer.save(empresa=empresa)
+        print("CREANDO EVENTO PARA EMPRESA:", empresa.id)
+        print("DATOS POST:", self.request.data)
         
 
 class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
@@ -221,42 +262,93 @@ def get_tokens_for_user(user):
         'access': str(refresh.access_token),
     }
 
-class EmpresaRegistroView(generics.CreateAPIView):
-    serializer_class = EmpresaRegistroSerializer
-    renderer_classes   = [JSONRenderer]
-    permission_classes = [AllowAny]  # porque es registro inicial
-    
-    
-    def create(self, request, *args, **kwargs):
+class EmpresaLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        password = request.data.get("password")
+
+        if not email or not password:
+            return Response(
+                {"detail": "Email y password requeridos."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            empresa = Empresa.objects.get(email_contacto=email)
+        except Empresa.DoesNotExist:
+            return Response({"detail": "Empresa no encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not empresa.check_password(password):
+            return Response({"detail": "Contraseña incorrecta."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # Generar tokens con SimpleJWT
+        refresh = RefreshToken.for_user(empresa)
+        refresh["empresa_id"] = empresa.id
+        refresh["email"] = empresa.email_contacto
+        refresh["is_empresa"] = True
+
+        empresa_data = EmpresaSerializer(empresa, context={"request": request}).data
+
+        return Response({
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "empresa": empresa_data
+        }, status=status.HTTP_200_OK)
+
+# class EmpresaLoginView(APIView):
+#     permission_classes = [AllowAny]
+
+#     def post(self, request):
+#         email = request.data.get('email')
+#         password = request.data.get('password')
+
+#         if not email or not password:
+#             return Response({"detail": "Email y password requeridos."}, status=status.HTTP_400_BAD_REQUEST)
+
+#         try:
+#             empresa = Empresa.objects.get(email_contacto=email)
+#         except Empresa.DoesNotExist:
+#             return Response({"detail": "Empresa no encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+#         if not empresa.check_password(password):
+#             return Response({"detail": "Contraseña incorrecta."}, status=status.HTTP_401_UNAUTHORIZED)
+
+#         # Generar tokens SimpleJWT
+#         refresh = RefreshToken.for_user(empresa)
+#         # Añadimos claims extra para identificar que es empresa
+#         refresh['empresa_id'] = empresa.id
+#         refresh['email'] = empresa.email_contacto
+#         refresh['is_empresa'] = True
+
+#         empresa_data = EmpresaSerializer(empresa, context={"request": request}).data
+
+#         return Response({
+#             "refresh": str(refresh),
+#             "access": str(refresh.access_token),
+#             "empresa": empresa_data
+#         }, status=status.HTTP_200_OK)
         
-        # 1. Validar datos de entrada
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
 
-        # 2. Crear el objeto Empresa (internamente crea al Usuario)
-        empresa = serializer.save()
+# class EmpresaMiPerfilView(APIView):
 
-        # 3. Generar tokens JWT para el usuario recién creado
-        usuario = empresa.usuario
-        tokens  = get_tokens_for_user(usuario)
+#     authentication_classes = [EmpresaJWTAuthentication]
+#     permission_classes = [IsAuthenticated]
 
-        # 4. Serializar la empresa para incluir id y demás campos
-        empresa_data = EmpresaSerializer(
-            empresa,
-            context={"request": request}
-        ).data
+#     def get(self, request):
+#         empresa = request.user  # request.user ahora es la empresa
+#         serializer = EmpresaSerializer(empresa, context={'request': request})
+#         return Response(serializer.data)
+    
+class EmpresaMiPerfilView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        # 5. Unir la info de empresa con los tokens
-        response_data = {
-            **empresa_data,
-            "access":  tokens["access"],
-            "refresh": tokens["refresh"],
-        }
+    def get(self, request):
+        empresa = request.user
+        serializer = EmpresaSerializer(empresa, context={'request': request})
+        return Response(serializer.data)
 
-        # 6. Devolver respuesta con status 201
-        headers = self.get_success_headers(response_data)
-        return Response(
-            response_data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
-        )
+
+class EmpresaTokenObtainPairView(TokenObtainPairView):
+    serializer_class = EmpresaTokenObtainPairSerializer
