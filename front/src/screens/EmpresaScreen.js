@@ -19,6 +19,7 @@ import EmpresaMenu from '../components/EmpresaMenu';
 import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+// import { apiFetch } from '../services/api';
 
 const { width } = Dimensions.get('window');
 
@@ -38,63 +39,81 @@ export default function EmpresaScreen() {
 
   const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
   
-  useEffect(() => {
+useEffect(() => {
+  const fetchEmpresa = async () => {
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      const empresaId = await AsyncStorage.getItem("empresaId");
 
-    //Funcion para obtener los datos de la empresa
-    const fetchEmpresa = async () => {
-      try {
-        const token = await AsyncStorage.getItem("accessToken");
-        const empresaId = await AsyncStorage.getItem("empresaId");
-
-        console.log("🔑 token:", token);
-        console.log("🏷 empresaId:", empresaId);
-
-        if (!empresaId || !token) {
-      console.warn("Falta token o empresaId");
-      setLoading(false);
-      return;
-    }
-
-        // if (empresaId) {
-        //   try {
-        //     const res = await axios.get(`http://${ipAddress}:8000/api/empresa/${empresaId}/`);
-        //     console.log("Empresa:", res.data);
-        //   } catch (error) {
-        //     console.error("Error al traer empresa:", error);
-        //   }
-        // } else {
-        //   console.log("El usuario todavía no tiene empresa asociada.");
-        // }
-
-        if (!empresaId) {
-          console.log("El usuario todavía no tiene empresa asociada.");
-          setEmpresaData(null);
-          return;
-        }
-
-        console.log("empresaId desde AsyncStorage:", empresaId);
-
-        const response = await axios.get(
-          `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
-          {
-            headers: { 
-              "Content-Type":  "application/json",
-              Authorization: `Bearer ${token}` },
-          }
-        );
-        console.log("✅ Empresa data:", response.data);
-        
-        setEmpresaData(response.data);
-      } catch (error) {
-        console.error("Error al traer empresa:", error);
-      } finally {
+      if (!empresaId || !token) {
+        console.warn("Falta token o empresaId");
         setLoading(false);
+        return;
       }
-    };
 
-    fetchEmpresa();
-  }, []);
+      const response = await axios.get(
+        `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
+        {
+          headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`  // 🔹 IMPORTANTE
+          },
+        }
+      );
 
+      console.log("✅ Empresa data:", response.data);
+      setEmpresaData(response.data);
+
+    } catch (error) {
+      if (error.response) {
+        console.error("❌ Error HTTP:", error.response.status, error.response.data);
+      } else {
+        console.error("❌ Error:", error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchEmpresa();
+}, []);
+
+
+
+//     const fetchEmpresa = async () => {
+//     try {
+//       const empresaId = await AsyncStorage.getItem("empresaId");
+
+//       console.log("🏷 empresaId:", empresaId);
+
+//       if (!empresaId) {
+//         console.warn("Falta empresaId");
+//         setLoading(false);
+//         return;
+//       }
+
+//       // Usamos apiFetch en vez de axios
+//       const { res, data } = await apiFetch(
+//         `http://${ipAddress}:8000/api/empresas/${empresaId}/`
+//       );
+
+//       if (res.ok) {
+//         console.log("✅ Empresa data:", data);
+//         setEmpresaData(data);
+//       } else {
+//         console.error(`❌ Error HTTP: ${res.status}`, data);
+//       }
+
+//     } catch (error) {
+//       console.error("Error al traer empresa:", error.message);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   fetchEmpresa();
+// }, []);
+  // Función para obtener los datos de la empresa
   
 
   const empresaData1 = {

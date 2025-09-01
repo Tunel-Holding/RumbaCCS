@@ -8,48 +8,69 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
  */
 export const apiFetch = async (url, options = {}) => {
   try {
-    // Obtener token guardado
-    const token = await AsyncStorage.getItem('accessToken'); // Usa la misma clave que en el login
+    let token = await AsyncStorage.getItem('accessToken');
+    const refreshToken = await AsyncStorage.getItem('refreshToken');
+
     if (!token) {
       throw new Error('No se encontró token en AsyncStorage');
     }
 
-    // Combinar headers
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-      Authorization: `Bearer ${token}`, // Si tu backend usa "Token" en vez de "Bearer", cámbialo aquí
+    // función interna para hacer request
+    const makeRequest = async (accessToken) => {
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+        Authorization: `Bearer ${accessToken}`,
+      };
+
+      const res = await fetch(url, { ...options, headers });
+      const contentType = res.headers.get('content-type') || '';
+      const text = await res.text();
+      let data = text;
+
+      if (contentType.includes('application/json')) {
+        try {
+          data = JSON.parse(text);
+        } catch {}
+      }
+
+      return { res, data };
     };
 
-    // Hacer la petición
-    const res = await fetch(url, { ...options, headers });
+    // 1. Intento inicial con el access token actual
+    let { res, data } = await makeRequest(token);
 
-    // Leer respuesta como texto
-    const contentType = res.headers.get('content-type') || '';
-    const text = await res.text();
-    let data = text;
+    // 2. Si expira (401) y hay refreshToken → intenta renovar
+    if (res.status === 401 && refreshToken) {
+      console.log('🔄 Token expirado, intentando refrescar...');
 
-    // Intentar parsear JSON si el Content-Type es application/json
-    if (contentType.includes('application/json')) {
-      try {
-        data = JSON.parse(text);
-      } catch {
-        // Si falla el parseo, deja como texto
+      const refreshRes = await fetch(`http://<IP_BACKEND>:8000/api/token/refresh/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+
+      if (refreshRes.ok) {
+        const refreshData = await refreshRes.json();
+        token = refreshData.access;
+
+        // Guardar nuevo accessToken
+        await AsyncStorage.setItem('accessToken', token);
+
+        // Reintentar la petición original con el nuevo token
+        ({ res, data } = await makeRequest(token));
+      } else {
+        console.warn('⚠️ No se pudo refrescar el token, sesión expirada');
+        throw new Error('Sesión expirada');
       }
     }
 
-    // Logs útiles en desarrollo
     if (__DEV__) {
-      console.log('API REQUEST:', {
-        method: options.method || 'GET',
-        url,
-        headers,
-      });
+      console.log('API REQUEST:', options.method || 'GET', url);
       console.log('STATUS:', res.status);
       console.log('RESPONSE DATA:', data);
     }
 
-    // Retornar objeto con respuesta y datos
     return { res, data };
   } catch (error) {
     console.error('Error en apiFetch:', error.message);

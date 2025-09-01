@@ -38,64 +38,114 @@ export default function HomeScreen() {
     await AsyncStorage.removeItem('userEmail');
     await AsyncStorage.removeItem('userName');
     await AsyncStorage.removeItem('empresaId');
+    await AsyncStorage.clear();
     setIsLogged(false);
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
 
-  //Funcion del login
-  const handleLogin = async () => {
-    if (!user.trim() || !pass.trim()) {
-      Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
-      return; // Detiene la función si faltan datos
-    }
-    try {
-  const response = await fetch(`http://${ipAddress}:8000/api/login/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        
-        body: JSON.stringify({
-          email: user,
-          password: pass,
-        }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json(); 
-        console.log("Respuesta login completa:", data);
+ // Función del login
+const handleLogin = async () => {
+  if (!user.trim() || !pass.trim()) {
+    Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+    return;
+  }
 
-        
-        // Guardar token y nombre de usuario
-        await AsyncStorage.setItem('accessToken', data.access);
-        await AsyncStorage.setItem('userEmail', user); // email
-        // await AsyncStorage.setItem("empresaId", data.empresa_id.toString());
+  try {
+    // 🔹 Primero intenta login como User
+    let response = await fetch(`http://${ipAddress}:8000/api/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user,
+        password: pass,
+      }),
+    });
 
-        if (data.empresa_id) {
-          await AsyncStorage.setItem('empresaId', data.empresa_id.toString());
-        }
-        else {
-          await AsyncStorage.setItem('empresaId', "");
-        }
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Respuesta login USER:", data);
 
-        if (data.user?.username) {
-          await AsyncStorage.setItem('userName', data.user.username);
-        } else {
-          await AsyncStorage.setItem('userName', user);
-        }
-        setIsLogged(true);
-        setLoginVisible(false); // Cierra el modal y dispara el useEffect
-        Alert.alert('Login correcto', 'Has ingresado correctamente');
-        navigation.navigate('HomeScreen');
+      // Guardar token
+      await AsyncStorage.setItem('accessToken', data.access);
+      await AsyncStorage.setItem('refreshToken', data.refresh);
+      await AsyncStorage.setItem('userEmail', user);
+
+      // Si devuelve empresa_id
+      if (data.empresa_id) {
+        await AsyncStorage.setItem('empresaId', data.empresa_id.toString());
       } else {
-        const err = await response.json();
-        Alert.alert('Error de login','Usuario o contraseña incorrectos');
+        await AsyncStorage.setItem('empresaId', "");
       }
-    } catch (error) {
-      console.error("Error en login:", error.response?.data || error.message);
-      Alert.alert('Error', 'No se pudo conectar con el servidor');
+
+      // Nombre de usuario
+      if (data.user?.username) {
+        await AsyncStorage.setItem('userName', data.user.username);
+      } else {
+        await AsyncStorage.setItem('userName', user);
+      }
+
+      setIsLogged(true);
+      setLoginVisible(false);
+      Alert.alert('Login correcto', 'Has ingresado como usuario');
+      navigation.navigate('HomeScreen');
+      return;
     }
-  };
+
+    // 🔹 Si no funcionó, intenta login como Empresa
+    response = await fetch(`http://${ipAddress}:8000/api/empresa/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user,
+        password: pass,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Respuesta login EMPRESA:", data);
+
+      // Token (tu endpoint de empresa puede llamarlo distinto)
+      if (data.token) {
+        await AsyncStorage.setItem('accessToken', data.token);
+      } else if (data.access) {
+        await AsyncStorage.setItem('accessToken', data.access);
+      }
+
+      await AsyncStorage.setItem('refreshToken', data.refresh);
+
+      // EmpresaId
+      if (data.empresa?.id) {
+        await AsyncStorage.setItem('empresaId', data.empresa.id.toString());
+      } else {
+        await AsyncStorage.setItem('empresaId', "");
+      }
+
+      // Nombre de empresa
+      if (data.empresa?.nombre) {
+        await AsyncStorage.setItem('userName', data.empresa.nombre);
+      } else {
+        await AsyncStorage.setItem('userName', user);
+      }
+
+      await AsyncStorage.setItem('userEmail', user);
+      setIsLogged(true);
+      setLoginVisible(false);
+      Alert.alert('Login correcto', 'Has ingresado como empresa');
+      navigation.navigate('HomeScreen');
+      return;
+    }
+
+    // 🔹 Si falla ambos
+    const err = await response.json();
+    Alert.alert('Error de login', err?.detail || 'Usuario o contraseña incorrectos');
+
+  } catch (error) {
+    console.error("Error en login:", error);
+    Alert.alert('Error', 'No se pudo conectar con el servidor');
+  }
+};
+
 
   const [events, setEventos] = useState([]);
 

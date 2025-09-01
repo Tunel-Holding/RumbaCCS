@@ -52,12 +52,8 @@ export const registerUser = async (formData) => {
       throw err;
     }
 
-    
-
     // Éxito
     const data = payload; // ya está parseado
-
-
 
     console.log('Registro exitoso:', data.user);
 
@@ -67,9 +63,6 @@ export const registerUser = async (formData) => {
     throw error;
   }
 };
-
-
-
 
 export default function RegisterScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();

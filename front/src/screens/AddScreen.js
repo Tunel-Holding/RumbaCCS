@@ -56,7 +56,7 @@ export default function AddScreen() {
 
       const fetchMiEmpresa = async () => {
 
-        const token = await AsyncStorage.getItem('authToken');
+        const token = await AsyncStorage.getItem('accessToken');
         const res   = await fetch(`https://${ipAddress}/api/empresa/`, {
           headers: { Authorization: `Bearer ${token}` }
         });

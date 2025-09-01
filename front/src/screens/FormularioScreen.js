@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, Anim
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+
 export default function FormularioScreen({ navigation, route }) {
   const [mostrarPin, setMostrarPin] = useState(false);
   const insets = useSafeAreaInsets();
@@ -82,70 +83,9 @@ export default function FormularioScreen({ navigation, route }) {
 const handleEnviar = async () => {
   if (!validarCampos()) return;
 
-  // // Solo registro temporal y envío de pin
-  // try {
-  //   setCargando(true);
-
-  //   const token = await AsyncStorage.getItem("accessToken");
-
-  //   // Validar teléfono: solo dígitos y opcional '+' al inicio
-  //   let telefonoValido = telefono;
-  //   if (!/^\+?\d{7,15}$/.test(telefono)) {
-  //     telefonoValido = telefono.replace(/[^\d+]/g, "");
-  //     if (telefonoValido.length < 7 || telefonoValido.length > 15) {
-  //       Alert.alert("Error", "El teléfono debe tener entre 7 y 15 dígitos y solo puede contener números y un '+' opcional.");
-  //       setCargando(false);
-  //       return;
-  //     }
-  //   }
-  //   // Si redes sociales está vacío, enviar una URL válida por defecto
-  //   let redesValido = redes && redes.trim() ? redes : "https://facebook.com/tuempresa";
-  //   // Transformar el RIF a formato J-XXXXXXXX-X si el usuario solo ingresa números
-  //   let rifTransformado = rif;
-  //   if (/^\d{9}$/.test(rif)) {
-  //     rifTransformado = `J-${rif.slice(0,8)}-${rif.slice(8)}`;
-  //   }
-  //   const empresaData = {
-  //     nombre,
-  //     rif: rifTransformado,
-  //     descripcion: descripcion || "",
-  //     lugar,
-  //     telefono: telefonoValido,
-  //     email_contacto: correo,
-  //     redes_sociales: redesValido,
-  //     email: correo,
-  //     password: "00000000",
-  //     phone: telefonoValido,
-  //     birthday: null,
-  //     region: "Carabobo",
-  //     gender: "masculino"
-  //   };
-  //   // Solo agregar logo si existe en el formulario
-  //   // if (logo) empresaData.logo = logo;
-  //   const res = await fetch(`http://${ipAddress}:8000/api/registro-empresa/`, {
-  //     method: "POST",
-  //     headers: { "Content-Type": "application/json" },
-  //     body: JSON.stringify(empresaData)
-  //   });
-  //   const data = await res.json();
-  //   if (!res.ok) {
-  //     // Mostrar el error completo recibido del backend
-  //     Alert.alert("Error", JSON.stringify(data));
-  //     setCargando(false);
-  //     return;
-  //   }
-  // setCargando(false);
-  // setVerificado(false);
-  // setMostrarPin(true); // Solo mostrar pantalla de pin tras registro temporal exitoso
-  // } catch (error) {
-  //   setCargando(false);
-  //   Alert.alert("Error", "No se pudo conectar con el servidor");
-  // }
-
   try {
     setCargando(true);
 
-    // Buscar si ya hay un token (usuario ya registrado previamente)
     const token = await AsyncStorage.getItem("accessToken");
 
     if (!token) {
@@ -181,9 +121,6 @@ const handleEnviar = async () => {
         email: correo,
         password: "00000000",
         phone: telefonoValido,
-        birthday: null,
-        region: "Carabobo",
-        gender: "masculino",
       };
 
       const res = await fetch(`http://${ipAddress}:8000/api/registro-empresa/`, {
@@ -192,7 +129,15 @@ const handleEnviar = async () => {
         body: JSON.stringify(empresaData),
       });
 
-      const data = await res.json();
+      // ✅ CAMBIO: Manejo seguro de la respuesta (puede no tener JSON válido)
+      // 🟢 CAMBIO: verificar si la respuesta es JSON o no
+      let data;
+      try {
+        data = await res.json();
+      } catch (err) {
+        console.error("Respuesta no es JSON:", err);
+        data = null;
+      }
 
       if (!res.ok) {
         Alert.alert("Error", JSON.stringify(data));
@@ -200,9 +145,15 @@ const handleEnviar = async () => {
         return;
       }
 
+      // 🟢 CAMBIO: log para confirmar éxito
+      console.log("Empresa registrada:", data);
+
+      // ✅ CAMBIO: si llega aquí, la empresa se registró
       setCargando(false);
       setVerificado(false);
-      setMostrarPin(true); // Mostrar pantalla de pin tras registro temporal exitoso
+      setCorreo(empresaData.email); 
+      setMostrarPin(true);
+
 
     } else {
       console.log("Token recuperado:", token);
@@ -227,7 +178,13 @@ const handleEnviar = async () => {
         }),
       });
 
-      const data = await res.json();
+      // ✅ CAMBIO: Manejo seguro de la respuesta
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = {};
+      }
 
       if (!res.ok) {
         console.error("Error backend:", data);
@@ -246,11 +203,13 @@ const handleEnviar = async () => {
       setCargando(false);
     }
   } catch (error) {
-    console.error("Error de conexión:", error);
+    // 🟢 CAMBIO: mostrar error real en consola
+    console.error("Error capturado en catch:", error);
     setCargando(false);
-    Alert.alert("Error", "No se pudo conectar con el servidor");
+    Alert.alert("Error", "Error inesperado, revisa la consola");
   }
 };
+
 
 // Nueva función para validar el pin y crear usuario+empresa
 const handleValidarPin = async () => {
@@ -259,6 +218,11 @@ const handleValidarPin = async () => {
     Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
     return;
   }
+  if (!correo) {
+  Alert.alert("Error", "El correo no está definido, vuelve a registrarte.");
+  setCargando(false);
+  return;
+}
   try {
     setCargando(true);
     const res = await fetch(`http://${ipAddress}:8000/api/validar-pin-empresa/`, {
@@ -276,19 +240,36 @@ const handleValidarPin = async () => {
           email_contacto: correo,
           redes_sociales: redes || "",
           descripcion,
-          gender: 'masculino',
         }
       })
     });
-    const data = await res.json();
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (err) {
+      data = {};
+    }
+
+
     if (!res.ok) {
       Alert.alert("Error", data?.detail || "No se pudo validar el pin");
       setCargando(false);
       return;
     }
+
+    if (data.id) {
+        await AsyncStorage.setItem("empresaId", data.id.toString());
+      }
+      else {
+        Alert.alert("Error", "No se pudo obtener el ID de la empresa");
+        setCargando(false);
+        return;
+      }
+
     // Guardar tokens y datos de empresa en AsyncStorage
-    await AsyncStorage.setItem('access', data.access);
-    await AsyncStorage.setItem('refresh', data.refresh);
+    await AsyncStorage.setItem('accessToken', data.access);
+    await AsyncStorage.setItem('refreshToken', data.refresh);
     await AsyncStorage.setItem('empresa', JSON.stringify(data));
     Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
     setCargando(false);
