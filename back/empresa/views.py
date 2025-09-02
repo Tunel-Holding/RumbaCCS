@@ -11,7 +11,6 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action, api_view
 from rest_framework import status
-from .models import Empresa, Evento2, Usuario
 from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer
 from rest_framework.exceptions import ValidationError
 from rest_framework import viewsets, permissions
@@ -26,6 +25,9 @@ from rest_framework import exceptions
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import EmpresaTokenObtainPairSerializer
 from rest_framework.permissions import BasePermission
+from .models import Empresa, Evento2, Usuario
+from .auth_backend import EmpresaOrUsuarioJWTAuthentication
+from .permissions import IsEmpresaAuthenticated, IsEmpresaOrUsuarioAuthenticated
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -130,7 +132,7 @@ class EmpresaValidarPinView(generics.CreateAPIView):
             "message": "Registro de empresa exitoso",
             "access": str(refresh.access_token),
             "refresh": str(refresh),
-            **empresa_data
+            'empresa':empresa_data,
         }
         return Response(response_data, status=201)
 
@@ -145,20 +147,39 @@ class EmpresaJWTAuthentication(BaseAuthentication):
 
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-            empresa = Empresa.objects.get(id=payload['empresa_id'])
-        except (jwt.ExpiredSignatureError, jwt.DecodeError, Empresa.DoesNotExist):
-            raise exceptions.AuthenticationFailed("Token inválido o expirado")
+        except jwt.ExpiredSignatureError:
+            raise exceptions.AuthenticationFailed("Token expirado")
+        except jwt.DecodeError:
+            raise exceptions.AuthenticationFailed("Token inválido")
 
-        # Django espera que el usuario tenga is_authenticated
-        empresa.is_authenticated = True
-        return (empresa, token)
+        # Login como empresa
+        empresa_id = payload.get("empresa_id")
+        if empresa_id:
+            try:
+                empresa = Empresa.objects.get(id=empresa_id)
+                return (empresa, token)
+            except Empresa.DoesNotExist:
+                raise exceptions.AuthenticationFailed("Empresa no encontrada")
+
+        # Login como usuario normal
+        usuario_id = payload.get("user_id")
+        if usuario_id:
+            from api.models import Usuario
+            try:
+                usuario = Usuario.objects.get(id=usuario_id)
+                return (usuario, token)
+            except Usuario.DoesNotExist:
+                raise exceptions.AuthenticationFailed("Usuario no encontrado")
+
+        raise exceptions.AuthenticationFailed("Token inválido")
+
 # -----------------------------
 # ViewSet principal para Empresa
 # -----------------------------
 class EmpresaViewSet(ModelViewSet):
     serializer_class = EmpresaSerializer
-    authentication_classes = [EmpresaJWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [EmpresaOrUsuarioJWTAuthentication]
+    permission_classes = [IsEmpresaOrUsuarioAuthenticated]
 
     queryset = Empresa.objects.all()
 
@@ -173,13 +194,17 @@ class EmpresaViewSet(ModelViewSet):
         return Empresa.objects.all()
 
     def perform_create(self, serializer):
-        # Vincula automáticamente la empresa con el usuario que la crea
-        
-        if hasattr(self.request.user, "empresa"):
-            
-            raise ValidationError({"detail": "Este usuario ya tiene una empresa asociada."})
-        
-        serializer.save(usuario=self.request.user)
+        user = self.request.user
+        # Si el user ya tiene empresa
+        if hasattr(user, "empresa"):
+            raise ValidationError({"non_field_errors": ["Este usuario ya tiene una empresa asociada."]})
+        # Hash de la contraseña antes de guardar
+        password = serializer.validated_data.pop("password", None)
+        if password:
+            serializer.save(usuario=self.request.user, password=make_password(password))
+        else:
+            serializer.save(usuario=self.request.user)
+
 
     # Acción para seguir una empresa
     @action(detail=True, methods=['post'])
@@ -227,7 +252,7 @@ def mi_empresa(request):
 class EventoViewSet(viewsets.ModelViewSet):
     serializer_class = EventoSerializer
     authentication_classes = [EmpresaJWTAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsEmpresaOrUsuarioAuthenticated]
 
     def get_queryset(self):
         empresa_pk = self.kwargs.get('empresa_pk')
@@ -297,49 +322,6 @@ class EmpresaLoginView(APIView):
             "empresa": empresa_data
         }, status=status.HTTP_200_OK)
 
-# class EmpresaLoginView(APIView):
-#     permission_classes = [AllowAny]
-
-#     def post(self, request):
-#         email = request.data.get('email')
-#         password = request.data.get('password')
-
-#         if not email or not password:
-#             return Response({"detail": "Email y password requeridos."}, status=status.HTTP_400_BAD_REQUEST)
-
-#         try:
-#             empresa = Empresa.objects.get(email_contacto=email)
-#         except Empresa.DoesNotExist:
-#             return Response({"detail": "Empresa no encontrada."}, status=status.HTTP_404_NOT_FOUND)
-
-#         if not empresa.check_password(password):
-#             return Response({"detail": "Contraseña incorrecta."}, status=status.HTTP_401_UNAUTHORIZED)
-
-#         # Generar tokens SimpleJWT
-#         refresh = RefreshToken.for_user(empresa)
-#         # Añadimos claims extra para identificar que es empresa
-#         refresh['empresa_id'] = empresa.id
-#         refresh['email'] = empresa.email_contacto
-#         refresh['is_empresa'] = True
-
-#         empresa_data = EmpresaSerializer(empresa, context={"request": request}).data
-
-#         return Response({
-#             "refresh": str(refresh),
-#             "access": str(refresh.access_token),
-#             "empresa": empresa_data
-#         }, status=status.HTTP_200_OK)
-        
-
-# class EmpresaMiPerfilView(APIView):
-
-#     authentication_classes = [EmpresaJWTAuthentication]
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request):
-#         empresa = request.user  # request.user ahora es la empresa
-#         serializer = EmpresaSerializer(empresa, context={'request': request})
-#         return Response(serializer.data)
     
 class EmpresaMiPerfilView(APIView):
     permission_classes = [IsAuthenticated]
