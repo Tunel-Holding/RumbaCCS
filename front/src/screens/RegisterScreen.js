@@ -55,8 +55,6 @@ export const registerUser = async (formData) => {
     // Éxito
     const data = payload; // ya está parseado
 
-    console.log('Registro exitoso:', data.user);
-
   // No guardar access, refresh ni user aquí
     return data;
   } catch (error) {

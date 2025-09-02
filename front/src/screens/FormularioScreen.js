@@ -103,24 +103,22 @@ const handleEnviar = async () => {
         }
       }
 
-      let redesValido = redes && redes.trim() ? redes : "https://facebook.com/tuempresa";
+      const rifFormateado = /^\d{9}$/.test(rif)
+        ? `J-${rif.slice(0, 8)}-${rif.slice(8)}`
+        : rif;
 
-      let rifTransformado = rif;
-      if (/^\d{9}$/.test(rif)) {
-        rifTransformado = `J-${rif.slice(0, 8)}-${rif.slice(8)}`;
-      }
+      console.log('Rif formateado:', rifFormateado);
 
       const empresaData = {
         nombre,
-        rif: rifTransformado,
+        rif: rifFormateado,
         descripcion: descripcion || "",
         lugar,
         telefono: telefonoValido,
         email_contacto: correo,
-        redes_sociales: redesValido,
+        redes_sociales: redes || "",
         email: correo,
         password: "00000000",
-        phone: telefonoValido,
       };
 
       const res = await fetch(`http://${ipAddress}:8000/api/registro-empresa/`, {
@@ -148,6 +146,7 @@ const handleEnviar = async () => {
       // 🟢 CAMBIO: log para confirmar éxito
       console.log("Empresa registrada:", data);
 
+
       // ✅ CAMBIO: si llega aquí, la empresa se registró
       setCargando(false);
       setVerificado(false);
@@ -169,12 +168,15 @@ const handleEnviar = async () => {
           "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
-          nombre,
           rif: rifFormateado,
           lugar,
           telefono,
+          nombre,
+          descripcion: descripcion || "",
           email_contacto: correo,
           redes_sociales: redes || "",
+          email: correo,
+          password: "00000000",
         }),
       });
 
@@ -257,15 +259,19 @@ const handleValidarPin = async () => {
       setCargando(false);
       return;
     }
+    console.log("PIN validado y empresa creada:", data);
 
-    if (data.id) {
-        await AsyncStorage.setItem("empresaId", data.id.toString());
+    if (data.empresa.id) {
+        await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
       }
       else {
         Alert.alert("Error", "No se pudo obtener el ID de la empresa");
         setCargando(false);
         return;
       }
+
+      
+      console.log("Tokens recibidos:", data.access, data.refresh);
 
     // Guardar tokens y datos de empresa en AsyncStorage
     await AsyncStorage.setItem('accessToken', data.access);
@@ -276,7 +282,7 @@ const handleValidarPin = async () => {
     // Redirigir automáticamente a la pantalla principal con sesión iniciada
     navigation.reset({
       index: 0,
-      routes: [{ name: 'HomeScreen', params: { empresaId: data.id } }],
+      routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id } }],
     });
   } catch (error) {
     setCargando(false);
