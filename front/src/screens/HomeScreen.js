@@ -38,98 +38,162 @@ export default function HomeScreen() {
     await AsyncStorage.removeItem('userEmail');
     await AsyncStorage.removeItem('userName');
     await AsyncStorage.removeItem('empresaId');
+    await AsyncStorage.clear();
     setIsLogged(false);
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
 
-  //Funcion del login
-  const handleLogin = async () => {
-    if (!user.trim() || !pass.trim()) {
-      Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
-      return; // Detiene la función si faltan datos
-    }
-    try {
-      const response = await fetch(`http://${ipAddress}:8000/api/login/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        
-        body: JSON.stringify({
-          email: user,
-          password: pass,
-        }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json(); 
-        console.log("Respuesta login completa:", data);
+ // Función del login
+const handleLogin = async () => {
+  if (!user.trim() || !pass.trim()) {
+    Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+    return;
+  }
 
-        
-        // Guardar token y nombre de usuario
-        await AsyncStorage.setItem('accessToken', data.access);
-        await AsyncStorage.setItem('userEmail', user); // email
-        // await AsyncStorage.setItem("empresaId", data.empresa_id.toString());
+  try {
+    // 🔹 Primero intenta login como User
+    let response = await fetch(`http://${ipAddress}:8000/api/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user,
+        password: pass,
+      }),
+    });
 
-        if (data.empresa_id) {
-          await AsyncStorage.setItem('empresaId', data.empresa_id.toString());
-        }
-        else {
-          await AsyncStorage.setItem('empresaId', "");
-        }
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Respuesta login USER:", data);
 
-        if (data.user?.username) {
-          await AsyncStorage.setItem('userName', data.user.username);
-        } else {
-          await AsyncStorage.setItem('userName', user);
-        }
-        setIsLogged(true);
-        setLoginVisible(false); // Cierra el modal y dispara el useEffect
-        Alert.alert('Login correcto', 'Has ingresado correctamente');
-        navigation.navigate('HomeScreen');
+      // Guardar token
+      await AsyncStorage.setItem('accessToken', data.access);
+      await AsyncStorage.setItem('refreshToken', data.refresh);
+      await AsyncStorage.setItem('userEmail', user);
+
+      // Si devuelve empresa_id
+      if (data.empresa_id) {
+        await AsyncStorage.setItem('empresaId', data.empresa_id.toString());
       } else {
-        const err = await response.json();
-        Alert.alert('Error de login','Usuario o contraseña incorrectos');
+        await AsyncStorage.setItem('empresaId', "");
       }
-    } catch (error) {
-      console.error("Error en login:", error.response?.data || error.message);
-      Alert.alert('Error', 'No se pudo conectar con el servidor');
+
+      // Nombre de usuario
+      if (data.user?.username) {
+        await AsyncStorage.setItem('userName', data.user.username);
+      } else {
+        await AsyncStorage.setItem('userName', user);
+      }
+
+      setIsLogged(true);
+      setLoginVisible(false);
+      Alert.alert('Login correcto', 'Has ingresado como usuario');
+      navigation.navigate('HomeScreen');
+      return;
     }
-  };
+
+    // 🔹 Si no funcionó, intenta login como Empresa
+    response = await fetch(`http://${ipAddress}:8000/api/empresa/login/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: user,
+        password: pass,
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log("Respuesta login EMPRESA:", data);
+
+      // Token (tu endpoint de empresa puede llamarlo distinto)
+      if (data.token) {
+        await AsyncStorage.setItem('accessToken', data.token);
+      } else if (data.access) {
+        await AsyncStorage.setItem('accessToken', data.access);
+      }
+
+      await AsyncStorage.setItem('refreshToken', data.refresh);
+
+      // EmpresaId
+      if (data.empresa?.id) {
+        await AsyncStorage.setItem('empresaId', data.empresa.id.toString());
+      } else {
+        await AsyncStorage.setItem('empresaId', "");
+      }
+
+      // Nombre de empresa
+      if (data.empresa?.nombre) {
+        await AsyncStorage.setItem('userName', data.empresa.nombre);
+      } else {
+        await AsyncStorage.setItem('userName', user);
+      }
+
+      await AsyncStorage.setItem('userEmail', user);
+      setIsLogged(true);
+      setLoginVisible(false);
+      Alert.alert('Login correcto', 'Has ingresado como empresa');
+      navigation.navigate('HomeScreen');
+      return;
+    }
+
+    // 🔹 Si falla ambos
+    const err = await response.json();
+    Alert.alert('Error de login', err?.detail || 'Usuario o contraseña incorrectos');
+
+  } catch (error) {
+    console.error("Error en login:", error);
+    Alert.alert('Error', 'No se pudo conectar con el servidor');
+  }
+};
+
 
   const [events, setEventos] = useState([]);
 
   useEffect(() => {
     const fetchEventos = async () => {
       try {
-        // Endpoint público, no requiere token
         const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
         if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
-
         const data = await res.json();
-
-        const eventosTransformados = data.map(ev => ({
-          id: ev.id,
-          title: ev.titulo,
-          date: ev.creado_en
-            ? new Date(ev.creado_en).toLocaleDateString()
-            : "Fecha no definida",
-          location: ev.ubicacion,
-          price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
-          type: ev.categoria || ["Sin categoría"],
-          categoriaColor: "#4f46e5",
-          imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
-        }));
-
-        
+        // Código anterior (presentación simple) que se reemplazó por versión enriquecida:
+        // const eventosTransformados = data.map(ev => ({
+        //   id: ev.id,
+        //   title: ev.titulo,
+        //   date: ev.creado_en
+        //     ? new Date(ev.creado_en).toLocaleDateString()
+        //     : "Fecha no definida",
+        //   location: ev.ubicacion,
+        //   price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+        //   type: ev.categoria || ["Sin categoría"],
+        //   categoriaColor: "#4f46e5",
+        //   imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+        // }));
+        const eventosTransformados = data.map(ev => {
+          const categorias = Array.isArray(ev.categoria) ? ev.categoria : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+          return {
+            id: ev.id,
+            title: ev.titulo,
+            date: ev.fecha_evento
+              ? new Date(ev.fecha_evento).toLocaleDateString()
+              : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+            time: ev.fecha_evento
+              ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : null,
+            location: ev.ubicacion || 'Ubicación no definida',
+            price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
+            type: categorias,
+            tag: categorias[0],
+            image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+            ownerName: ev.empresa_nombre || ev.empresa_usuario || (ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador')
+          };
+        });
         setEventos(eventosTransformados);
       } catch (error) {
-        console.error("Error fetching eventos públicos:", error);
-      }finally {
+        console.error('Error fetching eventos públicos:', error);
+      } finally {
         setLoading(false);
       }
     };
-
     fetchEventos();
   }, []);
 
@@ -168,10 +232,18 @@ export default function HomeScreen() {
   ];
 
   // Filtrado de eventos
-  const filteredEvents = events.filter(e =>
-    (filter === 'all' || e.type === filter) &&
-    (e.title.toLowerCase().includes(search.toLowerCase()) || e.location.toLowerCase().includes(search.toLowerCase()))
-  );
+  // Versión anterior del filtrado (simple):
+  // const filteredEvents = events.filter(e =>
+  //   (filter === 'all' || e.type === filter) &&
+  //   (e.title.toLowerCase().includes(search.toLowerCase()) || e.location.toLowerCase().includes(search.toLowerCase()))
+  // );
+  const filteredEvents = events.filter(e => {
+    const categorias = Array.isArray(e.type) ? e.type : [e.type];
+    const matchesFilter = filter === 'all' || categorias.includes(filter);
+    const query = search.toLowerCase();
+    const matchesSearch = e.title.toLowerCase().includes(query) || (e.location||'').toLowerCase().includes(query) || categorias.join(' ').toLowerCase().includes(query);
+    return matchesFilter && matchesSearch;
+  });
 
   // if (loading) {
   //   return (
@@ -264,6 +336,7 @@ export default function HomeScreen() {
 
         {/* Eventos */}
         <Text style={styles.sectionTitle}>Próximos eventos</Text>
+        {/* Versión anterior de tarjetas (simple) mantenida como comentario:
         <View style={styles.eventsGrid}>
           {filteredEvents.length === 0 ? (
             <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>No hay eventos para mostrar.</Text>
@@ -274,6 +347,35 @@ export default function HomeScreen() {
                 <View style={styles.eventTag}><Text style={styles.eventTagText}>{event.tag}</Text></View>
                 <Text style={styles.eventTitle}>{event.title}</Text>
                 <Text style={styles.eventInfo}>{event.date} - {event.location}</Text>
+                <Text style={styles.eventPrice}>{event.price}</Text>
+                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { evento: event })}>
+                  <Text style={styles.reserveText}>Reservar</Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </View> */}
+        <View style={styles.eventsGrid}>
+          {filteredEvents.length === 0 ? (
+            <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>No hay eventos para mostrar.</Text>
+          ) : (
+            filteredEvents.map(event => (
+              <View key={event.id} style={styles.eventCard}>
+                <View style={styles.ownerRow}>
+                  <View style={styles.ownerAvatar}>
+                    <Text style={styles.ownerAvatarText}>{(event.ownerName||'?').charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex:1 }}>
+                    <Text style={styles.ownerName}>{event.ownerName}</Text>
+                    <Text style={styles.ownerLabel}>Organizador</Text>
+                  </View>
+                  {event.tag && (
+                    <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
+                  )}
+                </View>
+                <Image source={{ uri: event.image }} style={styles.eventImage} resizeMode="cover" />
+                <Text style={styles.eventTitle}>{event.title}</Text>
+                <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
                 <Text style={styles.eventPrice}>{event.price}</Text>
                 <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { evento: event })}>
                   <Text style={styles.reserveText}>Reservar</Text>
@@ -445,6 +547,13 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 20, color: '#fff', fontWeight: 'bold', marginVertical: 12 },
   eventsGrid: { flexDirection: width < 600 ? 'column' : 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   eventCard: { backgroundColor: '#334155', borderRadius: 12, padding: 12, marginBottom: 16, position: 'relative', width: CARD_WIDTH, alignSelf: 'center', marginHorizontal: 4 },
+  ownerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  ownerAvatar: { width:36, height:36, borderRadius:18, backgroundColor:'#6366f1', justifyContent:'center', alignItems:'center', marginRight:10 },
+  ownerAvatarText: { color:'#fff', fontWeight:'700', fontSize:16 },
+  ownerName: { color:'#fff', fontSize:14, fontWeight:'600' },
+  ownerLabel: { color:'#94a3b8', fontSize:11, marginTop:2 },
+  ownerChip: { backgroundColor:'#0ea5e9', paddingHorizontal:10, paddingVertical:4, borderRadius:16 },
+  ownerChipText: { color:'#fff', fontSize:12, fontWeight:'600' },
   eventImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 8 },
   eventTag: { position: 'absolute', top: 12, right: 12, backgroundColor: '#6366f1', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   eventTagText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },

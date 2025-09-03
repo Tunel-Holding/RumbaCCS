@@ -8,14 +8,13 @@ import { SvgXml } from 'react-native-svg';
 
 // SVGs originales
 const svgGuardados = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M8 6C8 4.89543 8.89543 4 10 4H22C23.1046 4 24 4.89543 24 6V26C24 26.5523 23.4477 27 23 27C22.7893 27 22.5858 26.9216 22.4375 26.7812L16 20.3438L9.5625 26.7812C9.41421 26.9216 9.21071 27 9 27C8.55228 27 8 26.5523 8 26V6Z" stroke="#2563eb" stroke-width="2" fill="#e0e7ff"/></svg>`;
-const svgVisitados = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M16 4L19.09 12.26L28 13.27L21 19.14L23.18 28L16 23.77L8.82 28L11 19.14L4 13.27L12.91 12.26L16 4Z" stroke="#22c55e" stroke-width="2" fill="#d1fae5"/></svg>`;
 const svgComentarios = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M6 24V8C6 6.89543 6.89543 6 8 6H24C25.1046 6 26 6.89543 26 8V20C26 21.1046 25.1046 22 24 22H10L6 26V24Z" stroke="#a21caf" stroke-width="2" fill="#f3e8ff"/></svg>`;
 
 // --- Lógica migrada del JS para React Native ---
 // Títulos de sección para el enunciado principal
 const sectionTitles = {
   guardados: 'Eventos guardados',
-  visitados: 'Eventos visitados',
+
   comentarios: 'Comentarios publicados',
 };
 
@@ -83,7 +82,6 @@ export default function PerfilScreen({ navigation }) {
   );
 };
   const [notifAnim] = useState(new Animated.Value(0));
-  const [ticketAnim] = useState(new Animated.Value(0));
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedSection, setSelectedSection] = useState(null);
 
@@ -97,17 +95,6 @@ export default function PerfilScreen({ navigation }) {
       }).start();
     }
   }, [modalVisible.notifications]);
-
-  // Fade in animation when tickets modal opens
-  React.useEffect(() => {
-    if (modalVisible.cart) {
-      Animated.timing(ticketAnim, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    }
-  }, [modalVisible.cart]);
 
   // Cambia el título del enunciado según el botón seleccionado
   const getEnunciado = () => {
@@ -124,13 +111,6 @@ export default function PerfilScreen({ navigation }) {
         activeOpacity={0.8}
       >
         <SvgXml xml={svgGuardados} width={24} height={24} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[styles.sectionButton, styles.green, selectedSection === 'visitados' && styles.sectionButtonActive]}
-        onPress={() => setSelectedSection('visitados')}
-        activeOpacity={0.8}
-      >
-        <SvgXml xml={svgVisitados} width={24} height={24} />
       </TouchableOpacity>
       <TouchableOpacity
         style={[styles.sectionButton, styles.purple, selectedSection === 'comentarios' && styles.sectionButtonActive]}
@@ -182,8 +162,7 @@ export default function PerfilScreen({ navigation }) {
           setVisible={setMenuVisible}
           onMenuItemPress={item => {
             setMenuVisible(false);
-            if (item === 'tickets') setModalVisible({ ...modalVisible, cart: true });
-            else if (item === 'calendar') setModalVisible({ ...modalVisible, calendar: true });
+           if (item === 'calendar') setModalVisible({ ...modalVisible, calendar: true });
             else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
             else if (item === 'inicio') navigation.navigate('HomeScreen');
             else if (item === 'register') navigation.navigate('Empresa');
@@ -207,7 +186,7 @@ export default function PerfilScreen({ navigation }) {
             <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
           </TouchableOpacity>
         ) : null}
-        <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>30</Text></Text>
+        <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>0</Text></Text>
         {renderSectionButtons()}
       </View>
 
@@ -222,13 +201,6 @@ export default function PerfilScreen({ navigation }) {
               </View>
               <Text style={[styles.infoTitle, { color: '#2563eb' }]}>Eventos guardados</Text>
               <Text style={[styles.infoDesc, { color: '#2563eb' }]}>Este ícono representa los eventos que marcaste como favoritos para revisarlos más tarde fácilmente.</Text>
-            </View>
-            <View style={[styles.infoBox, { backgroundColor: '#bbf7d0' }]}> 
-              <View style={[styles.infoIconCircle, { backgroundColor: '#bbf7d0' }] }>
-                <SvgXml xml={svgVisitados} width={32} height={32} />
-              </View>
-              <Text style={[styles.infoTitle, { color: '#059669' }]}>Eventos visitados</Text>
-              <Text style={[styles.infoDesc, { color: '#059669' }]}>Este símbolo con estrella señala los eventos que ya exploraste. Te ayuda a llevar un historial de actividades.</Text>
             </View>
             <View style={[styles.infoBox, { backgroundColor: '#ede9fe' }]}> 
               <View style={[styles.infoIconCircle, { backgroundColor: '#ede9fe' }] }>
@@ -275,30 +247,6 @@ export default function PerfilScreen({ navigation }) {
           )}
         </View>
       )}
-      {selectedSection === 'visitados' && (
-        <View style={[styles.sectionContent, { padding: 16, backgroundColor: 'transparent', margin: 0 }]}> 
-          <Text style={styles.sectionTitle}>Eventos visitados</Text>
-          <View style={{ backgroundColor: '#334155', borderRadius: 16, overflow: 'hidden', margin: 0 }}>
-            <View style={{ position: 'relative' }}>
-              <Image
-                source={{ uri: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2845f684-896f-4604-a8e9-6ce9929b0bbb.png' }}
-                style={{ width: '100%', height: 180, resizeMode: 'cover' }}
-              />
-              <View style={{ position: 'absolute', top: 12, right: 12, backgroundColor: '#a21caf', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 4 }}>
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>Fiesta</Text>
-              </View>
-            </View>
-            <View style={{ padding: 16 }}>
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 22, marginBottom: 8 }}>Nochevieja VIP</Text>
-              <Text style={{ color: '#fff', fontSize: 18, marginBottom: 4 }}>21 Dic 2023</Text>
-              <Text style={{ color: '#fff', fontSize: 18, marginBottom: 16 }}>Club Nocturno Momentum</Text>
-              <TouchableOpacity style={{ backgroundColor: '#6366f1', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}>
-                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Comentar sobre el evento</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      )}
       {selectedSection === 'comentarios' && (
         <View style={[styles.sectionContent, {backgroundColor: 'transparent', margin: 0}] }>
           <Text style={styles.sectionTitle}>Comentarios publicados</Text>
@@ -324,21 +272,7 @@ export default function PerfilScreen({ navigation }) {
       {/* Modals solo versión móvil */}
       <Modal visible={modalVisible.cart} transparent animationType="none">
         {/* Fade in/out animation for tickets overlay */}
-        <Animated.View
-          pointerEvents={modalVisible.cart ? 'auto' : 'none'}
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.87)',
-            zIndex: 200,
-            justifyContent: 'center',
-            alignItems: 'center',
-            opacity: ticketAnim,
-          }}
-        >
+        <Animated.View>
           <View style={{
             backgroundColor: '#1e293b',
             borderRadius: 24,
@@ -351,29 +285,9 @@ export default function PerfilScreen({ navigation }) {
             shadowRadius: 12,
             position: 'relative',
           }}>
-            <TouchableOpacity
-              onPress={() => {
-                Animated.timing(ticketAnim, {
-                  toValue: 0,
-                  duration: 250,
-                  useNativeDriver: true,
-                }).start(() => setModalVisible({ ...modalVisible, cart: false }));
-              }}
-              style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Text style={{ fontSize: 28, color: '#fff', fontWeight: 'bold' }}>×</Text>
-            </TouchableOpacity>
+           
             <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 18, textAlign: 'center' }}>Tus Tickets</Text>
-            {/* Ejemplo de tickets */}
-            <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Entrada Festival Indie 2023</Text>
-              <Text style={{ color: '#dbeafe', marginTop: 4 }}>15 Dic 2023 - Estadio Nacional</Text>
-            </View>
-            <View style={{ backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>VIP Nochevieja</Text>
-              <Text style={{ color: '#bbf7d0', marginTop: 4 }}>21 Dic 2023 - Club Momentum</Text>
-            </View>
+
           </View>
         </Animated.View>
       </Modal>

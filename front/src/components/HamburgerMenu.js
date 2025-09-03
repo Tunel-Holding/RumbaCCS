@@ -22,9 +22,6 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress }) 
             <TouchableOpacity onPress={() => onMenuItemPress('calendar')} style={styles.menuItem}>
               <Text style={styles.menuText}>Calendario</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => onMenuItemPress('tickets')} style={styles.menuItem}>
-              <Text style={styles.menuText}>Tickets</Text>
-            </TouchableOpacity>
             <TouchableOpacity onPress={() => onMenuItemPress('notifications')} style={styles.menuItem}>
               <Text style={styles.menuText}>Notificaciones</Text>
             </TouchableOpacity>

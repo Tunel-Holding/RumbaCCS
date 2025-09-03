@@ -12,6 +12,8 @@ import {
   SafeAreaView,
   ActivityIndicator,
   StatusBar,
+  Alert,
+  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
@@ -19,10 +21,13 @@ import EmpresaMenu from '../components/EmpresaMenu';
 import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+// import { apiFetch } from '../services/api';
 
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreen() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -38,53 +43,81 @@ export default function EmpresaScreen() {
 
   const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
   
-  useEffect(() => {
+useEffect(() => {
+  const fetchEmpresa = async () => {
+    try {
+      const token = await AsyncStorage.getItem("accessToken");
+      const empresaId = await AsyncStorage.getItem("empresaId");
 
-    //Funcion para obtener los datos de la empresa
-    const fetchEmpresa = async () => {
-      try {
-        const token = await AsyncStorage.getItem("accessToken");
-        const empresaId = await AsyncStorage.getItem("empresaId");
-
-        // if (empresaId) {
-        //   try {
-        //     const res = await axios.get(`http://${ipAddress}:8000/api/empresa/${empresaId}/`);
-        //     console.log("Empresa:", res.data);
-        //   } catch (error) {
-        //     console.error("Error al traer empresa:", error);
-        //   }
-        // } else {
-        //   console.log("El usuario todavía no tiene empresa asociada.");
-        // }
-
-        if (!empresaId) {
-          console.log("El usuario todavía no tiene empresa asociada.");
-          setEmpresaData(null);
-          return;
-        }
-
-        console.log("empresaId desde AsyncStorage:", empresaId);
-
-        const response = await axios.get(
-          `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        console.log("termino la api")
-
-        setEmpresaData(response.data);
-      } catch (error) {
-        console.error("Error al traer empresa:", error);
-      } finally {
+      if (!empresaId || !token) {
+        console.warn("Falta token o empresaId");
         setLoading(false);
+        return;
       }
-    };
 
-    fetchEmpresa();
-  }, []);
+      const response = await axios.get(
+        `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
+        {
+          headers: { 
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`  // 🔹 IMPORTANTE
+          },
+        }
+      );
 
+      console.log("✅ Empresa data:", response.data);
+      setEmpresaData(response.data);
+
+    } catch (error) {
+      if (error.response) {
+        console.error("❌ Error HTTP:", error.response.status, error.response.data);
+      } else {
+        console.error("❌ Error:", error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchEmpresa();
+}, []);
+
+
+
+//     const fetchEmpresa = async () => {
+//     try {
+//       const empresaId = await AsyncStorage.getItem("empresaId");
+
+//       console.log("🏷 empresaId:", empresaId);
+
+//       if (!empresaId) {
+//         console.warn("Falta empresaId");
+//         setLoading(false);
+//         return;
+//       }
+
+//       // Usamos apiFetch en vez de axios
+//       const { res, data } = await apiFetch(
+//         `http://${ipAddress}:8000/api/empresas/${empresaId}/`
+//       );
+
+//       if (res.ok) {
+//         console.log("✅ Empresa data:", data);
+//         setEmpresaData(data);
+//       } else {
+//         console.error(`❌ Error HTTP: ${res.status}`, data);
+//       }
+
+//     } catch (error) {
+//       console.error("Error al traer empresa:", error.message);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   fetchEmpresa();
+// }, []);
+  // Función para obtener los datos de la empresa
   
 
   const empresaData1 = {
@@ -299,66 +332,105 @@ useEffect(() => {
       <View style={styles.perfilContent}>
         {/* Foto de perfil */}
         <View style={styles.fotoContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={() => {
-              // Aquí puedes agregar la lógica para editar el perfil
-              console.log('Editar perfil de empresa');
-            }}
+            onPress={() => console.log('Editar perfil de empresa')}
             activeOpacity={0.7}
           >
             <Text style={styles.fotoIcon}>👤</Text>
           </TouchableOpacity>
         </View>
-
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
-          <Text style={styles.seguidoresText}>
-            RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text>
-          </Text>
-          <Text style={styles.seguidoresText}>
-            Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text>
-          </Text>
-          <Text style={styles.eventosText}>
-            Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text>
-          </Text>
-          <TouchableOpacity 
-            style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
-            onPress={toggleFollow}
-          >
-                         <View style={styles.seguirIcon}>
-               <PersonIcon size={18} color="#ffffff" />
-             </View>
-            <Text style={styles.seguirText}>
-              {isFollowing ? 'Siguiendo' : 'Seguir'}
-            </Text>
-          </TouchableOpacity>
+          <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
+          <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
+          <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
+          <View style={styles.accionesRow}>
+            <TouchableOpacity
+              style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
+              onPress={toggleFollow}
+              activeOpacity={0.85}
+            >
+              <View style={styles.seguirIcon}>
+                <PersonIcon size={18} color="#ffffff" />
+              </View>
+              <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.clasificarButton}
+              activeOpacity={0.85}
+              onPress={() => console.log('Calificar empresa')}
+            >
+              <Text style={styles.clasificarStar}>★</Text>
+              <Text style={styles.clasificarText}>Calificar</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
   );
 
+  // Redes sociales dinámicas (front-only)
+  const redes = [
+    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: empresaData?.instagram || null },
+    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: empresaData?.twitter || null },
+    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: empresaData?.facebook || null },
+    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: empresaData?.tiktok || null },
+    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: empresaData?.youtube || null },
+    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: empresaData?.whatsapp || null },
+    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: empresaData?.website || null },
+  ];
+
+  const openRedSocial = (item) => {
+    if (item.url) {
+      Linking.openURL(item.url).catch(err => console.log('No se pudo abrir', err));
+    }
+  };
+
+  const renderSocialCircles = () => {
+    const hasAny = redes.some(r => !!r.url);
+    if (!hasAny) return null;
+    return (
+      <View style={styles.socialStripContainer}>
+        <Text style={styles.socialStripTitle}>Redes sociales</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {redes.filter(r => r.url).map(r => (
+            <TouchableOpacity
+              key={r.id}
+              style={[styles.socialCircle, { borderColor: r.color }]}
+              activeOpacity={0.75}
+              onPress={() => openRedSocial(r)}
+            >
+              <Text style={styles.socialIcon}>{r.icon}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
   const renderEventos = () => (
     <View style={styles.eventosContainer}>
       <View style={styles.eventosHeader}>
-        <Text style={styles.eventosTitle}>Eventos publicados</Text>
-                 <TouchableOpacity 
-                   style={styles.agregarButton}
-                   onPress={async () => {
-                     const empresaId = await AsyncStorage.getItem("empresaId");
-                     if (empresaId) {
-                       navigation.navigate('Add');
-                     }
-                      else {
-                        console.log('Empresa no encontrada', empresaId);
-                        Alert.alert('Error', 'No tienes empresa creada');
-                        
-                      }
-                   }}
-                 >
-                   <Text style={styles.agregarIcon}>+</Text>
-                 </TouchableOpacity>
+        <View style={{ flex:1 }}>
+          <Text style={styles.eventosTitle}>Eventos publicados</Text>
+          <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
+        </View>
+        <TouchableOpacity
+          style={styles.agregarButton}
+          onPress={async () => {
+            const empresaId = await AsyncStorage.getItem('empresaId');
+            if (empresaId) {
+              navigation.navigate('Add');
+            } else {
+              console.log('Empresa no encontrada', empresaId);
+              Alert.alert('Error', 'No tienes empresa creada');
+            }
+          }}
+        >
+          <Text style={styles.agregarIcon}>+</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.eventosGrid}>
@@ -417,7 +489,7 @@ useEffect(() => {
 
   return (
 
-    <SafeAreaView style={styles.container}>
+  <SafeAreaView style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
       
              {renderHeader()}
@@ -426,6 +498,7 @@ useEffect(() => {
   <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
+          {renderSocialCircles()}
           {renderEventos()}
         </View>
       </ScrollView>
@@ -472,9 +545,11 @@ const styles = StyleSheet.create({
   // Perfil styles
   perfilContainer: {
     backgroundColor: 'rgba(30, 41, 59, 0.6)',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 48,
+  borderRadius: 16,
+  paddingHorizontal: 24,
+  paddingTop: 22,
+  paddingBottom: 18,
+  marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -503,10 +578,7 @@ const styles = StyleSheet.create({
   fotoIcon: {
     fontSize: 48,
   },
-  datosContainer: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
+  datosContainer: { alignItems: 'center', marginTop: 4 },
   empresaNombre: {
     fontSize: 32,
     fontWeight: '600',
@@ -514,31 +586,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
-  seguidoresText: {
-    fontSize: 20,
-    color: '#d1d5db',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
+  seguidoresText: { fontSize: 18, color: '#d1d5db', marginBottom: 4, textAlign: 'center' },
   seguidoresCount: {
     fontWeight: 'bold',
     color: '#db2777',
   },
-  eventosText: {
-    fontSize: 18,
-    color: '#d1d5db',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
+  eventosText: { fontSize: 18, color: '#d1d5db', marginBottom: 16, textAlign: 'center' },
   eventosCount: {
     fontWeight: 'bold',
     color: '#3b82f6',
   },
+  accionesRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
   seguirButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'linear-gradient(135deg, #db2777 0%, #be185d 100%)',
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 30,
     shadowColor: '#db2777',
@@ -547,34 +610,24 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.1)'
   },
-  seguirButtonActive: {
-    backgroundColor: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
-    shadowColor: '#16a34a',
-  },
-     seguirIcon: {
-     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-     borderRadius: 16,
-     padding: 6,
-     marginRight: 10,
-     borderWidth: 1,
-     borderColor: 'rgba(255, 255, 255, 0.2)',
-     justifyContent: 'center',
-     alignItems: 'center',
-   },
-     seguirText: {
-     color: '#ffffff',
-     fontSize: 18,
-     fontWeight: '900',
-     textShadowColor: 'rgba(0, 0, 0, 0.3)',
-     textShadowOffset: { width: 0, height: 1 },
-     textShadowRadius: 2,
-   },
+  seguirButtonActive: { backgroundColor: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', shadowColor: '#16a34a' },
+  seguirIcon: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 6, marginRight: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  seguirText: { color: '#ffffff', fontSize: 18, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  // Redes sociales
+  socialStripContainer: { flexDirection: 'column', marginTop: 4, marginBottom: 12, paddingTop: 2 },
+  socialStripTitle: { marginLeft: 4, marginBottom: 6, fontSize: 14, fontWeight: '600', color: '#e2e8f0', letterSpacing: 0.5, textTransform: 'uppercase' },
+  socialCircle: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginRight: 10, backgroundColor: '#1e293b', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3, elevation: 3 },
+  socialIcon: { fontSize: 20, color: '#ffffff' },
+  clasificarButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'linear-gradient(135deg, #075819ff 0%, #0d430bff 100%)', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 30, shadowColor: '#0b5318ff', shadowOpacity: 0.4, shadowOffset: { width: 0, height: 6 }, shadowRadius: 8, elevation: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  clasificarStar: { color: '#ffffff', fontSize: 18, marginRight: 8, textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  clasificarText: { color: '#ffffff', fontWeight: 'bold', fontSize: 16 },
 
   // Eventos styles
   eventosContainer: {
-    marginTop: 48,
+    // Reducido desde 48 para acercar la sección a los datos de la empresa
+    marginTop: 20,
   },
   eventosHeader: {
     flexDirection: 'row',
@@ -589,6 +642,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 16,
   },
+  eventosTotalLinea: { fontSize: 16, color: '#f1f5f9', marginTop: 4, fontWeight: '600' },
   agregarButton: {
     backgroundColor: '#16a34a',
     width: 40,

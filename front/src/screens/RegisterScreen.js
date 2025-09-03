@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { Modal } from 'react-native';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -27,7 +27,7 @@ const getFirstMessage = (err) => {
   return 'Error en el registro';
 };
 
-// función de registro
+// función de registro (no guarda tokens todavía)
 export const registerUser = async (formData) => {
   try {
     const response = await fetch(`${API_URL}/register/`, {
@@ -40,36 +40,23 @@ export const registerUser = async (formData) => {
       ?.get('content-type')
       ?.includes('application/json');
 
-    // Intenta parsear JSON si corresponde
     const payload = isJson ? await response.json() : null;
 
     if (!response.ok) {
       const errorData = payload || { detail: 'Error en el registro' };
       const err = new Error(getFirstMessage(errorData));
-      // Adjunta datos útiles para el front
-      err.fields = errorData;      // ej: { email: ["Este correo ya está registrado"] }
-      err.status = response.status; // ej: 400
+      err.fields = errorData;
+      err.status = response.status;
       throw err;
     }
 
-    
-
-    // Éxito
-    const data = payload; // ya está parseado
-
-    console.log('Registro exitoso:', data.user);
-
-    await AsyncStorage.setItem('access', data.access);
-    await AsyncStorage.setItem('refresh', data.refresh);
-    await AsyncStorage.setItem('user', JSON.stringify(data.user));
+    const data = payload; // respuesta del backend (solo mensaje/envío de código)
+    // No guardar access, refresh ni user aquí
     return data;
   } catch (error) {
     throw error;
   }
 };
-
-
-
 
 export default function RegisterScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
@@ -101,7 +88,6 @@ export default function RegisterScreen({ navigation, route }) {
   const PIN_LENGTH = 6;
   const [pinDigits, setPinDigits] = useState(['','','','','','']);
   const pinRefs = useRef([]);
-  const PIN_CORRECTO_SIMULADO = '123456';
   const [pinResendAvailable, setPinResendAvailable] = useState(false);
   const [focusedPinIndex, setFocusedPinIndex] = useState(-1);
 
@@ -112,7 +98,7 @@ export default function RegisterScreen({ navigation, route }) {
   useEffect(() => {
     if (cargando) {
       setPinResendAvailable(false);
-      const t = setTimeout(() => setPinResendAvailable(true), 15000);
+      const t = setTimeout(() => setPinResendAvailable(true), 60000); // 1 minuto
       return () => clearTimeout(t);
     }
   }, [cargando]);
@@ -157,26 +143,30 @@ export default function RegisterScreen({ navigation, route }) {
         password: pass
       };
 
-      console.log('Datos del formulario (enviando y mostrando PIN inmediato):', formData);
       setPinDigits(['','','','','','']);
       setVerificado(false);
       setCargando(true);
-      let res;
       try {
-        res = await registerUser(formData);
+        // Envía el formulario para que backend mande el código
+        const res = await registerUser(formData);
+        if (res && res.error) {
+          Alert.alert('Error', res.error);
+          setCargando(false);
+          return;
+        }
+        await AsyncStorage.setItem('pending_user', JSON.stringify(formData));
+        if (res && res.message) {
+          Alert.alert('Verificación', res.message);
+        }
       } catch (e) {
         setCargando(false);
-        throw e;
+        Alert.alert('Error', e.message || 'Error en el registro');
+        return;
       }
-      console.log('Usuario registrado (pendiente verificación PIN):', res.user.username);
-      await AsyncStorage.setItem('pending_user', JSON.stringify(res.user));
-      await AsyncStorage.setItem('pending_tokens', JSON.stringify({ access: res.access, refresh: res.refresh }));
     } catch (err) {
       Alert.alert('Error', err.message || 'Algo salió mal');
     }
   };
-
-
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -195,11 +185,11 @@ export default function RegisterScreen({ navigation, route }) {
             <Text style={styles.loadingTitle}>Verificación de correo</Text>
             <Text style={styles.pinInstructions}>Te enviamos un PIN a tu correo. Ingresa los 6 dígitos para continuar.</Text>
             {pinResendAvailable ? (
-              <TouchableOpacity onPress={() => { setPinResendAvailable(false); setPinDigits(['','','','','','']); const t2=setTimeout(()=>setPinResendAvailable(true),15000); }}>
+              <TouchableOpacity onPress={() => { setPinResendAvailable(false); setPinDigits(['','','','','','']); const t2=setTimeout(()=>setPinResendAvailable(true),60000); }}>
                 <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el pin? Presione aquí.</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo pin en 15 segundos…</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo pin en 1 minuto…</Text>
             )}
             <View style={styles.pinRow}>
               {pinDigits.map((val, i) => (
@@ -243,11 +233,36 @@ export default function RegisterScreen({ navigation, route }) {
                   Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
                   return;
                 }
-                if (pinIngresado === PIN_CORRECTO_SIMULADO) {
+                try {
+                  const pendingUser = await AsyncStorage.getItem('pending_user');
+                  const userData = JSON.parse(pendingUser);
+                  const response = await fetch(`${API_URL}/verify-code/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userData.email, code: pinIngresado })
+                  });
+                  const result = await response.json();
+                  if (!response.ok) {
+                    Alert.alert('PIN incorrecto', result.error || 'El PIN ingresado no es válido.');
+                    return;
+                  }
+                  const createResponse = await fetch(`${API_URL}/finalize-register/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                  });
+                  const createResult = await createResponse.json();
+                  if (!createResponse.ok) {
+                    Alert.alert('Error', createResult.error || 'No se pudo crear el usuario.');
+                    return;
+                  }
+                  await AsyncStorage.setItem('accessToken', createResult.access);
+                  await AsyncStorage.setItem('refreshToken', createResult.refresh);
+                  await AsyncStorage.setItem('userName', createResult.user.username);
                   setVerificado(true);
-                  setCargando(false); // pasamos a pantalla de éxito
-                } else {
-                  Alert.alert('PIN incorrecto', 'El PIN ingresado no es válido.');
+                  setCargando(false);
+                } catch (err) {
+                  Alert.alert('Error', err.message || 'No se pudo verificar el PIN.');
                 }
               }}
             >
@@ -267,7 +282,9 @@ export default function RegisterScreen({ navigation, route }) {
                   const tok = JSON.parse(tokens);
                   await AsyncStorage.setItem('accessToken', tok.access);
                   await AsyncStorage.setItem('refreshToken', tok.refresh);
-                  await AsyncStorage.setItem('user', JSON.stringify(userObj));
+                  if (userObj) {
+                    await AsyncStorage.setItem('user', JSON.stringify(userObj));
+                  }
                   await AsyncStorage.setItem('userName', userObj.username);
                 }
               } catch(e) {}
@@ -277,6 +294,12 @@ export default function RegisterScreen({ navigation, route }) {
             </TouchableOpacity>
           </View>
         ) : (
+        <KeyboardAvoidingView
+          style={{ flex:1, width:'100%' }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
           style={{ flex: 1, width: '100%' }}
           contentContainerStyle={{
@@ -498,6 +521,8 @@ export default function RegisterScreen({ navigation, route }) {
           </TouchableOpacity>
   </View>
   </ScrollView>
+  </TouchableWithoutFeedback>
+  </KeyboardAvoidingView>
   )}
       </View>
     </SafeAreaView>
@@ -505,13 +530,20 @@ export default function RegisterScreen({ navigation, route }) {
 }
 
 // Nueva pantalla para seleccionar tipo de cuenta
-export function AccountTypeScreen({ navigation }) {
+export function AccountTypeScreen({ navigation, route }) {
+  const origin = route?.params?.origin; // 'home' o 'perfil'
   const insets = useSafeAreaInsets();
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top }}>
       {/* Botón volver al menú principal mejorado (azul) */}
       <TouchableOpacity
-        onPress={() => navigation.navigate('HomeScreen')}
+        onPress={() => {
+          if (origin === 'perfil') {
+            navigation.navigate('Perfil');
+          } else {
+            navigation.navigate('HomeScreen');
+          }
+        }}
         style={{
           position: 'absolute',
           top: insets.top + 10,
@@ -559,11 +591,11 @@ export function AccountTypeScreen({ navigation }) {
               width: '100%',
               alignItems: 'center',
             }}
-            onPress={() => navigation.navigate('RegisterScreen', { accountType: 'normal' })}
+            onPress={() => navigation.navigate('RegisterScreen', { accountType: 'normal', origin })}
           >
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Normal</Text>
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Rumbera</Text>
             <Text style={{ color: '#fff', fontSize: 14, marginTop: 4, textAlign: 'center' }}>
-              Cuenta de usuario para ver eventos y RUMBEAR
+              Cuenta de usuario para ver eventos, calificar sitios y vivir nuevas experiencias.
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -575,14 +607,20 @@ export function AccountTypeScreen({ navigation }) {
               width: '100%',
               alignItems: 'center',
             }}
-            onPress={() => navigation.navigate('FormularioScreen', { accountType: 'empresa' })}
+            onPress={() => navigation.navigate('FormularioScreen', { accountType: 'empresa', origin })}
           >
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Empresa</Text>
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18 }}>Cuenta Organizadora</Text>
             <Text style={{ color: '#fff', fontSize: 14, marginTop: 4, textAlign: 'center' }}>
-              Cuenta empresarial para publicar eventos y ser tu el que prende la RUMBA
+              Cuenta empresarial para publicar eventos y ser tu el que prende la RUMBA.
             </Text>
           </TouchableOpacity>
         </View>
+        <View style={{ marginTop: 20, width: '100%', backgroundColor: 'rgba(234,179,8,0.15)', borderLeftWidth: 4, borderLeftColor: '#f59e0b', padding: 12, borderRadius: 8 }}>
+            <Text style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Aviso</Text>
+            <Text style={{ color: '#fde68a', fontSize: 13, lineHeight: 18 }}>
+              Para tener una cuenta de empresa, se debe pasar primero por una verificación.
+            </Text>
+          </View>
       </View>
     </SafeAreaView>
   );

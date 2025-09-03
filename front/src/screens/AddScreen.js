@@ -14,10 +14,13 @@ import {
   Image,
   Platform,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Calendar } from 'react-native-calendars';
 import { useSafeMargins, getDeviceType, hasNotch } from '../utils/safeAreaUtils';
 import { getResponsiveStyles, getBottomSafeAreaHeight, getTopSafeAreaHeight } from '../utils/deviceConfig';
 
@@ -30,17 +33,20 @@ export default function AddScreen() {
   
   const [formData, setFormData] = useState({
     titulo: '',
-    categoria: [], // múltiples selecciones
+    categoria: [],
     codigoVestimenta: '',
     descripcionVestimenta: '',
-    edadMinima: '', // etiqueta para mostrar (ej: "Mayores de 18 años")
-    edad_minima: null, // valor numérico para backend
+    edadMinima: '',
+    edad_minima: null,
     ubicacion: '',
     capacidad: '',
     descripcion: '',
     precio: '',
     moneda: 'USD',
     imagen: '',
+    // Campos añadidos solo FRONT para fecha/hora
+    fecha_evento_fecha: '',
+    fecha_evento_hora: '',
   });
   const [showPrecio, setShowPrecio] = useState(false);
 
@@ -51,12 +57,16 @@ export default function AddScreen() {
   const [ubicacionModalVisible, setUbicacionModalVisible] = useState(false);
   const [categoriaSearchText, setCategoriaSearchText] = useState('');
   const [empresaId, setEmpresaId] = useState(null);
+  // Estados nuevos front
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+  const [calendarLoading, setCalendarLoading] = useState(false);
 
     useEffect(() => {
 
       const fetchMiEmpresa = async () => {
 
-        const token = await AsyncStorage.getItem('authToken');
+        const token = await AsyncStorage.getItem('accessToken');
         const res   = await fetch(`https://${ipAddress}/api/empresa/`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -88,7 +98,7 @@ export default function AddScreen() {
     { label: 'Mayores de 18 años', value: 18 },
     { label: 'Mayores de 21 años', value: 21 },
     { label: 'Mayores de 25 años', value: 25 },
-    { label: 'Familiar (Todas las edades)', value: 0 }, // etiqueta adicional
+    { label: 'Familiar (Todas las edades)', value: 0 }, // extra etiqueta front
   ];
 
   // Función para formatear precio con comas y decimales
@@ -134,6 +144,31 @@ export default function AddScreen() {
       Alert.alert('Error', 'Por favor completa los campos obligatorios (título, categoría y ubicación)');
       return;
     }
+    // Validar fecha y hora (solo front, opcional si backend lo usa)
+    if (!formData.fecha_evento_fecha || !formData.fecha_evento_hora) {
+      Alert.alert('Fecha/hora faltante', 'Debes ingresar la fecha y la hora del evento');
+      return;
+    }
+    const fechaRegex = /^\d{4}-\d{2}-\d{2}$/;
+    const horaRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!fechaRegex.test(formData.fecha_evento_fecha)) {
+      Alert.alert('Formato inválido', 'La fecha debe tener formato YYYY-MM-DD');
+      return;
+    }
+    if (formData.fecha_evento_hora && !horaRegex.test(formData.fecha_evento_hora)) {
+      Alert.alert('Formato inválido', 'La hora debe tener formato HH:MM (24h)');
+      return;
+    }
+    const fechaISOBase = `${formData.fecha_evento_fecha}T${formData.fecha_evento_hora}:00`;
+    const fechaDate = new Date(fechaISOBase);
+    if (isNaN(fechaDate.getTime())) {
+      Alert.alert('Error', 'Fecha y hora inválidas');
+      return;
+    }
+    if (fechaDate.getTime() < Date.now()) {
+      Alert.alert('Fecha pasada', 'La fecha del evento debe ser futura');
+      return;
+    }
     // Validar precio > 0 si el modo precio está activo (showPrecio) y no es entrada libre
     if (showPrecio && formData.precio !== 'Entrada libre') {
       const numericPrice = parseFloat(cleanPrice(formData.precio || '0')) || 0;
@@ -162,7 +197,10 @@ export default function AddScreen() {
     descripcion: formData.descripcion || '',
     precio: formData.precio === 'Entrada libre' ? 0 : (formData.precio ? parseFloat(cleanPrice(formData.precio)) : 0),
     moneda: formData.moneda || 'USD',
-    // imagen: (si luego se maneja archivo)
+    // Campo adicional opcional (solo si backend lo acepta)
+    fecha_evento: (formData.fecha_evento_fecha && formData.fecha_evento_hora)
+      ? new Date(`${formData.fecha_evento_fecha}T${formData.fecha_evento_hora}:00`).toISOString()
+      : null,
   };
   console.log('titulo', typeof(payload.titulo));
   console.log('categoria', typeof(payload.categoria));
@@ -653,7 +691,7 @@ export default function AddScreen() {
                   const formatted = cleanText.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
                   setFormData({...formData, capacidad: formatted});
                 }}
-                placeholder="Ej: 1,000 personas (mínimo 10, máximo 50,000)"
+                placeholder="Ej: 1,000 personas"
                 placeholderTextColor="#64748b"
                 keyboardType="numeric"
               />
@@ -689,6 +727,36 @@ export default function AddScreen() {
                 numberOfLines={4}
                 textAlignVertical="top"
               />
+            </View>
+
+            {/* Fecha y hora del evento (FRONT) */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Fecha y hora del evento *</Text>
+              <View style={{ flexDirection:'row', gap:12 }}>
+                <TouchableOpacity
+                  style={[styles.selectorButton, { flex:1 }]}
+                  onPress={() => { setCalendarLoading(true); setCalendarVisible(true); setTimeout(()=>setCalendarLoading(false),400); }}
+                >
+                  <Text style={formData.fecha_evento_fecha ? styles.selectorButtonText : styles.selectorButtonPlaceholder}>
+                    {formData.fecha_evento_fecha || 'Seleccionar fecha'}
+                  </Text>
+                  <Text style={styles.selectorArrow}>📅</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.selectorButton, { width:120 }]}
+                  onPress={() => setTimePickerVisible(true)}
+                >
+                  <Text style={formData.fecha_evento_hora ? styles.selectorButtonText : styles.selectorButtonPlaceholder}>
+                    {formData.fecha_evento_hora || 'Hora'}
+                  </Text>
+                  <Text style={styles.selectorArrow}>⏰</Text>
+                </TouchableOpacity>
+              </View>
+              {(formData.fecha_evento_fecha || formData.fecha_evento_hora) && (
+                <Text style={{ color:'#64748b', fontSize:12, marginTop:6 }}>
+                  Selecciona fecha y hora (24h).
+                </Text>
+              )}
             </View>
 
             {/* Precio */}
@@ -804,6 +872,65 @@ export default function AddScreen() {
        {renderVestimentaModal()}
        {renderEdadModal()}
        {renderUbicacionModal()}
+       {timePickerVisible && (
+         <DateTimePicker
+           value={new Date()}
+           mode="time"
+           is24Hour={true}
+           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+           onChange={(event, selectedDate) => {
+             if (Platform.OS !== 'ios') setTimePickerVisible(false);
+             if (selectedDate) {
+               const hh = selectedDate.getHours().toString().padStart(2,'0');
+               const mm = selectedDate.getMinutes().toString().padStart(2,'0');
+               setFormData({ ...formData, fecha_evento_hora: `${hh}:${mm}` });
+             }
+           }}
+         />
+       )}
+       <Modal
+         visible={calendarVisible}
+         transparent
+         animationType="fade"
+         onRequestClose={() => setCalendarVisible(false)}
+       >
+         <View style={styles.modalOverlay}>
+           <View style={[styles.modalContent, { padding:0, overflow:'hidden' }]}> 
+             <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:16, borderBottomWidth:1, borderBottomColor:'#334155' }}>
+               <Text style={styles.modalTitle}>Seleccionar fecha</Text>
+               <TouchableOpacity onPress={() => setCalendarVisible(false)}>
+                 <Text style={styles.closeButton}>×</Text>
+               </TouchableOpacity>
+             </View>
+             {calendarLoading ? (
+               <View style={{ padding:40, alignItems:'center', justifyContent:'center' }}>
+                 <ActivityIndicator size="large" color="#6366f1" />
+                 <Text style={{ color:'#fff', marginTop:12 }}>Cargando...</Text>
+               </View>
+             ) : (
+               <Calendar
+                 onDayPress={(day) => {
+                   setFormData({ ...formData, fecha_evento_fecha: day.dateString });
+                   setCalendarVisible(false);
+                 }}
+                 minDate={new Date().toISOString().split('T')[0]}
+                 markedDates={formData.fecha_evento_fecha ? { [formData.fecha_evento_fecha]: { selected:true, selectedColor:'#6366f1' } } : {} }
+                 theme={{
+                   backgroundColor: '#1e293b',
+                   calendarBackground: '#1e293b',
+                   dayTextColor: '#fff',
+                   monthTextColor: '#fff',
+                   arrowColor: '#6366f1',
+                   selectedDayBackgroundColor: '#6366f1',
+                   selectedDayTextColor: '#fff',
+                   todayTextColor: '#0ea5e9',
+                 }}
+                 style={{ borderRadius:12 }}
+               />
+             )}
+           </View>
+         </View>
+       </Modal>
     </SafeAreaView>
   );
 }
