@@ -194,16 +194,27 @@ class EmpresaViewSet(ModelViewSet):
         return Empresa.objects.all()
 
     def perform_create(self, serializer):
-        user = self.request.user
-        # Si el user ya tiene empresa
-        if hasattr(user, "empresa"):
+        auth_entity = self.request.user  # Esto siempre será un AuthEntity
+        real_obj = auth_entity.obj       # Aquí ya tienes Usuario o Empresa
+
+        print(">>> AuthEntity.kind:", auth_entity.kind)
+        print(">>> Real object:", type(real_obj), real_obj.id)
+
+        # Solo un Usuario puede crear una empresa
+        if auth_entity.kind != "usuario":
+            raise ValidationError({"detail": "Solo un usuario puede registrar una empresa."})
+
+        # Validar si ya tiene empresa
+        if getattr(real_obj, "empresa", None):
             raise ValidationError({"non_field_errors": ["Este usuario ya tiene una empresa asociada."]})
-        # Hash de la contraseña antes de guardar
+
+        # Guardar empresa
         password = serializer.validated_data.pop("password", None)
         if password:
-            serializer.save(usuario=self.request.user, password=make_password(password))
+            serializer.save(usuario=real_obj, password=make_password(password))
         else:
-            serializer.save(usuario=self.request.user)
+            serializer.save(usuario=real_obj)
+
 
 
     # Acción para seguir una empresa

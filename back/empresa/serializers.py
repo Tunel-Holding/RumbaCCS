@@ -17,6 +17,7 @@ class EventoSerializer(serializers.ModelSerializer):
     edad_minima = serializers.IntegerField()
     capacidad = serializers.IntegerField()
     precio = serializers.DecimalField(max_digits=10, decimal_places=2)
+    fecha_evento = serializers.DateTimeField(required=True,read_only = False)
 
     class Meta:
         model = Evento2
@@ -34,6 +35,7 @@ class EventoSerializer(serializers.ModelSerializer):
             "precio",
             "moneda",
             "imagen",
+            "fecha_evento",
             "creado_en",
             "actualizado_en",
         ]
@@ -90,11 +92,16 @@ class EmpresaSerializer(serializers.ModelSerializer):
             return obj.seguidores.filter(id=user.id).exists()
         return False
 
-    def validate(self, attrs):
-        user = self.context["request"].user
-        if self.instance is None and hasattr(user, "empresa"):
-            raise ValidationError("Ya tienes una empresa registrada con este usuario.")
-        return attrs
+    # def validate(self, attrs):
+    #     user = self.context["request"].user
+    #     if self.instance is None:
+    #         try:
+    #             _ = user.empresa  # intenta acceder
+    #             raise ValidationError("Ya tienes una empresa registrada con este usuario.")
+    #         except Empresa.DoesNotExist:
+    #             pass  # no tiene empresa → OK
+    #     return attrs
+    
 
 class EmpresaRegistroSerializer(serializers.ModelSerializer):
     # Campos para crear el usuario

@@ -211,6 +211,7 @@ export default function AddScreen() {
   console.log('descripcion', typeof(payload.descripcion));
   console.log('precio', typeof(payload.precio));
   console.log('moneda', typeof(payload.moneda));
+  console.log('fecha_evento', typeof(payload.fecha_evento));
 
   console.log('payload:', payload);
 

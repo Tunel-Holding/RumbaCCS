@@ -176,8 +176,11 @@ class Evento2(models.Model):
         help_text="Descripción detallada"
     )
 
-    # Fechas
-    # fecha_inicio = models.DateTimeField(help_text="Fecha y hora de inicio")
+    # Fecha y hora de inicio
+    fecha_evento = models.DateTimeField(
+        help_text="Fecha y hora de inicio del evento",
+        default=timezone.now
+    )
 
     # Selecciones y límites
     categoria = models.JSONField(
@@ -234,7 +237,7 @@ class Evento2(models.Model):
         null=True,
         help_text="Imagen promocional del evento"
     )
-
+    
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 
@@ -246,8 +249,3 @@ class Evento2(models.Model):
 
     def __str__(self):
         return f"{self.titulo} – {self.empresa.nombre}"
-
-    # def clean(self):
-    #     if self.fecha_fin and self.fecha_inicio and self.fecha_fin <= self.fecha_inicio:
-    #         raise ValidationError("La fecha de fin debe ser posterior a la fecha de inicio.")
-    

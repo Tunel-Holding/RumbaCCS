@@ -158,7 +158,7 @@ useEffect(() => {
       const eventosTransformados = data.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
-        fecha: ev.fecha || "Fecha no definida",
+        fecha: ev.fecha_evento || "Fecha no definida",
         ubicacion: ev.ubicacion,
         precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
         categoria: ev.categoria || "Sin categoría",
@@ -166,7 +166,8 @@ useEffect(() => {
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
       }));
       console.log("Status:", res.status);
-      
+      console.log('Fecha:', eventosTransformados.map(ev => ev.fecha_evento));
+
       setEventos(eventosTransformados);
       }
 
