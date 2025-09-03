@@ -98,33 +98,33 @@ WSGI_APPLICATION = 'Backend.wsgi.application'
 # - 'PORT': Puerto, normalmente '5432' para PostgreSQL.
 
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': 'postgres',
-#         'USER': 'postgres.fufiohljmxasfvgxmllm',
-#         'PASSWORD': 'ojalafuncione',
-#         'HOST': 'aws-0-us-east-1.pooler.supabase.com',
-#         'PORT': '5432',
-#         'OPTIONS': {
-#             'sslmode': 'require'  # Supabase exige conexión segura
-#         },
-#     }
-# }
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'postgres',
-        'USER': 'postgres.nxhwdtiaqvavlswufeyk',
-        'PASSWORD': '5yL#H4rLGkdw?Mc',  # Reemplaza esto con tu contraseña real
-        'HOST': 'aws-1-sa-east-1.pooler.supabase.com',
-        'PORT': '6543',
+        'USER': 'postgres.fufiohljmxasfvgxmllm',
+        'PASSWORD': 'ojalafuncione',
+        'HOST': 'aws-0-us-east-1.pooler.supabase.com',
+        'PORT': '5432',
         'OPTIONS': {
             'sslmode': 'require'  # Supabase exige conexión segura
         },
     }
 }
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'postgres',
+#         'USER': 'postgres.nxhwdtiaqvavlswufeyk',
+#         'PASSWORD': '5yL#H4rLGkdw?Mc',  # Reemplaza esto con tu contraseña real
+#         'HOST': 'aws-1-sa-east-1.pooler.supabase.com',
+#         'PORT': '6543',
+#         'OPTIONS': {
+#             'sslmode': 'require'  # Supabase exige conexión segura
+#         },
+#     }
+# }
 
 
 # Password validation
