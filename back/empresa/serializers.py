@@ -1,7 +1,10 @@
 from rest_framework import serializers
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
-from .models import Empresa, Evento2
+from django.db import IntegrityError
+from .models import Empresa, Evento2, Usuario
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class EventoSerializer(serializers.ModelSerializer):
     categoria = serializers.ListField(
@@ -34,23 +37,19 @@ class EventoSerializer(serializers.ModelSerializer):
             "creado_en",
             "actualizado_en",
         ]
-        
 
     def validate(self, attrs):
-        # validaciones extra (capacidad, precio…)
+        # Validaciones extra
         for field in ['edad_minima', 'capacidad', 'precio']:
             value = attrs.get(field)
             print(f'{field} -> valor: {value!r}, tipo: {type(value)}')
-            
         return super().validate(attrs)
-
-    def create(self, validated_data):
-        empresa = self.context["request"].user.empresa
-        return Evento2.objects.create(empresa=empresa, **validated_data)
+    
 class EmpresaSerializer(serializers.ModelSerializer):
     
     total_seguidores = serializers.SerializerMethodField()
     is_siguiendo = serializers.SerializerMethodField()
+    password = serializers.CharField(write_only=True, required=True)
     
     eventos = EventoSerializer(many=True, read_only=True)
 
@@ -64,6 +63,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "lugar",             # Sustituye a 'direccion'
             "telefono",
             "email_contacto",
+            "email",
+            "password",
             "redes_sociales",
             "logo",
             "total_seguidores",
@@ -95,4 +96,72 @@ class EmpresaSerializer(serializers.ModelSerializer):
             raise ValidationError("Ya tienes una empresa registrada con este usuario.")
         return attrs
 
+class EmpresaRegistroSerializer(serializers.ModelSerializer):
+    # Campos para crear el usuario
+    # email = serializers.EmailField(write_only=True)
+    # password = serializers.CharField(write_only=True)
+    
+    # phone = serializers.IntegerField(write_only=True)
+    # birthday = serializers.DateField(required=False, allow_null=True)
+    # region = serializers.ChoiceField(write_only=True, choices=Usuario.ESTADO_CHOICES)
+    # gender = serializers.ChoiceField(write_only=True, choices=Usuario.GENERO_CHOICES)
 
+    class Meta:
+        model = Empresa
+        fields = [
+            "id",
+            "nombre",
+            "rif",
+            "descripcion",
+            "lugar",
+            "telefono",
+            "email_contacto",
+            "redes_sociales",
+            "logo",
+            "email",      
+            "password",   
+            # "phone",      # para user
+            # "birthday",   # para user
+            # "region",     # para user
+            # "gender"      # para user
+        ]
+
+    def create(self, validated_data):
+        empresa = Empresa.objects.create(**validated_data)
+
+        return empresa
+
+
+
+class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, empresa: Empresa):
+        token = RefreshToken.for_user(empresa)
+        # 👇 añadimos campos personalizados
+        token["empresa_id"] = empresa.id
+        token["email"] = empresa.email
+        return token
+
+    def validate(self, attrs):
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        try:
+            empresa = Empresa.objects.get(email=email)
+        except Empresa.DoesNotExist:
+            raise serializers.ValidationError("Empresa no encontrada.")
+
+        if not empresa.check_password(password):
+            raise serializers.ValidationError("Contraseña incorrecta.")
+
+        refresh = self.get_token(empresa)
+
+        return {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "empresa": {
+                "id": empresa.id,
+                "nombre": empresa.nombre,
+                "email": empresa.email,
+            }
+        }

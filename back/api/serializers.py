@@ -60,15 +60,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         if not (1000000000 <= int(value) <= 9999999999):
             raise serializers.ValidationError("El teléfono debe tener 10 dígitos.")
         return value
-
-    # def validate_email(self, value):
-    #     try:
-    #         verification = EmailVerification.objects.get(email=value)
-    #     except EmailVerification.DoesNotExist:
-    #         raise serializers.ValidationError("Este correo no ha sido verificado.")
-    #     if not verification.is_verified:
-    #         raise serializers.ValidationError("Debes verificar tu correo antes de registrarte.")
-    #     return value
     
     def create(self, validated_data):
         password = validated_data.pop('password')

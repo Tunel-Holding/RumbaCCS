@@ -152,7 +152,8 @@ const handleLogin = async () => {
   useEffect(() => {
     const fetchEventos = async () => {
       try {
-        const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
+        // Endpoint público, no requiere token
+  const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
         if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
         const data = await res.json();
         // Código anterior (presentación simple) que se reemplazó por versión enriquecida:

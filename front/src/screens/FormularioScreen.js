@@ -332,7 +332,7 @@ const handleValidarPin = async () => {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top }}>
       <View style={styles.header} />
       <View style={styles.body}>
-  {mostrarPin && !verificado ? (
+        {mostrarPin && !verificado ? (
           // Pantalla de PIN
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingTitle}>Se ha enviado un PIN a su correo</Text>

@@ -147,7 +147,7 @@ export default function RegisterScreen({ navigation, route }) {
       setVerificado(false);
       setCargando(true);
       try {
-        // Envía el formulario para que backend mande el código
+        // Solo envía el formulario y espera el PIN
         const res = await registerUser(formData);
         if (res && res.error) {
           Alert.alert('Error', res.error);
@@ -158,6 +158,7 @@ export default function RegisterScreen({ navigation, route }) {
         if (res && res.message) {
           Alert.alert('Verificación', res.message);
         }
+        // No guardar access, refresh ni user aquí
       } catch (e) {
         setCargando(false);
         Alert.alert('Error', e.message || 'Error en el registro');
@@ -234,6 +235,7 @@ export default function RegisterScreen({ navigation, route }) {
                   return;
                 }
                 try {
+                  // Verifica el PIN con el backend
                   const pendingUser = await AsyncStorage.getItem('pending_user');
                   const userData = JSON.parse(pendingUser);
                   const response = await fetch(`${API_URL}/verify-code/`, {
@@ -246,6 +248,7 @@ export default function RegisterScreen({ navigation, route }) {
                     Alert.alert('PIN incorrecto', result.error || 'El PIN ingresado no es válido.');
                     return;
                   }
+                  // Si el PIN es correcto, ahora crea el usuario realmente
                   const createResponse = await fetch(`${API_URL}/finalize-register/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -256,9 +259,12 @@ export default function RegisterScreen({ navigation, route }) {
                     Alert.alert('Error', createResult.error || 'No se pudo crear el usuario.');
                     return;
                   }
+                  // Solo aquí guardar los tokens y datos del usuario
+                  
                   await AsyncStorage.setItem('accessToken', createResult.access);
                   await AsyncStorage.setItem('refreshToken', createResult.refresh);
                   await AsyncStorage.setItem('userName', createResult.user.username);
+                  
                   setVerificado(true);
                   setCargando(false);
                 } catch (err) {
@@ -282,6 +288,7 @@ export default function RegisterScreen({ navigation, route }) {
                   const tok = JSON.parse(tokens);
                   await AsyncStorage.setItem('accessToken', tok.access);
                   await AsyncStorage.setItem('refreshToken', tok.refresh);
+                  // Guardar el usuario solo si existe y es válido
                   if (userObj) {
                     await AsyncStorage.setItem('user', JSON.stringify(userObj));
                   }
