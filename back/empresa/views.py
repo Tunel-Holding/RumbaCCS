@@ -106,18 +106,13 @@ class EmpresaValidarPinView(generics.CreateAPIView):
         verif.is_verified = True
         verif.save()
 
-        # Crear o asociar usuario
-        usuario = Usuario.objects.filter(email=email).first()
-        if not usuario:
-            usuario = Usuario.objects.create_user(email=email, username=email.split('@')[0], password=password, phone=0, region='Amazonas', gender='masculino')
         empresa_data.pop('password', None)
         empresa = Empresa.objects.create(
             password=make_password(password),
-            usuario=usuario,
             **empresa_data
         )
 
-        print(f"[VALIDAR PIN] Empresa creada correctamente para email={email} y usuario_id={usuario.id}")
+        print(f"[VALIDAR PIN] Empresa creada correctamente para email={email}")
 
         empresa_data_serialized = EmpresaSerializer(
             empresa,
@@ -128,14 +123,12 @@ class EmpresaValidarPinView(generics.CreateAPIView):
         refresh = RefreshToken.for_user(empresa)
         # Añadir ambos IDs al token para autenticación flexible
         refresh["empresa_id"] = empresa.id
-        refresh["user_id"] = usuario.id
         refresh["is_empresa"] = True
         response_data = {
             "message": "Registro de empresa exitoso",
             "access": str(refresh.access_token),
             "refresh": str(refresh),
             'empresa': empresa_data_serialized,
-            'usuario_id': usuario.id,
         }
         return Response(response_data, status=201)
 
