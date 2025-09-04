@@ -79,20 +79,15 @@ class EmpresaValidarPinView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        
         password = request.data.get('password')
-        
-
         email = request.data.get('email')
         pin = request.data.get('pin')
         empresa_data = request.data.get('empresa', {})
-        # Filtrar solo los campos válidos para Empresa
         empresa_fields = [
             'nombre', 'rif', 'descripcion', 'lugar', 'telefono', 'email_contacto', 'redes_sociales', 'logo',
         ]
         empresa_data = {k: v for k, v in empresa_data.items() if k in empresa_fields}
         empresa_data['email'] = email
-
 
         print(f"[VALIDAR PIN] email={email}, pin={pin}, empresa_data={empresa_data}")
 
@@ -111,30 +106,36 @@ class EmpresaValidarPinView(generics.CreateAPIView):
         verif.is_verified = True
         verif.save()
 
-         # Crear empresa con contraseña hasheada
-        empresa_data.pop('password', None)  # eliminar si existía
+        # Crear o asociar usuario
+        usuario = Usuario.objects.filter(email=email).first()
+        if not usuario:
+            usuario = Usuario.objects.create_user(email=email, username=email.split('@')[0], password=password, phone=0, region='Amazonas', gender='masculino')
+        empresa_data.pop('password', None)
         empresa = Empresa.objects.create(
             password=make_password(password),
+            usuario=usuario,
             **empresa_data
         )
 
-        print(f"[VALIDAR PIN] Empresa creada correctamente para email={email}")
+        print(f"[VALIDAR PIN] Empresa creada correctamente para email={email} y usuario_id={usuario.id}")
 
-        # Serializar la empresa
-        empresa_data = EmpresaSerializer(
+        empresa_data_serialized = EmpresaSerializer(
             empresa,
             context={"request": request}
         ).data
-        # Eliminar el registro de verificación de email
         EmailVerification.objects.filter(email=email, is_verified=True).delete()
 
-        # después de crear empresa
         refresh = RefreshToken.for_user(empresa)
+        # Añadir ambos IDs al token para autenticación flexible
+        refresh["empresa_id"] = empresa.id
+        refresh["user_id"] = usuario.id
+        refresh["is_empresa"] = True
         response_data = {
             "message": "Registro de empresa exitoso",
             "access": str(refresh.access_token),
             "refresh": str(refresh),
-            'empresa':empresa_data,
+            'empresa': empresa_data_serialized,
+            'usuario_id': usuario.id,
         }
         return Response(response_data, status=201)
 
@@ -347,3 +348,33 @@ class EmpresaMiPerfilView(APIView):
 
 class EmpresaTokenObtainPairView(TokenObtainPairView):
     serializer_class = EmpresaTokenObtainPairSerializer
+    
+# Endpoint para reenviar/regenerar el PIN de verificación por email
+class EmpresaReenviarPinView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({'detail': 'Email requerido.'}, status=400)
+        try:
+            # Verifica si existe registro previo de verificación
+            verif, created = EmailVerification.objects.get_or_create(email=email)
+        except Exception:
+            return Response({'detail': 'No existe registro de verificación para este email.'}, status=404)
+        # Genera nuevo PIN
+        pin = str(random.randint(100000, 999999))
+        verif.code = pin
+        verif.created_at = timezone.now()
+        verif.expires_at = timezone.now() + timezone.timedelta(minutes=15)
+        verif.is_verified = False
+        verif.save()
+        # Envía el correo
+        send_mail(
+            'Tu nuevo código de validación para empresa',
+            f'Tu nuevo código de validación para empresa es: {pin}',
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+        )
+        return Response({'detail': 'Se ha enviado un nuevo pin de verificación al correo.'}, status=200)

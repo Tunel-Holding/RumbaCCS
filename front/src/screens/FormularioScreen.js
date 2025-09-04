@@ -53,6 +53,14 @@ export default function FormularioScreen({ navigation, route }) {
     }
   }, [cargando]);
 
+  useEffect(() => {
+    if (mostrarPin) {
+      setPinResendAvailable(false);
+      const t = setTimeout(() => setPinResendAvailable(true), 60000); // 1 minuto
+      return () => clearTimeout(t);
+    }
+  }, [mostrarPin]);
+
   const pollitoAnim = useRef(new Animated.Value(0)).current;
   
 
@@ -298,7 +306,10 @@ const handleValidarPin = async () => {
     console.log("PIN validado y empresa creada:", data);
 
     if (data.empresa.id) {
-        await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
+          await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
+          if (data.usuario_id) {
+            await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
+          }
       }
       else {
         Alert.alert("Error", "No se pudo obtener el ID de la empresa");
@@ -309,17 +320,20 @@ const handleValidarPin = async () => {
       
       console.log("Tokens recibidos:", data.access, data.refresh);
 
-    // Guardar tokens y datos de empresa en AsyncStorage
-    await AsyncStorage.setItem('accessToken', data.access);
-    await AsyncStorage.setItem('refreshToken', data.refresh);
-    await AsyncStorage.setItem('empresa', JSON.stringify(data));
-    Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
-    setCargando(false);
-    // Redirigir automáticamente a la pantalla principal con sesión iniciada
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id } }],
-    });
+      // Guardar tokens y datos de empresa y usuario en AsyncStorage
+      await AsyncStorage.setItem('accessToken', data.access);
+      await AsyncStorage.setItem('refreshToken', data.refresh);
+      await AsyncStorage.setItem('empresa', JSON.stringify(data));
+      if (data.usuario_id) {
+        await AsyncStorage.setItem('usuarioId', data.usuario_id.toString());
+      }
+      Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
+      setCargando(false);
+      // Redirigir automáticamente a la pantalla principal con sesión iniciada y usuarioId
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
+      });
   } catch (error) {
     setCargando(false);
     Alert.alert("Error", "No se pudo conectar con el servidor");
@@ -338,11 +352,29 @@ const handleValidarPin = async () => {
             <Text style={styles.loadingTitle}>Se ha enviado un PIN a su correo</Text>
             <Text style={[styles.loadingText, { marginTop: 12 }]}>Por favor, coloque los números de confirmación</Text>
             {pinResendAvailable ? (
-              <TouchableOpacity onPress={() => { setPinResendAvailable(false); const t2=setTimeout(()=>setPinResendAvailable(true),15000); }}>
-                <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el ping? Presione aquí.</Text>
+              <TouchableOpacity onPress={async () => {
+                setPinResendAvailable(false);
+                try {
+                  const response = await fetch(`http://${ipAddress}:8000/api/reenviar-pin-empresa/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: correo })
+                  });
+                  const result = await response.json();
+                  if (response.ok) {
+                    Alert.alert('PIN enviado', result.detail || 'Se ha enviado un nuevo PIN a tu correo.');
+                  } else {
+                    Alert.alert('Error', result.detail || 'No se pudo reenviar el PIN.');
+                  }
+                } catch (err) {
+                  Alert.alert('Error', err.message || 'No se pudo reenviar el PIN.');
+                }
+                const t2 = setTimeout(() => setPinResendAvailable(true), 60000);
+              }}>
+                <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el pin? Presione aquí.</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo ping en 15 segundos…</Text>
+              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo pin en 1 minuto…</Text>
             )}
             <View style={{ flexDirection: 'row', marginTop: 28, gap: 10 }}>
               {pinDigits.map((val, i) => (
@@ -556,8 +588,6 @@ const handleValidarPin = async () => {
     </SafeAreaView>
   );
 };
-
-// ...existing code...
 
 const styles = StyleSheet.create({
   header: {

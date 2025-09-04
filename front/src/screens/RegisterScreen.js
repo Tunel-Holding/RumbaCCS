@@ -98,7 +98,7 @@ export default function RegisterScreen({ navigation, route }) {
   useEffect(() => {
     if (cargando) {
       setPinResendAvailable(false);
-      const t = setTimeout(() => setPinResendAvailable(true), 60000); // 1 minuto
+      const t = setTimeout(() => setPinResendAvailable(true), 60000); // 1 minuto para ambos tipos
       return () => clearTimeout(t);
     }
   }, [cargando]);
@@ -186,7 +186,30 @@ export default function RegisterScreen({ navigation, route }) {
             <Text style={styles.loadingTitle}>Verificación de correo</Text>
             <Text style={styles.pinInstructions}>Te enviamos un PIN a tu correo. Ingresa los 6 dígitos para continuar.</Text>
             {pinResendAvailable ? (
-              <TouchableOpacity onPress={() => { setPinResendAvailable(false); setPinDigits(['','','','','','']); const t2=setTimeout(()=>setPinResendAvailable(true),60000); }}>
+              <TouchableOpacity onPress={async () => {
+                setPinResendAvailable(false);
+                setPinDigits(['','','','','','']);
+                try {
+                  let endpoint = `${API_URL}/reenviar-pin-empresa/`;
+                  if (accountType !== 'empresa') {
+                    endpoint = `${API_URL}/send-verification-code/`;
+                  }
+                  const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                  });
+                  const result = await response.json();
+                  if (response.ok) {
+                    Alert.alert('PIN enviado', result.detail || result.message || 'Se ha enviado un nuevo PIN a tu correo.');
+                  } else {
+                    Alert.alert('Error', result.detail || result.message || 'No se pudo reenviar el PIN.');
+                  }
+                } catch (err) {
+                  Alert.alert('Error', err.message || 'No se pudo reenviar el PIN.');
+                }
+                const t2 = setTimeout(() => setPinResendAvailable(true), 60000);
+              }}>
                 <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el pin? Presione aquí.</Text>
               </TouchableOpacity>
             ) : (

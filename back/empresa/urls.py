@@ -10,7 +10,8 @@ from .views import (
     EmpresaPreRegistroView,
     EmpresaValidarPinView,
     EmpresaTokenObtainPairView,
-    EmpresaLoginView,  # <-- agregado
+    EmpresaLoginView,
+    EmpresaReenviarPinView,
 )
 
 # 1) Router principal para empresas
@@ -38,6 +39,7 @@ urlpatterns = [
     # Flujo B: Registro de empresa independiente
     path('registro-empresa/', EmpresaPreRegistroView.as_view(), name='registro-empresa'),
     path('validar-pin-empresa/', EmpresaValidarPinView.as_view(), name='validar-pin-empresa'),
+    path('reenviar-pin-empresa/', EmpresaReenviarPinView.as_view(), name='reenviar-pin-empresa'),
 
     # Login de empresa
     # path('login-empresa/', EmpresaLoginView.as_view(), name='login-empresa'),
