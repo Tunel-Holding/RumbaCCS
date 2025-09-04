@@ -49,6 +49,7 @@ const eventDetails = {
   vestimenta: 'Casual/Verano',
   ubicacion: 'Av. Principal, Caracas',
   empresa: 'Eventos Caracas', // Nombre de la empresa que publica el evento
+  empresaId: 1, // ID de la empresa para navegación
   fecha: 'Sábado 30 de Agosto, 8:00 PM', // Campo presente en prueba.js
 };
   // Más eventos de la empresa (ejemplo)
@@ -290,7 +291,11 @@ export default function BuyScreen() {
           {eventDetails.empresa && (
             <View style={styles.detailRow}>
               <Text style={styles.label}>Empresa: </Text>
-              <Text style={styles.detail}>{eventDetails.empresa}</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('EmpresaScreenUser', { empresaId: eventDetails.empresaId })}>
+                <Text style={[styles.detail, { color: COLORS.primary, textDecorationLine: 'underline' }]}>
+                  {eventDetails.empresa}
+                </Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
