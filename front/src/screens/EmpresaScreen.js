@@ -158,7 +158,7 @@ useEffect(() => {
       const eventosTransformados = data.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
-        fecha: ev.fecha || "Fecha no definida",
+        fecha: ev.fecha_evento || "Fecha no definida",
         ubicacion: ev.ubicacion,
         precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
         categoria: ev.categoria || "Sin categoría",
@@ -166,7 +166,8 @@ useEffect(() => {
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
       }));
       console.log("Status:", res.status);
-      
+      console.log('Fecha:', eventosTransformados.map(ev => ev.fecha_evento));
+
       setEventos(eventosTransformados);
       }
 
@@ -347,23 +348,14 @@ useEffect(() => {
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
           <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
           <View style={styles.accionesRow}>
-            <TouchableOpacity
-              style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
-              onPress={toggleFollow}
-              activeOpacity={0.85}
-            >
-              <View style={styles.seguirIcon}>
-                <PersonIcon size={18} color="#ffffff" />
-              </View>
-              <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
-            </TouchableOpacity>
+            {/* Botón de seguir eliminado */}
             <TouchableOpacity
               style={styles.clasificarButton}
               activeOpacity={0.85}
-              onPress={() => console.log('Calificar empresa')}
+              onPress={() => console.log('Valoraciones y reseñas')}
             >
               <Text style={styles.clasificarStar}>★</Text>
-              <Text style={styles.clasificarText}>Calificar</Text>
+              <Text style={styles.clasificarText}>Valoraciones y reseñas</Text>
             </TouchableOpacity>
           </View>
         </View>
