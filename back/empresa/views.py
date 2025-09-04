@@ -125,6 +125,8 @@ class EmpresaValidarPinView(generics.CreateAPIView):
             empresa,
             context={"request": request}
         ).data
+        # Eliminar el registro de verificación de email
+        EmailVerification.objects.filter(email=email, is_verified=True).delete()
 
         # después de crear empresa
         refresh = RefreshToken.for_user(empresa)

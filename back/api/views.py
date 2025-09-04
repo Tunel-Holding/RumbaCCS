@@ -120,6 +120,8 @@ class FinalizeRegisterView(APIView):
         serializer = RegisterSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        # Elimina el registro de verificación de email
+        EmailVerification.objects.filter(email=email, is_verified=True).delete()
         refresh = RefreshToken.for_user(user)
         return Response({
             'message': 'Usuario creado exitosamente.',
