@@ -118,7 +118,10 @@ export default function EmpresaScreenUser() {
           precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
           categoria: ev.categoria || "Sin categoría",
           categoriaColor: ev.categoriaColor || "#4f46e5",
-          imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+          imagen:
+            ev.imagen && typeof ev.imagen === "string" && ev.imagen.length > 0
+              ? ev.imagen
+              : "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
         }));
         
         console.log("Status:", res.status);
@@ -418,41 +421,44 @@ export default function EmpresaScreenUser() {
         {eventos.length === 0 ? (
           <Text style={styles.eventosEmptyText}>Esta empresa no tiene eventos publicados</Text>
         ) : (
-          eventos.map((evento) => (
-            <View key={evento.id} style={styles.eventoCard}>
-              <View style={styles.eventoImageContainer}>
-                <Image 
-                  source={{ uri: evento.imagen }} 
-                  style={styles.eventoImage}
-                  resizeMode="cover"
-                />
-                <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
-                  <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
+              eventos.map((evento) => (
+                <View key={evento.id} style={styles.eventoCard}>
+                  <View style={styles.eventoImageContainer}>
+                    <Image 
+                      source={{ uri: evento.imagen }} 
+                      style={styles.eventoImage}
+                      resizeMode="cover"
+                    />
+                    <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
+                      <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.eventoContent}>
+                    <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
+                    
+                    <View style={styles.eventoInfo}>
+                      <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
+                    </View>
+                    
+                    <View style={styles.eventoInfo}>
+                      <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
+                    </View>
+                    
+                    <View style={styles.eventoFooter}>
+                      <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                        <TouchableOpacity 
+                          style={styles.verDetallesButton}
+                          onPress={() => {
+                            console.log('Navegando a Reservar/Comprar con:', evento.id, empresaIdParam || empresaData?.id);
+                            navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
+                          }}
+                        >
+                          <Text style={styles.verDetallesText}>Reservar</Text>
+                        </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
-              </View>
-              
-              <View style={styles.eventoContent}>
-                <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-                
-                <View style={styles.eventoInfo}>
-                  <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
-                </View>
-                
-                <View style={styles.eventoInfo}>
-                  <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
-                </View>
-                
-                <View style={styles.eventoFooter}>
-                  <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                  <TouchableOpacity 
-                    style={styles.verDetallesButton}
-                    onPress={() => navigation.navigate('Reservar/Comprar', { evento: evento })}
-                  >
-                    <Text style={styles.verDetallesText}>Reservar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
           ))
         )}
       </View>

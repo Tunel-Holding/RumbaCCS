@@ -12,6 +12,7 @@ from .views import (
     EmpresaTokenObtainPairView,
     EmpresaLoginView,
     EmpresaReenviarPinView,
+    EmpresaEventoCreateView,
 )
 
 # 1) Router principal para empresas
@@ -44,4 +45,7 @@ urlpatterns = [
     # Login de empresa
     # path('login-empresa/', EmpresaLoginView.as_view(), name='login-empresa'),
     path("empresa/login/", EmpresaLoginView.as_view(), name="empresa_token_obtain_pair"),
+
+    # Crear evento para una empresa
+    path('empresa_evento/', EmpresaEventoCreateView.as_view(), name='empresa_evento-create'),
 ]

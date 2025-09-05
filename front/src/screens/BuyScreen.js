@@ -14,7 +14,7 @@ import {
   StatusBar,
   Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 
 // Footer links (copiados de HomeScreen.js)
 const footerLinks = [
@@ -41,17 +41,7 @@ const eventImages = [
   require('../../assets/splash-icon.png'),
 ];
 
-const eventDetails = {
-  title: 'Fiesta de Verano 2025',
-  description: '¡Ven a disfrutar la mejor fiesta del año! Música, baile y diversión asegurada.',
-  lugar: 'Club Social CCS',
-  categoria: 'Fiesta',
-  vestimenta: 'Casual/Verano',
-  ubicacion: 'Av. Principal, Caracas',
-  empresa: 'Eventos Caracas', // Nombre de la empresa que publica el evento
-  empresaId: 1, // ID de la empresa para navegación
-  fecha: 'Sábado 30 de Agosto, 8:00 PM', // Campo presente en prueba.js
-};
+// ...existing code...
   // Más eventos de la empresa (ejemplo)
   const moreFromCompany = [
     {
@@ -90,10 +80,15 @@ export default function BuyScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
   const navigation = useNavigation();
-  // Estado de modal de login y campos (traído desde prueba.js)
+  const route = useRoute();
   const [loginVisible, setLoginVisible] = useState(false);
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
+
+  // Recibe los parámetros de navegación
+  const { idEvento, idEmpresa } = route.params || {};
+  console.log('Params recibidos:', route.params);
+  const [evento, setEvento] = useState(null);
 
   // Carousel refs y medidas
   const scrollRef = useRef(null);
@@ -120,45 +115,50 @@ export default function BuyScreen() {
     }, 4500);
     return () => clearInterval(autoplayRef.current);
   }, [activeIndex, slideWidth]);
-    const [relatedIndex, setRelatedIndex] = useState(0);
-    // Eventos relacionados de ejemplo
-    const relatedEvents = [
-      {
-        id: 1,
-        image: require('../../assets/register-bg.jpg'),
-        title: 'Pool Party',
-        categoria: 'Fiesta',
-        ubicacion: 'Hotel Aqua, Caracas',
-      },
-      {
-        id: 2,
-        image: require('../../assets/icon.png'),
-        title: 'Concierto Urbano',
-        categoria: 'Música',
-        ubicacion: 'Parque Central',
-      },
-      {
-        id: 3,
-        image: require('../../assets/splash-icon.png'),
-        title: 'Noche de Salsa',
-        categoria: 'Baile',
-        ubicacion: 'Club Salsa',
-      },
-      {
-        id: 4,
-        image: require('../../assets/register-bg.jpg'),
-        title: 'Festival Gastronómico',
-        categoria: 'Gastronomía',
-        ubicacion: 'Plaza Gourmet',
-      },
-      {
-        id: 5,
-        image: require('../../assets/icon.png'),
-        title: 'Expo Arte',
-        categoria: 'Arte',
-        ubicacion: 'Museo de Arte',
-      },
-    ];
+
+  // Obtener datos del evento seleccionado
+  useEffect(() => {
+    console.log('Entrando al useEffect de evento', idEvento);
+    if (idEvento) {
+      fetch(`http://192.168.1.3:8000/api/eventos-publicos/${idEvento}/`)
+        .then(res => {
+          console.log('Status fetch evento:', res.status);
+          return res.json();
+        })
+        .then(data => {
+          console.log('Evento recibido:', data);
+          setEvento(data);
+        })
+        .catch((err) => {
+          console.log('Error al obtener evento:', err);
+          setEvento(null);
+        });
+    } else {
+      console.log('idEvento es undefined, no se hace fetch');
+    }
+  }, [idEvento]);
+
+  // Función para reservar
+  const handleReserve = () => {
+    if (!idEvento || !idEmpresa) return;
+    fetch('http://192.168.1.3:8000/api/empresa_evento/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ evento: idEvento, empresa: idEmpresa }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.id) {
+          alert('Reserva realizada correctamente');
+        } else {
+          alert('Error al reservar: ' + JSON.stringify(data));
+        }
+      })
+      .catch((err) => alert('Error al reservar: ' + err));
+  };
+
+  const [relatedIndex, setRelatedIndex] = useState(0);
+  // ...existing code...
 
   // Header de HomeScreen.js
   const Header = () => (
@@ -257,47 +257,43 @@ export default function BuyScreen() {
           </ScrollView>
         </View>
 
-        {/* Título y Descripción */}
+        {/* Título y Descripción dinámicos según evento seleccionado */}
         <View style={styles.titleDescBox}>
-          <Text style={styles.title}>{eventDetails.title}</Text>
-          <Text style={styles.description}>{eventDetails.description}</Text>
+          <Text style={styles.title}>{evento?.titulo || 'Evento seleccionado'}</Text>
+          <Text style={styles.description}>{evento?.descripcion || 'Detalles del evento.'}</Text>
         </View>
 
-        {/* Detalles del evento */}
+        {/* Detalles del evento dinámicos */}
         <View style={styles.detailsContainer}>
           <Text style={styles.detailsTitle}>Detalles del evento</Text>
-          {eventDetails.fecha && (
-            <View style={styles.detailRow}>
-              <Text style={styles.label}>Fecha: </Text>
-              <Text style={styles.detail}>{eventDetails.fecha}</Text>
-            </View>
-          )}
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Lugar: </Text>
-            <Text style={styles.detail}>{eventDetails.lugar}</Text>
-          </View>
           <View style={styles.detailRow}>
             <Text style={styles.label}>Categoría: </Text>
-            <Text style={styles.detail}>{eventDetails.categoria}</Text>
+            <Text style={styles.detail}>{Array.isArray(evento?.categoria) ? evento.categoria.join(', ') : evento?.categoria || '-'}</Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Vestimenta: </Text>
-            <Text style={styles.detail}>{eventDetails.vestimenta}</Text>
+            <Text style={styles.label}>Código vestimenta: </Text>
+            <Text style={styles.detail}>{evento?.codigo_vestimenta || '-'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Edad mínima: </Text>
+            <Text style={styles.detail}>{evento?.edad_minima || '-'}</Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.label}>Ubicación: </Text>
-            <Text style={styles.detail}>{eventDetails.ubicacion}</Text>
+            <Text style={styles.detail}>{evento?.ubicacion || '-'}</Text>
           </View>
-          {eventDetails.empresa && (
-            <View style={styles.detailRow}>
-              <Text style={styles.label}>Empresa: </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('EmpresaScreenUser', { empresaId: eventDetails.empresaId })}>
-                <Text style={[styles.detail, { color: COLORS.primary, textDecorationLine: 'underline' }]}>
-                  {eventDetails.empresa}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Capacidad: </Text>
+            <Text style={styles.detail}>{evento?.capacidad || '-'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Precio: </Text>
+            <Text style={styles.detail}>{evento?.precio || '-'}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Moneda: </Text>
+            <Text style={styles.detail}>{evento?.moneda || '-'}</Text>
+          </View>
         </View>
 
         {/* Eventos Relacionados */}
@@ -312,7 +308,7 @@ export default function BuyScreen() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.relatedCarousel}
             >
-              {relatedEvents.slice(relatedIndex, relatedIndex + 3).map((ev, idx) => (
+              {moreFromCompany.slice(relatedIndex, relatedIndex + 3).map((ev, idx) => (
                 <View key={ev.id} style={styles.relatedCard}>
                   <Image source={ev.image} style={styles.relatedImage} />
                   <Text style={styles.relatedName}>{ev.title}</Text>
@@ -321,7 +317,7 @@ export default function BuyScreen() {
                 </View>
               ))}
             </ScrollView>
-            <TouchableOpacity onPress={() => setRelatedIndex(Math.min(relatedIndex + 1, relatedEvents.length - 3))} style={styles.arrowBtn}>
+            <TouchableOpacity onPress={() => setRelatedIndex(Math.min(relatedIndex + 1, moreFromCompany.length - 3))} style={styles.arrowBtn}>
               <Text style={styles.arrowText}>{'>'}</Text>
             </TouchableOpacity>
           </View>
@@ -352,13 +348,13 @@ export default function BuyScreen() {
 
       <View style={styles.buttonContainer}>
           <TouchableOpacity 
-            style={[styles.reserveButton, isSaved && styles.reserveButtonSaved]} 
-            onPress={() => setIsSaved(!isSaved)}
+            style={styles.reserveButton}
+            onPress={handleReserve}
             activeOpacity={0.8}
           >
             <View style={styles.buttonContent}>
-              <Text style={[styles.buttonText, isSaved && styles.buttonTextSaved]}>
-                {isSaved ? 'Quitar evento de guardados' : 'Guardar Evento'}
+              <Text style={styles.buttonText}>
+                Reservar
               </Text>
             </View>
           </TouchableOpacity>

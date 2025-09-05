@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from django.db import IntegrityError
-from .models import Empresa, Evento2, Usuario
+from .models import Empresa, Evento2, Usuario, EmpresaEvento
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -172,3 +172,8 @@ class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
                 "email": empresa.email,
             }
         }
+
+class EmpresaEventoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmpresaEvento
+        fields = ['id', 'evento', 'empresa', 'fecha_reserva']

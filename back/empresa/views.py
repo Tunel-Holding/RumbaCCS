@@ -25,9 +25,10 @@ from rest_framework import exceptions
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import EmpresaTokenObtainPairSerializer
 from rest_framework.permissions import BasePermission
-from .models import Empresa, Evento2, Usuario
+from .models import Empresa, Evento2, Usuario, EmpresaEvento
 from .auth_backend import EmpresaOrUsuarioJWTAuthentication
 from .permissions import IsEmpresaAuthenticated, IsEmpresaOrUsuarioAuthenticated
+from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer, EmpresaEventoSerializer
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -371,3 +372,11 @@ class EmpresaReenviarPinView(APIView):
             fail_silently=False,
         )
         return Response({'detail': 'Se ha enviado un nuevo pin de verificación al correo.'}, status=200)
+
+class EmpresaEventoCreateView(APIView):
+    def post(self, request):
+        serializer = EmpresaEventoSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

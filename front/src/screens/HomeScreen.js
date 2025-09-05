@@ -19,7 +19,7 @@ export default function HomeScreen() {
   const [isLogged, setIsLogged] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+  const ipAddress = '192.168.1.3'; // Cambia esto por la IP de tu servidor
 
   useEffect(() => {
     const checkSession = async () => {
@@ -378,7 +378,7 @@ const handleLogin = async () => {
                 <Text style={styles.eventTitle}>{event.title}</Text>
                 <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
                 <Text style={styles.eventPrice}>{event.price}</Text>
-                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { evento: event })}>
+                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
                   <Text style={styles.reserveText}>Reservar</Text>
                 </TouchableOpacity>
               </View>

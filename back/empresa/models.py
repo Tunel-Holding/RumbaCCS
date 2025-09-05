@@ -249,3 +249,11 @@ class Evento2(models.Model):
 
     def __str__(self):
         return f"{self.titulo} – {self.empresa.nombre}"
+
+class EmpresaEvento(models.Model):
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='reservas')
+    evento = models.ForeignKey('Evento2', on_delete=models.CASCADE, related_name='reservas')
+    fecha_reserva = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.empresa.nombre} - {self.evento.titulo}"
