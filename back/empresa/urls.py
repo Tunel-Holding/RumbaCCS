@@ -12,6 +12,10 @@ from .views import (
     EmpresaTokenObtainPairView,
     EmpresaLoginView,
     EmpresaReenviarPinView,
+    EmpresaPublicDetailView,
+    EmpresaPublicEventosView,
+    EmpresaRatingsListCreateView,
+    RatingDetailView,
     EmpresaEventoCreateView,
 )
 
@@ -36,6 +40,8 @@ urlpatterns = [
     # Endpoint detalle y mi empresa
     path('mi-empresa/', mi_empresa, name='mi-empresa'),
     path('empresa/<int:pk>/', empresa_detail, name='empresa-detail'),
+    path("public/empresas/<int:id>/", EmpresaPublicDetailView.as_view(), name="empresa-public-detail"),
+    path("public/empresas/<int:id>/eventos/", EmpresaPublicEventosView.as_view(), name="empresa-public-eventos"),
 
     # Flujo B: Registro de empresa independiente
     path('registro-empresa/', EmpresaPreRegistroView.as_view(), name='registro-empresa'),
@@ -45,6 +51,10 @@ urlpatterns = [
     # Login de empresa
     # path('login-empresa/', EmpresaLoginView.as_view(), name='login-empresa'),
     path("empresa/login/", EmpresaLoginView.as_view(), name="empresa_token_obtain_pair"),
+    
+    #Calificaciones
+    path('empresas/<int:empresa_pk>/ratings/', EmpresaRatingsListCreateView.as_view(), name='empresa-ratings'),
+    path('ratings/<int:pk>/', RatingDetailView.as_view(), name='rating-detail'),
 
     # Crear evento para una empresa
     path('empresa_evento/', EmpresaEventoCreateView.as_view(), name='empresa_evento-create'),

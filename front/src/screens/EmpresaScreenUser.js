@@ -45,25 +45,15 @@ export default function EmpresaScreenUser() {
   const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
   
   useEffect(() => {
+
     const fetchEmpresa = async () => {
       try {
         let empresaId = empresaIdParam;
         let headers = { "Content-Type": "application/json" };
         
-        // Si no hay empresaIdParam, usa la del usuario logueado y token
-        if (!empresaId) {
-          empresaId = await AsyncStorage.getItem("empresaId");
-          const token = await AsyncStorage.getItem("accessToken");
-          if (!empresaId || !token) {
-            console.warn("Falta token o empresaId");
-            setLoading(false);
-            return;
-          }
-          headers.Authorization = `Bearer ${token}`;
-        }
         
         const response = await axios.get(
-          `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
+          `http://${ipAddress}:8000/api/public/empresas/${empresaId}/`,
           { headers }
         );
         setEmpresaData(response.data);
@@ -79,6 +69,43 @@ export default function EmpresaScreenUser() {
     };
     fetchEmpresa();
   }, [empresaIdParam]);
+
+  const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
+  try {
+    const token = await AsyncStorage.getItem('accessToken');
+    if (!token) {
+
+      Alert.alert('No estás logueado', 'Debes iniciar sesión para calificar');
+      navigation.navigate('HomeScreen');
+      return;
+    }
+
+    const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/ratings/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        empresa: empresaId,
+        rating,
+        comentario,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      Alert.alert('Error', data.detail || JSON.stringify(data));
+      return;
+    }
+    // data es la calificación creada/actualizada
+    Alert.alert('Gracias', 'Tu calificación fue enviada');
+    return data;
+  } catch (err) {
+    console.error(err);
+    Alert.alert('Error', 'No se pudo enviar la calificación');
+  }
+};
 
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
@@ -100,7 +127,7 @@ export default function EmpresaScreenUser() {
           return;
         }
 
-        const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`);
+        const res = await fetch(`http://${ipAddress}:8000/api/public/empresas/${empresaId}/eventos/`);
         
         if (!res.ok) {
           throw new Error(`Error HTTP: ${res.status}`);
@@ -305,7 +332,10 @@ export default function EmpresaScreenUser() {
             <TouchableOpacity
               style={[styles.ratingSubmitButton, rating === 0 && styles.ratingSubmitButtonDisabled]}
               onPress={() => {
+                
                 if (rating > 0) {
+                  console.log("Empresa id: ", empresaIdParam)
+                  enviarCalificacion({ empresaId: empresaIdParam, rating, comentario: comment });
                   console.log('Calificación enviada:', { rating, comment });
                   Alert.alert('¡Gracias!', 'Tu calificación ha sido enviada.');
                   setModalVisible({ ...modalVisible, rating: false });

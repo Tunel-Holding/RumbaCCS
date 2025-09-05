@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
+  ActivityIndicator,
   SafeAreaView,
   Modal,
   TextInput,
@@ -15,6 +16,10 @@ import {
   Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import axios from 'axios';
+
+const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+
 
 // Footer links (copiados de HomeScreen.js)
 const footerLinks = [
@@ -84,10 +89,11 @@ export default function BuyScreen() {
   const [loginVisible, setLoginVisible] = useState(false);
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
+  const [empresaData, setEmpresaData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   // Recibe los parámetros de navegación
-  const { idEvento, idEmpresa } = route.params || {};
-  console.log('Params recibidos:', route.params);
+  const { idEvento, idEmpresa } = route.params ?? {};
   const [evento, setEvento] = useState(null);
 
   // Carousel refs y medidas
@@ -107,6 +113,7 @@ export default function BuyScreen() {
   };
   const goPrev = () => goTo(activeIndex - 1);
   const goNext = () => goTo(activeIndex + 1);
+  
 
   useEffect(() => {
     if (autoplayRef.current) clearInterval(autoplayRef.current);
@@ -116,32 +123,89 @@ export default function BuyScreen() {
     return () => clearInterval(autoplayRef.current);
   }, [activeIndex, slideWidth]);
 
+  
+
   // Obtener datos del evento seleccionado
   useEffect(() => {
-    console.log('Entrando al useEffect de evento', idEvento);
-    if (idEvento) {
-      fetch(`http://192.168.1.3:8000/api/eventos-publicos/${idEvento}/`)
-        .then(res => {
-          console.log('Status fetch evento:', res.status);
-          return res.json();
-        })
-        .then(data => {
-          console.log('Evento recibido:', data);
-          setEvento(data);
-        })
-        .catch((err) => {
-          console.log('Error al obtener evento:', err);
-          setEvento(null);
-        });
-    } else {
-      console.log('idEvento es undefined, no se hace fetch');
-    }
+    const fetchEvento = async () => {
+      if (!idEvento) {
+        console.log('idEvento es undefined, no se hace fetch');
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `http://${ipAddress}:8000/api/eventos-publicos/${idEvento}/`
+        );
+        if (!response.ok) {
+          throw new Error(response.statusText);
+        }
+        const ev = await response.json();
+        console.log('Evento recibido:', ev);
+        setEvento(ev);
+      } catch (error) {
+        console.error('Error al obtener evento:', error);
+        setEvento(null);
+      }
+    };
+
+    fetchEvento();
   }, [idEvento]);
+
+  useEffect(() => {
+  // si no hay idEmpresa, salimos
+    if (!idEmpresa) {
+      console.warn('🟡 idEmpresa está undefined, skip fetchEmpresa');
+      setLoading(false);
+      return;
+    }
+
+  const fetchEmpresa = async () => {
+    try {
+      console.log('🔎 Fetching empresa con ID:', idEmpresa);
+
+      const response = await axios.get(
+        `http://${ipAddress}:8000/api/public/empresas/${idEmpresa}/`,
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      setEmpresaData(response.data);
+    } catch (error) {
+      if (error.response) {
+        console.error('❌ Error HTTP:', error.response.status, error.response.data);
+      } else {
+        console.error('❌ Error:', error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchEmpresa();
+}, [idEmpresa]);  // ← aquí va idEmpresa, no empresaIdParam
+
+
+
+  const eventDetails = useMemo(
+    () => ({
+      title: evento?.titulo ?? 'sin definir',
+      description:
+        evento?.descripcion ??
+        'sin definir',
+      lugar: evento?.lugar ?? 'sin definir',
+      categoria: evento?.categoria ?? 'Fiesta',
+      vestimenta: evento?.codigo_vestimenta ?? 'sin definir',
+      ubicacion: evento?.ubicacion ?? 'sin definir',
+      empresa: empresaData?.nombre ?? 'sin definir',
+      empresaId: evento?.empresa,
+      fecha: evento?.fecha_evento ?? 'sin definir',
+    }),
+    [evento, empresaData]
+  );
 
   // Función para reservar
   const handleReserve = () => {
     if (!idEvento || !idEmpresa) return;
-    fetch('http://192.168.1.3:8000/api/empresa_evento/', {
+    fetch(`http://${ipAddress}:8000/api/empresa_evento/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ evento: idEvento, empresa: idEmpresa }),
@@ -194,6 +258,17 @@ export default function BuyScreen() {
       <Text style={styles.footerCopyright}>© 2025 RumbaCCS. Todos los derechos reservados.</Text>
     </View>
   );
+if (loading) {
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#00ff00" /> 
+        <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+      </View>
+    </SafeAreaView>
+  );
+}
 
   return (
     <SafeAreaView style={[styles.safeArea, { paddingTop: topPadding }]}> 
@@ -257,44 +332,49 @@ export default function BuyScreen() {
           </ScrollView>
         </View>
 
-        {/* Título y Descripción dinámicos según evento seleccionado */}
+        {/* Título y Descripción */}
         <View style={styles.titleDescBox}>
-          <Text style={styles.title}>{evento?.titulo || 'Evento seleccionado'}</Text>
-          <Text style={styles.description}>{evento?.descripcion || 'Detalles del evento.'}</Text>
+          <Text style={styles.title}>{eventDetails.title}</Text>
+          <Text style={styles.description}>{eventDetails.description}</Text>
         </View>
 
-        {/* Detalles del evento dinámicos */}
+        {/* Detalles del evento */}
         <View style={styles.detailsContainer}>
           <Text style={styles.detailsTitle}>Detalles del evento</Text>
+          {eventDetails.fecha && (
+            <View style={styles.detailRow}>
+              <Text style={styles.label}>Fecha: </Text>
+              <Text style={styles.detail}>{eventDetails.fecha}</Text>
+            </View>
+          )}
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Lugar: </Text>
+            <Text style={styles.detail}>{eventDetails.lugar}</Text>
+          </View>
           <View style={styles.detailRow}>
             <Text style={styles.label}>Categoría: </Text>
-            <Text style={styles.detail}>{Array.isArray(evento?.categoria) ? evento.categoria.join(', ') : evento?.categoria || '-'}</Text>
+            <Text style={styles.detail}>{eventDetails.categoria}</Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Código vestimenta: </Text>
-            <Text style={styles.detail}>{evento?.codigo_vestimenta || '-'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Edad mínima: </Text>
-            <Text style={styles.detail}>{evento?.edad_minima || '-'}</Text>
+            <Text style={styles.label}>Vestimenta: </Text>
+            <Text style={styles.detail}>{eventDetails.vestimenta}</Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.label}>Ubicación: </Text>
-            <Text style={styles.detail}>{evento?.ubicacion || '-'}</Text>
+            <Text style={styles.detail}>{eventDetails.ubicacion}</Text>
           </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Capacidad: </Text>
-            <Text style={styles.detail}>{evento?.capacidad || '-'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Precio: </Text>
-            <Text style={styles.detail}>{evento?.precio || '-'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Moneda: </Text>
-            <Text style={styles.detail}>{evento?.moneda || '-'}</Text>
-          </View>
+          {eventDetails.empresa && (
+            <View style={styles.detailRow}>
+              <Text style={styles.label}>Empresa: </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('EmpresaScreenUser', { empresaId: eventDetails.empresaId })}>
+                <Text style={[styles.detail, { color: COLORS.primary, textDecorationLine: 'underline' }]}>
+                  {eventDetails.empresa}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
+
 
         {/* Eventos Relacionados */}
         <Text style={styles.sectionTitle}>Eventos relacionados por Categoria</Text>

@@ -1,4 +1,4 @@
-from api.models import EmailVerification, Usuario
+from api.models import EmailVerification
 from django.utils import timezone
 import random
 from django.core.mail import send_mail
@@ -8,27 +8,26 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
-from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.decorators import action, api_view
-from rest_framework import status
-from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer
+from rest_framework import status, generics
+from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer, EventoPublicSerializer, EmpresaEventoSerializer
 from rest_framework.exceptions import ValidationError
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.renderers import JSONRenderer
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth.hashers import make_password
 import jwt
-import datetime
 from rest_framework.authentication import BaseAuthentication
 from rest_framework import exceptions
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import EmpresaTokenObtainPairSerializer
-from rest_framework.permissions import BasePermission
-from .models import Empresa, Evento2, Usuario, EmpresaEvento
+from .serializers import EmpresaTokenObtainPairSerializer, EmpresaPublicSerializer, RatingSerializer
+from rest_framework.permissions import BasePermission, AllowAny
+from .models import Empresa, Evento2, Rating
 from .auth_backend import EmpresaOrUsuarioJWTAuthentication
-from .permissions import IsEmpresaAuthenticated, IsEmpresaOrUsuarioAuthenticated
-from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer, EmpresaEventoSerializer
+from .permissions import IsEmpresaOrUsuarioAuthenticated, IsUsuarioOrReadOnly
+from rest_framework.generics import RetrieveAPIView, ListAPIView
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -372,6 +371,94 @@ class EmpresaReenviarPinView(APIView):
             fail_silently=False,
         )
         return Response({'detail': 'Se ha enviado un nuevo pin de verificación al correo.'}, status=200)
+    
+
+class EmpresaPublicDetailView(RetrieveAPIView):
+    queryset = Empresa.objects.all()
+    serializer_class = EmpresaPublicSerializer
+    permission_classes = [AllowAny]  # 🔓 cualquiera puede acceder
+    lookup_field = "id"  # se buscará por /<id>/
+    
+
+class EmpresaPublicEventosView(ListAPIView):
+    serializer_class = EventoPublicSerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        empresa_id = self.kwargs["id"]
+        return Evento2.objects.filter(empresa_id=empresa_id, empresa__activo=True)
+    
+
+
+
+# Listar + crear (POST: crea o actualiza la calificación del usuario para esa empresa)
+class EmpresaRatingsListCreateView(generics.ListCreateAPIView):
+    serializer_class = RatingSerializer
+    permission_classes = [IsUsuarioOrReadOnly]
+
+    def get_queryset(self):
+        empresa_pk = self.kwargs.get('empresa_pk')
+        return Rating.objects.filter(empresa_id=empresa_pk).select_related('usuario')
+
+    def perform_create(self, serializer):
+        empresa_pk = self.kwargs.get('empresa_pk')
+        empresa = get_object_or_404(Empresa, pk=empresa_pk)
+
+        user = self.request.user
+        # Si el user es AuthEntity tipo 'empresa' -> bloquear (no deben calificar)
+        kind = getattr(user, 'kind', None)
+        # si estamos en el caso que request.user es AuthEntity("usuario", Usuario) o instancia Usuario:
+        if kind == 'empresa' or getattr(user, 'is_empresa', False):
+            # no permitimos que una empresa califique
+            raise PermissionError("Solo usuarios pueden calificar a empresas.")
+
+        # No permitir que el dueño/admin de la empresa (si es un Usuario ligado) se califique a sí mismo
+        if hasattr(user, 'empresa') and user.empresa and user.empresa.id == empresa.id:
+            raise PermissionError("No puedes calificar tu propia empresa.")
+
+        # Si ya existe rating del usuario para esa empresa -> actualizar
+        rating_obj, created = Rating.objects.update_or_create(
+            empresa=empresa,
+            usuario=user if getattr(user, 'kind', None) != 'empresa' else None,  # cuidado con AuthEntity
+            defaults={
+                'rating': serializer.validated_data['rating'],
+                'comentario': serializer.validated_data.get('comentario', '')
+            }
+        )
+        # Si user es AuthEntity, puede que el objeto real esté en .obj
+        # Manejo robusto:
+        # Re-implementando: vamos a forzar usuario desde request.user.obj si existe:
+        usuario_obj = getattr(user, 'obj', user)
+        rating_obj, created = Rating.objects.update_or_create(
+            empresa=empresa,
+            usuario=usuario_obj,
+            defaults={
+                'rating': serializer.validated_data['rating'],
+                'comentario': serializer.validated_data.get('comentario', '')
+            }
+        )
+        self._saved = rating_obj  # por si quieres usarlo
+
+# detalle, editar o borrar (solo el autor puede editar o borrar)
+class RatingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = RatingSerializer
+    queryset = Rating.objects.all()
+
+    def get_permissions(self):
+        if self.request.method in ('GET',):
+            return [AllowAny()]
+        # PUT/PATCH/DELETE -> solo autor
+        return [IsUsuarioOrReadOnly()]
+
+    def check_object_permissions(self, request, obj):
+        # override para que solo el autor pueda editar/eliminar
+        if request.method in ('PUT', 'PATCH', 'DELETE'):
+            usuario = getattr(request.user, 'obj', request.user)
+            if obj.usuario_id != getattr(usuario, 'id', None):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied("Solo el autor puede editar/borrar su calificación.")
+        super().check_object_permissions(request, obj)
+
 
 class EmpresaEventoCreateView(APIView):
     def post(self, request):

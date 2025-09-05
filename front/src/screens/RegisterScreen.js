@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
-const ipAddress = '192.168.1.3'; // Cambia esto por la IP de tu servidor
+const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
 const API_URL = `http://${ipAddress}:8000/api`;
 

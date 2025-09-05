@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.core.validators import RegexValidator, MinLengthValidator, URLValidator, EmailValidator
+from django.core.validators import RegexValidator, MinLengthValidator, URLValidator, EmailValidator, MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.contrib.postgres.fields import ArrayField
 from django.utils import timezone
@@ -249,6 +249,35 @@ class Evento2(models.Model):
 
     def __str__(self):
         return f"{self.titulo} – {self.empresa.nombre}"
+
+
+
+class Rating(models.Model):
+    empresa = models.ForeignKey(
+        'Empresa',
+        on_delete=models.CASCADE,
+        related_name='ratings'
+    )
+    usuario = models.ForeignKey(
+        'api.Usuario',
+        on_delete=models.CASCADE,
+        related_name='ratings'
+    )
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comentario = models.TextField(blank=True, null=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Calificación"
+        verbose_name_plural = "Calificaciones"
+        unique_together = ('empresa', 'usuario')  # un usuario solo puede calificar una empresa una vez
+        ordering = ['-creado_en']
+
+    def __str__(self):
+        return f"{self.usuario} → {self.empresa} : {self.rating}"
 
 class EmpresaEvento(models.Model):
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='reservas')

@@ -2,7 +2,8 @@ from rest_framework import serializers
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from django.db import IntegrityError
-from .models import Empresa, Evento2, Usuario, EmpresaEvento
+from django.db.models import Avg, Count
+from .models import Empresa, Evento2, Rating, EmpresaEvento
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -52,6 +53,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
     total_seguidores = serializers.SerializerMethodField()
     is_siguiendo = serializers.SerializerMethodField()
     password = serializers.CharField(write_only=True, required=True)
+    avg_rating = serializers.SerializerMethodField(read_only=True)
+    rating_count = serializers.SerializerMethodField(read_only=True)
     
     eventos = EventoSerializer(many=True, read_only=True)
 
@@ -73,7 +76,9 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "eventos",
             "is_siguiendo",
             "fecha_creacion",
-            "activo"
+            "activo",
+            "avg_rating",
+            "rating_count",
         ]
         read_only_fields = [
             "id",
@@ -92,6 +97,15 @@ class EmpresaSerializer(serializers.ModelSerializer):
             return obj.seguidores.filter(id=user.id).exists()
         return False
 
+    def get_avg_rating(self, obj):
+        agg = obj.ratings.aggregate(avg=Avg('rating'))
+        avg = agg.get('avg') or 0
+        return round(avg, 2)
+
+    def get_rating_count(self, obj):
+        agg = obj.ratings.aggregate(count=Count('id'))
+        return agg.get('count') or 0
+    
     # def validate(self, attrs):
     #     user = self.context["request"].user
     #     if self.instance is None:
@@ -138,8 +152,6 @@ class EmpresaRegistroSerializer(serializers.ModelSerializer):
 
         return empresa
 
-
-
 class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, empresa: Empresa):
@@ -172,6 +184,62 @@ class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
                 "email": empresa.email,
             }
         }
+        
+        
+class EmpresaPublicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Empresa
+        # 🔓 Solo los campos visibles públicamente
+        fields = [
+            "id",
+            "nombre",
+            "descripcion",
+            "logo",
+            "rif",
+            "lugar",
+            "telefono",
+            "email_contacto",
+        ]
+        
+
+class EventoPublicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Evento2
+        fields = [
+            "id",
+            "titulo",
+            "descripcion",
+            "categoria",
+            "codigo_vestimenta",
+            "edad_minima",
+            "ubicacion",
+            "capacidad",
+            "precio",
+            "moneda",
+            "imagen",
+            "fecha_evento",
+        ]
+
+class RatingSerializer(serializers.ModelSerializer):
+    usuario = serializers.PrimaryKeyRelatedField(read_only=True)  # se asigna desde la vista
+    usuario_username = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Rating
+        fields = ['id', 'empresa', 'usuario', 'usuario_username', 'rating', 'comentario', 'creado_en', 'actualizado_en']
+        read_only_fields = ['id', 'usuario', 'creado_en', 'actualizado_en', 'usuario_username']
+
+    def get_usuario_username(self, obj):
+        # devuelve nombre/email para mostrar en listados
+        try:
+            return getattr(obj.usuario, 'username', getattr(obj.usuario, 'email', None))
+        except:
+            return None
+
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError("El rating debe estar entre 1 y 5")
+        return value
 
 class EmpresaEventoSerializer(serializers.ModelSerializer):
     class Meta:

@@ -36,7 +36,7 @@ export default function FormularioScreen({ navigation, route }) {
   const pinRefs = useRef([]);
   const PIN_LENGTH = 6;
 
-  const ipAddress = "192.168.1.3"; // Cambia esto por tu IP real
+  const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
   
   // Simulación de PIN correcto (cambiar por valor de backend cuando esté listo)
   const PIN_CORRECTO_SIMULADO = '123456';

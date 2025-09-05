@@ -41,7 +41,7 @@ export default function EmpresaScreen() {
 
   const [empresaData, setEmpresaData] = useState(null);
 
-  const ipAddress = "192.168.1.3"; // Cambia esto por tu IP real
+  const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
   
 useEffect(() => {
   const fetchEmpresa = async () => {
