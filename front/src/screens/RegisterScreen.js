@@ -98,7 +98,7 @@ export default function RegisterScreen({ navigation, route }) {
   useEffect(() => {
     if (cargando) {
       setPinResendAvailable(false);
-      const t = setTimeout(() => setPinResendAvailable(true), 60000); // 1 minuto
+      const t = setTimeout(() => setPinResendAvailable(true), 60000); // 1 minuto para ambos tipos
       return () => clearTimeout(t);
     }
   }, [cargando]);
@@ -147,7 +147,7 @@ export default function RegisterScreen({ navigation, route }) {
       setVerificado(false);
       setCargando(true);
       try {
-        // Envía el formulario para que backend mande el código
+        // Solo envía el formulario y espera el PIN
         const res = await registerUser(formData);
         if (res && res.error) {
           Alert.alert('Error', res.error);
@@ -158,6 +158,7 @@ export default function RegisterScreen({ navigation, route }) {
         if (res && res.message) {
           Alert.alert('Verificación', res.message);
         }
+        // No guardar access, refresh ni user aquí
       } catch (e) {
         setCargando(false);
         Alert.alert('Error', e.message || 'Error en el registro');
@@ -185,7 +186,30 @@ export default function RegisterScreen({ navigation, route }) {
             <Text style={styles.loadingTitle}>Verificación de correo</Text>
             <Text style={styles.pinInstructions}>Te enviamos un PIN a tu correo. Ingresa los 6 dígitos para continuar.</Text>
             {pinResendAvailable ? (
-              <TouchableOpacity onPress={() => { setPinResendAvailable(false); setPinDigits(['','','','','','']); const t2=setTimeout(()=>setPinResendAvailable(true),60000); }}>
+              <TouchableOpacity onPress={async () => {
+                setPinResendAvailable(false);
+                setPinDigits(['','','','','','']);
+                try {
+                  let endpoint = `${API_URL}/reenviar-pin-empresa/`;
+                  if (accountType !== 'empresa') {
+                    endpoint = `${API_URL}/send-verification-code/`;
+                  }
+                  const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                  });
+                  const result = await response.json();
+                  if (response.ok) {
+                    Alert.alert('PIN enviado', result.detail || result.message || 'Se ha enviado un nuevo PIN a tu correo.');
+                  } else {
+                    Alert.alert('Error', result.detail || result.message || 'No se pudo reenviar el PIN.');
+                  }
+                } catch (err) {
+                  Alert.alert('Error', err.message || 'No se pudo reenviar el PIN.');
+                }
+                const t2 = setTimeout(() => setPinResendAvailable(true), 60000);
+              }}>
                 <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el pin? Presione aquí.</Text>
               </TouchableOpacity>
             ) : (
@@ -234,6 +258,7 @@ export default function RegisterScreen({ navigation, route }) {
                   return;
                 }
                 try {
+                  // Verifica el PIN con el backend
                   const pendingUser = await AsyncStorage.getItem('pending_user');
                   const userData = JSON.parse(pendingUser);
                   const response = await fetch(`${API_URL}/verify-code/`, {
@@ -246,6 +271,7 @@ export default function RegisterScreen({ navigation, route }) {
                     Alert.alert('PIN incorrecto', result.error || 'El PIN ingresado no es válido.');
                     return;
                   }
+                  // Si el PIN es correcto, ahora crea el usuario realmente
                   const createResponse = await fetch(`${API_URL}/finalize-register/`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -256,9 +282,12 @@ export default function RegisterScreen({ navigation, route }) {
                     Alert.alert('Error', createResult.error || 'No se pudo crear el usuario.');
                     return;
                   }
+                  // Solo aquí guardar los tokens y datos del usuario
+                  
                   await AsyncStorage.setItem('accessToken', createResult.access);
                   await AsyncStorage.setItem('refreshToken', createResult.refresh);
                   await AsyncStorage.setItem('userName', createResult.user.username);
+                  
                   setVerificado(true);
                   setCargando(false);
                 } catch (err) {
@@ -282,6 +311,7 @@ export default function RegisterScreen({ navigation, route }) {
                   const tok = JSON.parse(tokens);
                   await AsyncStorage.setItem('accessToken', tok.access);
                   await AsyncStorage.setItem('refreshToken', tok.refresh);
+                  // Guardar el usuario solo si existe y es válido
                   if (userObj) {
                     await AsyncStorage.setItem('user', JSON.stringify(userObj));
                   }

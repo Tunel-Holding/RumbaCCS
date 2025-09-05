@@ -92,13 +92,12 @@ export default function AddScreen() {
   ];
 
   const edadesMinimas = [
-    { label: 'Todas las edades', value: 0 },
-    { label: 'Mayores de 13 años', value: 13 },
-    { label: 'Mayores de 16 años', value: 16 },
-    { label: 'Mayores de 18 años', value: 18 },
-    { label: 'Mayores de 21 años', value: 21 },
-    { label: 'Mayores de 25 años', value: 25 },
-    { label: 'Familiar (Todas las edades)', value: 0 }, // extra etiqueta front
+  { label: 'Todas las edades',       value: 0  },
+  { label: 'Mayores de 13 años',     value: 13 },
+  { label: 'Mayores de 16 años',     value: 16 },
+  { label: 'Mayores de 18 años',     value: 18 },
+  { label: 'Mayores de 21 años',     value: 21 },
+  { label: 'Mayores de 25 años',     value: 25 },
   ];
 
   // Función para formatear precio con comas y decimales
@@ -212,6 +211,7 @@ export default function AddScreen() {
   console.log('descripcion', typeof(payload.descripcion));
   console.log('precio', typeof(payload.precio));
   console.log('moneda', typeof(payload.moneda));
+  console.log('fecha_evento', typeof(payload.fecha_evento));
 
   console.log('payload:', payload);
 
