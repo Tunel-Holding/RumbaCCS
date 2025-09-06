@@ -291,7 +291,7 @@ const handleLogin = async () => {
           ))}
         </ScrollView>
 
-        {/* Botón para ir a tu panel de Empresa */}
+        {/* Botón para ir a tu panel de Empresa
         <TouchableOpacity
           style={{
             backgroundColor: '#0ea5e9',
@@ -306,7 +306,7 @@ const handleLogin = async () => {
           onPress={() => navigation.navigate('Empresa')}
         >
           <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ir a mi empresa</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         {/* Eventos */}
         <Text style={styles.sectionTitle}>Próximos eventos</Text>

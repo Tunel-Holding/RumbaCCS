@@ -417,7 +417,7 @@ useEffect(() => {
                   return (
                     <View key={r.id || idx} style={{ backgroundColor:'#1e293b', padding:16, borderRadius:16, marginBottom:14, borderWidth:1, borderColor:'rgba(255,255,255,0.07)' }}>
                       <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:6 }}>
-                        <Text style={{ color:'#fff', fontWeight:'600' }}>{r.usuario_nombre || r.user_name || 'Usuario'}</Text>
+                        <Text style={{ color:'#fff', fontWeight:'600' }}>{r.usuario_username || r.user_name || 'Usuario'}</Text>
                         <Text style={{ color:'#facc15', fontWeight:'700' }}>{filled}/5</Text>
                       </View>
                       <View style={{ flexDirection:'row', marginBottom:6 }}>

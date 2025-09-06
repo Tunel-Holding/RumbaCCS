@@ -222,7 +222,7 @@ class EventoPublicSerializer(serializers.ModelSerializer):
 
 class RatingSerializer(serializers.ModelSerializer):
     usuario = serializers.PrimaryKeyRelatedField(read_only=True)  # se asigna desde la vista
-    usuario_username = serializers.SerializerMethodField(read_only=True)
+    usuario_username = serializers.SerializerMethodField(source='usuario.username', read_only=True)
 
     class Meta:
         model = Rating

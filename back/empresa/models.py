@@ -277,7 +277,7 @@ class Rating(models.Model):
         ordering = ['-creado_en']
 
     def __str__(self):
-        return f"{self.usuario} → {self.empresa} : {self.rating}"
+        return f"{self.usuario.username} → {self.empresa} : {self.rating}"
 
 class EmpresaEvento(models.Model):
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='reservas')
