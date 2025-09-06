@@ -112,6 +112,21 @@ DATABASES = {
     }
 }
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.postgresql',
+#         'NAME': 'postgres',
+#         'USER': 'postgres.nxhwdtiaqvavlswufeyk',
+#         'PASSWORD': '5yL#H4rLGkdw?Mc',  # Reemplaza esto con tu contraseña real
+#         'HOST': 'aws-1-sa-east-1.pooler.supabase.com',
+#         'PORT': '6543',
+#         'OPTIONS': {
+#             'sslmode': 'require'  # Supabase exige conexión segura
+#         },
+#     }
+# }
+
+
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
@@ -156,8 +171,9 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "empresa.auth_backend.CustomJWTAuthentication",  # 👈 importante
+        "rest_framework.authentication.SessionAuthentication",
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',  # en producción restringe por vista

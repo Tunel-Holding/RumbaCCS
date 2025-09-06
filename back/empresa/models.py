@@ -1,10 +1,11 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.core.validators import RegexValidator, MinLengthValidator, URLValidator, EmailValidator
+from django.core.validators import RegexValidator, MinLengthValidator, URLValidator, EmailValidator, MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.contrib.postgres.fields import ArrayField
 from django.utils import timezone
 from django.contrib.postgres.indexes import GinIndex
+from django.contrib.auth.hashers import make_password, check_password
 
 Usuario = get_user_model()
 
@@ -14,9 +15,19 @@ class Empresa(models.Model):
         Usuario,
         on_delete=models.CASCADE,
         related_name="empresa",
-        help_text="Usuario administrador de esta empresa"
+        help_text="Usuario administrador de esta empresa",
+        blank= True, null= True,
     )
 
+    password = models.CharField(max_length=128, default="00000000", help_text="Contraseña para login de la empresa")
+
+    def set_password(self, raw_password):
+        self.password = make_password(raw_password)
+        self.save(update_fields=['password'])
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
+    
     nombre = models.CharField(
         max_length=255,
         unique=True,
@@ -60,6 +71,8 @@ class Empresa(models.Model):
         validators=[EmailValidator(message="Debe ser un correo electrónico válido.")]
     )
 
+    email = models.EmailField(unique=True, default="")  # para login de la empresa
+
     redes_sociales = models.URLField(
         blank=True, null=True,
         validators=[URLValidator(message="Debe ser una URL válida.")]
@@ -81,9 +94,7 @@ class Empresa(models.Model):
         verbose_name = "Empresa"
         verbose_name_plural = "Empresas"
         ordering = ["nombre"]
-        constraints = [
-            models.UniqueConstraint(fields=["usuario"], name="unique_usuario_empresa")
-        ]
+        
 
     def __str__(self):
         return self.nombre
@@ -165,8 +176,11 @@ class Evento2(models.Model):
         help_text="Descripción detallada"
     )
 
-    # Fechas
-    # fecha_inicio = models.DateTimeField(help_text="Fecha y hora de inicio")
+    # Fecha y hora de inicio
+    fecha_evento = models.DateTimeField(
+        help_text="Fecha y hora de inicio del evento",
+        default=timezone.now
+    )
 
     # Selecciones y límites
     categoria = models.JSONField(
@@ -223,7 +237,7 @@ class Evento2(models.Model):
         null=True,
         help_text="Imagen promocional del evento"
     )
-
+    
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
 
@@ -236,20 +250,39 @@ class Evento2(models.Model):
     def __str__(self):
         return f"{self.titulo} – {self.empresa.nombre}"
 
-    # def clean(self):
-    #     if self.fecha_fin and self.fecha_inicio and self.fecha_fin <= self.fecha_inicio:
-    #         raise ValidationError("La fecha de fin debe ser posterior a la fecha de inicio.")
-    
-# class Evento(models.Model):
-#     empresa = models.ForeignKey(
-#         Empresa,
-#         on_delete=models.CASCADE,
-#         related_name="eventos"
-#     )
-#     titulo = models.CharField(max_length=255)
-#     fecha = models.DateTimeField()
-#     descripcion = models.TextField(blank=True, null=True)
-#     lugar = models.CharField(max_length=255, blank=True, null=True)
-#     precio = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-#     categoria = models.CharField(max_length=100, blank=True, null=True)
-#     imagen = models.ImageField(upload_to="eventos/", blank=True, null=True)
+
+
+class Rating(models.Model):
+    empresa = models.ForeignKey(
+        'Empresa',
+        on_delete=models.CASCADE,
+        related_name='ratings'
+    )
+    usuario = models.ForeignKey(
+        'api.Usuario',
+        on_delete=models.CASCADE,
+        related_name='ratings'
+    )
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    comentario = models.TextField(blank=True, null=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Calificación"
+        verbose_name_plural = "Calificaciones"
+        unique_together = ('empresa', 'usuario')  # un usuario solo puede calificar una empresa una vez
+        ordering = ['-creado_en']
+
+    def __str__(self):
+        return f"{self.usuario} → {self.empresa} : {self.rating}"
+
+class EmpresaEvento(models.Model):
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='reservas')
+    evento = models.ForeignKey('Evento2', on_delete=models.CASCADE, related_name='reservas')
+    fecha_reserva = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.empresa.nombre} - {self.evento.titulo}"

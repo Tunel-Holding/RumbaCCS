@@ -17,10 +17,6 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import axios from 'axios';
-
-const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
-
-
 // Footer links (copiados de HomeScreen.js)
 const footerLinks = [
   { title: 'Reservas' },
@@ -91,6 +87,9 @@ export default function BuyScreen() {
   const [pass, setPass] = useState('');
   const [empresaData, setEmpresaData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isLogged, setIsLogged] = useState(false);
+
+const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
   // Recibe los parámetros de navegación
   const { idEvento, idEmpresa } = route.params ?? {};
@@ -101,6 +100,7 @@ export default function BuyScreen() {
   const autoplayRef = useRef(null);
   const slideWidth = width; // ancho completo del dispositivo
 
+  
   const handleScroll = (event) => {
     const slide = Math.round(event.nativeEvent.contentOffset.x / slideWidth);
     if (slide !== activeIndex) setActiveIndex(slide);
@@ -123,7 +123,28 @@ export default function BuyScreen() {
     return () => clearInterval(autoplayRef.current);
   }, [activeIndex, slideWidth]);
 
-  
+  useEffect(() => {
+    const checkSession = async () => {
+      const token = await AsyncStorage.getItem('accessToken');
+      console.log('Access Token:', token);
+      if(token) {
+        setIsLogged(true);
+      }
+      setIsLogged(!!token);
+    };
+    checkSession();
+  }, [loginVisible]); // Se ejecuta cada vez que el modal cambia
+
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('accessToken');
+    await AsyncStorage.removeItem('userEmail');
+    await AsyncStorage.removeItem('userName');
+    await AsyncStorage.removeItem('empresaId');
+    await AsyncStorage.clear();
+    setIsLogged(false);
+    Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
+  };
 
   // Obtener datos del evento seleccionado
   useEffect(() => {
@@ -229,18 +250,30 @@ export default function BuyScreen() {
     <View style={styles.header}>
       <Text style={styles.headerTitle}>Rumba<Text style={{ color: '#ec4899' }}>CCS</Text></Text>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+
+      {isLogged ? (
+        <TouchableOpacity
+          style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
+          onPress={handleLogout}
+        >
+          <Text style={styles.loginBtnText}>Cerrar sesión</Text>
+        </TouchableOpacity>
+      ) : (
         <TouchableOpacity
           style={styles.loginBtn}
           onPress={() => setLoginVisible(true)}
         >
           <Text style={styles.loginBtnText}>Iniciar sesión</Text>
         </TouchableOpacity>
+      )}
+      {isLogged && (
         <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
           <Image
             source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
             style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
           />
         </TouchableOpacity>
+      )}
       </View>
     </View>
   );

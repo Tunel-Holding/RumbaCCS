@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { Animated } from 'react-native';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, Platform } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, StatusBar,ActivityIndicator, Platform } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -121,13 +121,6 @@ const handleLogin = async () => {
         await AsyncStorage.setItem('empresaId', "");
       }
 
-      // Nombre de empresa
-      if (data.empresa?.nombre) {
-        await AsyncStorage.setItem('userName', data.empresa.nombre);
-      } else {
-        await AsyncStorage.setItem('userName', user);
-      }
-
       await AsyncStorage.setItem('userEmail', user);
       setIsLogged(true);
       setLoginVisible(false);
@@ -156,19 +149,8 @@ const handleLogin = async () => {
   const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
         if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
         const data = await res.json();
-        // Código anterior (presentación simple) que se reemplazó por versión enriquecida:
-        // const eventosTransformados = data.map(ev => ({
-        //   id: ev.id,
-        //   title: ev.titulo,
-        //   date: ev.creado_en
-        //     ? new Date(ev.creado_en).toLocaleDateString()
-        //     : "Fecha no definida",
-        //   location: ev.ubicacion,
-        //   price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
-        //   type: ev.categoria || ["Sin categoría"],
-        //   categoriaColor: "#4f46e5",
-        //   imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
-        // }));
+
+        // Transformar datos al formato esperado
         const eventosTransformados = data.map(ev => {
           const categorias = Array.isArray(ev.categoria) ? ev.categoria : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
           return {
@@ -198,23 +180,6 @@ const handleLogin = async () => {
     fetchEventos();
   }, []);
 
-
-
-  // Eventos de ejemplo
-  // const events = [
-  //   {
-  //     id: 1,
-  //     type: 'concert',
-  //     title: 'Festival Indie 2023',
-  //     date: '15 Dic 2023',
-  //     location: 'Estadio Nacional, Santiago',
-  //     price: '$25.000 - $80.000',
-  //     image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
-  //     tag: 'Concierto'
-  //   }
-    
-  // ];
-
   // Filtros disponibles
   const filters = [
     { key: 'all', label: 'Todos' },
@@ -232,12 +197,6 @@ const handleLogin = async () => {
     { title: 'API para desarrolladores' }
   ];
 
-  // Filtrado de eventos
-  // Versión anterior del filtrado (simple):
-  // const filteredEvents = events.filter(e =>
-  //   (filter === 'all' || e.type === filter) &&
-  //   (e.title.toLowerCase().includes(search.toLowerCase()) || e.location.toLowerCase().includes(search.toLowerCase()))
-  // );
   const filteredEvents = events.filter(e => {
     const categorias = Array.isArray(e.type) ? e.type : [e.type];
     const matchesFilter = filter === 'all' || categorias.includes(filter);
@@ -246,17 +205,17 @@ const handleLogin = async () => {
     return matchesFilter && matchesSearch;
   });
 
-  // if (loading) {
-  //   return (
-  //     <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
-  //       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-  //       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-  //         <ActivityIndicator size="large" color="#00ff00" /> 
-  //         <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
-  //       </View>
-  //     </SafeAreaView>
-  //   );
-  // }
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#00ff00" /> 
+          <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -351,25 +310,7 @@ const handleLogin = async () => {
 
         {/* Eventos */}
         <Text style={styles.sectionTitle}>Próximos eventos</Text>
-        {/* Versión anterior de tarjetas (simple) mantenida como comentario:
-        <View style={styles.eventsGrid}>
-          {filteredEvents.length === 0 ? (
-            <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>No hay eventos para mostrar.</Text>
-          ) : (
-            filteredEvents.map(event => (
-              <View key={event.id} style={styles.eventCard}>
-                <Image source={{ uri: event.image }} style={styles.eventImage} resizeMode="cover" />
-                <View style={styles.eventTag}><Text style={styles.eventTagText}>{event.tag}</Text></View>
-                <Text style={styles.eventTitle}>{event.title}</Text>
-                <Text style={styles.eventInfo}>{event.date} - {event.location}</Text>
-                <Text style={styles.eventPrice}>{event.price}</Text>
-                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { evento: event })}>
-                  <Text style={styles.reserveText}>Reservar</Text>
-                </TouchableOpacity>
-              </View>
-            ))
-          )}
-        </View> */}
+        
         <View style={styles.eventsGrid}>
           {filteredEvents.length === 0 ? (
             <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>No hay eventos para mostrar.</Text>

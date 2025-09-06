@@ -85,44 +85,7 @@ useEffect(() => {
   fetchEmpresa();
 }, []);
 
-
-
-//     const fetchEmpresa = async () => {
-//     try {
-//       const empresaId = await AsyncStorage.getItem("empresaId");
-
-//       console.log("🏷 empresaId:", empresaId);
-
-//       if (!empresaId) {
-//         console.warn("Falta empresaId");
-//         setLoading(false);
-//         return;
-//       }
-
-//       // Usamos apiFetch en vez de axios
-//       const { res, data } = await apiFetch(
-//         `http://${ipAddress}:8000/api/empresas/${empresaId}/`
-//       );
-
-//       if (res.ok) {
-//         console.log("✅ Empresa data:", data);
-//         setEmpresaData(data);
-//       } else {
-//         console.error(`❌ Error HTTP: ${res.status}`, data);
-//       }
-
-//     } catch (error) {
-//       console.error("Error al traer empresa:", error.message);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   fetchEmpresa();
-// }, []);
-  // Función para obtener los datos de la empresa
-  
-
+  // Datos de empresa con valores por defecto si no hay datos
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
