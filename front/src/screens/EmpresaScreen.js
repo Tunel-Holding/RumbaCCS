@@ -32,6 +32,9 @@ export default function EmpresaScreen() {
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false });
+  const [showRatingsPanel, setShowRatingsPanel] = useState(false);
+  const [ratings, setRatings] = useState([]);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
   const [notifAnim] = useState(new Animated.Value(0));
   const [loading, setLoading] = useState(true);
 
@@ -159,6 +162,7 @@ useEffect(() => {
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento || "Fecha no definida",
+        hora: ev.hora_evento || "Hora no definida",
         ubicacion: ev.ubicacion,
         precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
         categoria: ev.categoria || "Sin categoría",
@@ -179,24 +183,6 @@ useEffect(() => {
 
   fetchEventos();
 }, []);
-
-  // Eventos de ejemplo
-  // const eventos = [
-
-
-
-
-  // //   {
-  // //     id: 5,
-  // //     titulo: 'Noche de Stand Up',
-  // //     fecha: '20 Ene 2026',
-  // //     ubicacion: 'Café Teatro',
-  // //     precio: '$12.000',
-  // //     categoria: 'Show',
-  // //     categoriaColor: '#9333ea',
-  // //     imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-  // //   },
-  //  ];
 
 
 
@@ -346,16 +332,40 @@ useEffect(() => {
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
-          <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
+          
           <View style={styles.accionesRow}>
             {/* Botón de seguir eliminado */}
             <TouchableOpacity
               style={styles.clasificarButton}
               activeOpacity={0.85}
-              onPress={() => console.log('Valoraciones y reseñas')}
+              onPress={async () => {
+                const next = !showRatingsPanel;
+                setShowRatingsPanel(next);
+                if (next && ratings.length === 0) {
+                  try {
+                    setRatingsLoading(true);
+                    const token = await AsyncStorage.getItem('accessToken');
+                    const empresaId = await AsyncStorage.getItem('empresaId');
+                    if (!empresaId) { setRatingsLoading(false); return; }
+                    const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/ratings/`, {
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      setRatings(Array.isArray(data) ? data : (data.results || []));
+                    } else {
+                      console.log('Error ratings', data);
+                    }
+                  } catch(e){
+                    console.log('Error fetch ratings', e.message);
+                  } finally {
+                    setRatingsLoading(false);
+                  }
+                }
+              }}
             >
               <Text style={styles.clasificarStar}>★</Text>
-              <Text style={styles.clasificarText}>Valoraciones y reseñas</Text>
+              <Text style={styles.clasificarText}>{showRatingsPanel ? 'Ver eventos' : 'Valoraciones y reseñas'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -402,70 +412,117 @@ useEffect(() => {
     );
   };
 
-  const renderEventos = () => (
-    <View style={styles.eventosContainer}>
-      <View style={styles.eventosHeader}>
-        <View style={{ flex:1 }}>
-          <Text style={styles.eventosTitle}>Eventos publicados</Text>
-          <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
-        </View>
-        <TouchableOpacity
-          style={styles.agregarButton}
-          onPress={async () => {
-            const empresaId = await AsyncStorage.getItem('empresaId');
-            if (empresaId) {
-              navigation.navigate('Add');
-            } else {
-              console.log('Empresa no encontrada', empresaId);
-              Alert.alert('Error', 'No tienes empresa creada');
-            }
-          }}
-        >
-          <Text style={styles.agregarIcon}>+</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.eventosGrid}>
-        {eventos.length === 0 ? (
-          <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
-        ) : (
-          eventos.map((evento) => (
-            <View key={evento.id} style={styles.eventoCard}>
-              <View style={styles.eventoImageContainer}>
-                <Image 
-                  source={{ uri: evento.imagen }} 
-                  style={styles.eventoImage}
-                  resizeMode="cover"
-                />
-                <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
-                  <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
-                </View>
-              </View>
-              
-              <View style={styles.eventoContent}>
-                <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-                
-                <View style={styles.eventoInfo}>
-                  <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
-                </View>
-                
-                <View style={styles.eventoInfo}>
-                  <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
-                </View>
-                
-                <View style={styles.eventoFooter}>
-                  <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                  <TouchableOpacity style={styles.verDetallesButton}>
-                    <Text style={styles.verDetallesText}>Ver detalles</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
+  const renderEventos = () => {
+    if (showRatingsPanel) {
+      return (
+        <View style={styles.eventosContainer}>
+          <View style={styles.eventosHeader}>
+            <View style={{ flex:1 }}>
+              <Text style={styles.eventosTitle}>Valoraciones y reseñas</Text>
+              {(() => {
+                if (ratingsLoading) {
+                  return <Text style={styles.eventosTotalLinea}>Calculando...</Text>;
+                }
+                if (!ratings.length) {
+                  return <Text style={styles.eventosTotalLinea}>Sin valoraciones</Text>;
+                }
+                const sum = ratings.reduce((acc,r)=> acc + (Number(r.rating || r.valor || 0) || 0), 0);
+                const avg = sum / ratings.length;
+                const full = Math.round(avg * 10) / 10; // 1 decimal
+                const stars = [0,1,2,3,4];
+                return (
+                  <View style={{ flexDirection:'row', alignItems:'center', marginTop:4 }}>
+                    {stars.map(i => (
+                      <Text key={i} style={{ fontSize:22, marginRight:2, color: i < Math.round(avg) ? '#facc15' : '#475569' }}>★</Text>
+                    ))}
+                    <Text style={{ color:'#f1f5f9', marginLeft:8, fontWeight:'600' }}>{full}/5 ({ratings.length})</Text>
+                  </View>
+                );
+              })()}
             </View>
-          ))
-        )}
+          </View>
+          <View style={{ marginTop: 8 }}>
+            {ratingsLoading ? (
+              <ActivityIndicator color="#facc15" size="large" />
+            ) : ratings.length === 0 ? (
+              <Text style={{ color:'#94a3b8', textAlign:'center', marginTop:32 }}>No hay reseñas todavía.</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {ratings.map((r, idx) => {
+                  const filled = Math.max(0, Math.min(5, r.rating || r.valor || 0));
+                  const stars = Array.from({ length: 5 });
+                  return (
+                    <View key={r.id || idx} style={{ backgroundColor:'#1e293b', padding:16, borderRadius:16, marginBottom:14, borderWidth:1, borderColor:'rgba(255,255,255,0.07)' }}>
+                      <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:6 }}>
+                        <Text style={{ color:'#fff', fontWeight:'600' }}>{r.usuario_nombre || r.user_name || 'Usuario'}</Text>
+                        <Text style={{ color:'#facc15', fontWeight:'700' }}>{filled}/5</Text>
+                      </View>
+                      <View style={{ flexDirection:'row', marginBottom:6 }}>
+                        {stars.map((_, i) => (
+                          <Text key={i} style={{ color: i < filled ? '#facc15' : '#475569', fontSize:18 }}>★</Text>
+                        ))}
+                      </View>
+                      {!!r.comentario && <Text style={{ color:'#e2e8f0', lineHeight:20 }}>{r.comentario}</Text>}
+                      {r.created_at && <Text style={{ color:'#64748b', marginTop:6, fontSize:12 }}>{new Date(r.created_at).toLocaleDateString()}</Text>}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.eventosContainer}>
+        <View style={styles.eventosHeader}>
+          <View style={{ flex:1 }}>
+            <Text style={styles.eventosTitle}>Eventos publicados</Text>
+            <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
+          </View>
+          <TouchableOpacity
+            style={styles.agregarButton}
+            onPress={async () => {
+              const empresaId = await AsyncStorage.getItem('empresaId');
+              if (empresaId) {
+                navigation.navigate('Add');
+              } else {
+                console.log('Empresa no encontrada', empresaId);
+                Alert.alert('Error', 'No tienes empresa creada');
+              }
+            }}
+          >
+            <Text style={styles.agregarIcon}>+</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.eventosGrid}>
+          {eventos.length === 0 ? (
+            <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
+          ) : (
+            eventos.map((evento) => (
+              <View key={evento.id} style={styles.eventoCard}>
+                <View style={styles.eventoImageContainer}>
+                  <Image source={{ uri: evento.imagen }} style={styles.eventoImage} resizeMode="cover" />
+                  <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}> 
+                    <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
+                  </View>
+                </View>
+                <View style={styles.eventoContent}>
+                  <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
+                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text></View>
+                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text></View>
+                  <View style={styles.eventoFooter}>
+                    <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                    <TouchableOpacity style={styles.verDetallesButton}><Text style={styles.verDetallesText}>Ver detalles</Text></TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
   
   if (loading) {
   return (

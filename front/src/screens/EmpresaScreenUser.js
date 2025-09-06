@@ -45,25 +45,15 @@ export default function EmpresaScreenUser() {
   const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
   
   useEffect(() => {
+
     const fetchEmpresa = async () => {
       try {
         let empresaId = empresaIdParam;
         let headers = { "Content-Type": "application/json" };
         
-        // Si no hay empresaIdParam, usa la del usuario logueado y token
-        if (!empresaId) {
-          empresaId = await AsyncStorage.getItem("empresaId");
-          const token = await AsyncStorage.getItem("accessToken");
-          if (!empresaId || !token) {
-            console.warn("Falta token o empresaId");
-            setLoading(false);
-            return;
-          }
-          headers.Authorization = `Bearer ${token}`;
-        }
         
         const response = await axios.get(
-          `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
+          `http://${ipAddress}:8000/api/public/empresas/${empresaId}/`,
           { headers }
         );
         setEmpresaData(response.data);
@@ -79,6 +69,43 @@ export default function EmpresaScreenUser() {
     };
     fetchEmpresa();
   }, [empresaIdParam]);
+
+  const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
+  try {
+    const token = await AsyncStorage.getItem('accessToken');
+    if (!token) {
+
+      Alert.alert('No estás logueado', 'Debes iniciar sesión para calificar');
+      navigation.navigate('HomeScreen');
+      return;
+    }
+
+    const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/ratings/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        empresa: empresaId,
+        rating,
+        comentario,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      Alert.alert('Error', data.detail || JSON.stringify(data));
+      return;
+    }
+    // data es la calificación creada/actualizada
+    Alert.alert('Gracias', 'Tu calificación fue enviada');
+    return data;
+  } catch (err) {
+    console.error(err);
+    Alert.alert('Error', 'No se pudo enviar la calificación');
+  }
+};
 
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
@@ -100,7 +127,7 @@ export default function EmpresaScreenUser() {
           return;
         }
 
-        const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`);
+        const res = await fetch(`http://${ipAddress}:8000/api/public/empresas/${empresaId}/eventos/`);
         
         if (!res.ok) {
           throw new Error(`Error HTTP: ${res.status}`);
@@ -114,11 +141,15 @@ export default function EmpresaScreenUser() {
           id: ev.id,
           titulo: ev.titulo,
           fecha: ev.fecha_evento || "Fecha no definida",
+           hora: ev.hora_evento || "Hora no definida",
           ubicacion: ev.ubicacion,
           precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
           categoria: ev.categoria || "Sin categoría",
           categoriaColor: ev.categoriaColor || "#4f46e5",
-          imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+          imagen:
+            ev.imagen && typeof ev.imagen === "string" && ev.imagen.length > 0
+              ? ev.imagen
+              : "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
         }));
         
         console.log("Status:", res.status);
@@ -302,7 +333,10 @@ export default function EmpresaScreenUser() {
             <TouchableOpacity
               style={[styles.ratingSubmitButton, rating === 0 && styles.ratingSubmitButtonDisabled]}
               onPress={() => {
+                
                 if (rating > 0) {
+                  console.log("Empresa id: ", empresaIdParam)
+                  enviarCalificacion({ empresaId: empresaIdParam, rating, comentario: comment });
                   console.log('Calificación enviada:', { rating, comment });
                   Alert.alert('¡Gracias!', 'Tu calificación ha sido enviada.');
                   setModalVisible({ ...modalVisible, rating: false });
@@ -418,41 +452,44 @@ export default function EmpresaScreenUser() {
         {eventos.length === 0 ? (
           <Text style={styles.eventosEmptyText}>Esta empresa no tiene eventos publicados</Text>
         ) : (
-          eventos.map((evento) => (
-            <View key={evento.id} style={styles.eventoCard}>
-              <View style={styles.eventoImageContainer}>
-                <Image 
-                  source={{ uri: evento.imagen }} 
-                  style={styles.eventoImage}
-                  resizeMode="cover"
-                />
-                <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
-                  <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
+              eventos.map((evento) => (
+                <View key={evento.id} style={styles.eventoCard}>
+                  <View style={styles.eventoImageContainer}>
+                    <Image 
+                      source={{ uri: evento.imagen }} 
+                      style={styles.eventoImage}
+                      resizeMode="cover"
+                    />
+                    <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
+                      <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.eventoContent}>
+                    <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
+                    
+                    <View style={styles.eventoInfo}>
+                      <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
+                    </View>
+                    
+                    <View style={styles.eventoInfo}>
+                      <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
+                    </View>
+                    
+                    <View style={styles.eventoFooter}>
+                      <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                        <TouchableOpacity 
+                          style={styles.verDetallesButton}
+                          onPress={() => {
+                            console.log('Navegando a Reservar/Comprar con:', evento.id, empresaIdParam || empresaData?.id);
+                            navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
+                          }}
+                        >
+                          <Text style={styles.verDetallesText}>Reservar</Text>
+                        </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
-              </View>
-              
-              <View style={styles.eventoContent}>
-                <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-                
-                <View style={styles.eventoInfo}>
-                  <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
-                </View>
-                
-                <View style={styles.eventoInfo}>
-                  <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
-                </View>
-                
-                <View style={styles.eventoFooter}>
-                  <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                  <TouchableOpacity 
-                    style={styles.verDetallesButton}
-                    onPress={() => navigation.navigate('Reservar/Comprar', { evento: evento })}
-                  >
-                    <Text style={styles.verDetallesText}>Reservar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
           ))
         )}
       </View>

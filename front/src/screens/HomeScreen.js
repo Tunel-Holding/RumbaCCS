@@ -152,7 +152,8 @@ const handleLogin = async () => {
   useEffect(() => {
     const fetchEventos = async () => {
       try {
-        const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
+        // Endpoint público, no requiere token
+  const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
         if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
         const data = await res.json();
         // Código anterior (presentación simple) que se reemplazó por versión enriquecida:
@@ -331,8 +332,22 @@ const handleLogin = async () => {
           ))}
         </ScrollView>
 
-        {/* Botón para ir a Empresa */}
-  {/* Botón a Empresa removido según solicitud */}
+        {/* Botón para ir a tu panel de Empresa */}
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#0ea5e9',
+            paddingVertical: 12,
+            paddingHorizontal: 18,
+            borderRadius: 10,
+            alignItems: 'center',
+            marginVertical: 16,
+            flexDirection: 'row',
+            justifyContent: 'center'
+          }}
+          onPress={() => navigation.navigate('Empresa')}
+        >
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ir a mi empresa</Text>
+        </TouchableOpacity>
 
         {/* Eventos */}
         <Text style={styles.sectionTitle}>Próximos eventos</Text>
@@ -377,7 +392,7 @@ const handleLogin = async () => {
                 <Text style={styles.eventTitle}>{event.title}</Text>
                 <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
                 <Text style={styles.eventPrice}>{event.price}</Text>
-                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { evento: event })}>
+                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
                   <Text style={styles.reserveText}>Reservar</Text>
                 </TouchableOpacity>
               </View>
