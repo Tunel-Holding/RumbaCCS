@@ -99,7 +99,7 @@ export default function EmpresaScreenUser() {
       return;
     }
     // data es la calificación creada/actualizada
-    Alert.alert('Gracias', 'Tu calificación fue enviada');
+    // Alert.alert('Gracias', 'Tu calificación fue enviada');
     return data;
   } catch (err) {
     console.error(err);
