@@ -16,7 +16,9 @@ import {
   Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import axios from 'axios';
+import api from '../services/api'; 
+
+
 // Footer links (copiados de HomeScreen.js)
 const footerLinks = [
   { title: 'Reservas' },
@@ -89,7 +91,7 @@ export default function BuyScreen() {
   const [loading, setLoading] = useState(true);
   const [isLogged, setIsLogged] = useState(false);
 
-const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+
 
   // Recibe los parámetros de navegación
   const { idEvento, idEmpresa } = route.params ?? {};
@@ -148,48 +150,41 @@ const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
   // Obtener datos del evento seleccionado
   useEffect(() => {
-    const fetchEvento = async () => {
-      if (!idEvento) {
-        console.log('idEvento es undefined, no se hace fetch');
-        return;
-      }
-
-      try {
-        const response = await fetch(
-          `http://${ipAddress}:8000/api/eventos-publicos/${idEvento}/`
-        );
-        if (!response.ok) {
-          throw new Error(response.statusText);
-        }
-        const ev = await response.json();
-        console.log('Evento recibido:', ev);
-        setEvento(ev);
-      } catch (error) {
-        console.error('Error al obtener evento:', error);
-        setEvento(null);
-      }
-    };
-
-    fetchEvento();
-  }, [idEvento]);
-
-  useEffect(() => {
-  // si no hay idEmpresa, salimos
-    if (!idEmpresa) {
-      console.warn('🟡 idEmpresa está undefined, skip fetchEmpresa');
-      setLoading(false);
+  const fetchEvento = async () => {
+    if (!idEvento) {
+      console.log('idEvento es undefined, no se hace fetch');
       return;
     }
+
+    try {
+      const res = await api.get(`/api/eventos-publicos/${idEvento}/`);
+      console.log('Evento recibido:', res.data);
+      setEvento(res.data);
+    } catch (error) {
+      if (error.response) {
+        console.error('❌ Error HTTP:', error.response.status, error.response.data);
+      } else {
+        console.error('❌ Error:', error.message);
+      }
+      setEvento(null);
+    }
+  };
+
+  fetchEvento();
+}, [idEvento]);
+
+  useEffect(() => {
+  if (!idEmpresa) {
+    console.warn('🟡 idEmpresa está undefined, skip fetchEmpresa');
+    setLoading(false);
+    return;
+  }
 
   const fetchEmpresa = async () => {
     try {
       console.log('🔎 Fetching empresa con ID:', idEmpresa);
-
-      const response = await axios.get(
-        `http://${ipAddress}:8000/api/public/empresas/${idEmpresa}/`,
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-      setEmpresaData(response.data);
+      const res = await api.get(`/api/public/empresas/${idEmpresa}/`);
+      setEmpresaData(res.data);
     } catch (error) {
       if (error.response) {
         console.error('❌ Error HTTP:', error.response.status, error.response.data);
@@ -202,9 +197,7 @@ const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
   };
 
   fetchEmpresa();
-}, [idEmpresa]);  // ← aquí va idEmpresa, no empresaIdParam
-
-
+}, [idEmpresa]); // ← aquí va idEmpresa, no empresaIdParam
 
   const eventDetails = useMemo(
     () => ({
@@ -224,24 +217,26 @@ const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
   );
 
   // Función para reservar
-  const handleReserve = () => {
-    if (!idEvento || !idEmpresa) return;
-    fetch(`http://${ipAddress}:8000/api/empresa_evento/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ evento: idEvento, empresa: idEmpresa }),
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.id) {
-          alert('Reserva realizada correctamente');
-        } else {
-          alert('Error al reservar: ' + JSON.stringify(data));
-        }
-      })
-      .catch((err) => alert('Error al reservar: ' + err));
-  };
+  const handleReserve = async () => {
+  if (!idEvento || !idEmpresa) return;
 
+  try {
+    const res = await api.post('/api/empresa_evento/', {
+      evento: idEvento,
+      empresa: idEmpresa,
+    });
+
+    if (res.data.id) {
+      alert('Reserva realizada correctamente');
+    } else {
+      alert('Error al reservar: ' + JSON.stringify(res.data));
+    }
+  } catch (err) {
+    console.error('❌ Error al reservar:', err.message);
+    alert('Error al reservar: ' + err.message);
+  }
+};
+  
   const [relatedIndex, setRelatedIndex] = useState(0);
   // ...existing code...
 

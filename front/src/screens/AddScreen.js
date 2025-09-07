@@ -23,6 +23,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Calendar } from 'react-native-calendars';
 import { useSafeMargins, getDeviceType, hasNotch } from '../utils/safeAreaUtils';
 import { getResponsiveStyles, getBottomSafeAreaHeight, getTopSafeAreaHeight } from '../utils/deviceConfig';
+import api from '../services/api'; // Ajusta el path según tu estructura
+
 
 export default function AddScreen() {
   const navigation = useNavigation();
@@ -61,25 +63,22 @@ export default function AddScreen() {
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [calendarLoading, setCalendarLoading] = useState(false);
+  
+   
 
-    useEffect(() => {
+useEffect(() => {
+  const fetchMiEmpresa = async () => {
+    try {
+      const res = await api.get('/api/empresa/');
+      setEmpresaId(res.data.id);
+    } catch (err) {
+      console.error('Error al obtener empresa:', err.message);
+    }
+  };
 
-      const fetchMiEmpresa = async () => {
-
-        const token = await AsyncStorage.getItem('accessToken');
-        const res   = await fetch(`https://${ipAddress}/api/empresa/`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setEmpresaId(data.id);
-        }
-      };
-      fetchMiEmpresa();
-    }, []);
-
-  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
-
+      
+  fetchMiEmpresa();
+}, []);
   // Opciones predefinidas
   const categorias = [
     'Concierto', 'Feria', 'Festival', 'Exposición', 'Conferencia', 

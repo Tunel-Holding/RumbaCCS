@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, Anim
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from '../services/api'; // ✅ Tu instancia centralizada
 
 
 export default function FormularioScreen({ navigation, route }) {
@@ -36,7 +37,7 @@ export default function FormularioScreen({ navigation, route }) {
   const pinRefs = useRef([]);
   const PIN_LENGTH = 6;
 
-  const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
+
   
   // Simulación de PIN correcto (cambiar por valor de backend cuando esté listo)
   const PIN_CORRECTO_SIMULADO = '123456';
@@ -165,88 +166,52 @@ const handleEnviar = async () => {
         password: "00000000",
       };
 
-      const res = await fetch(`http://${ipAddress}:8000/api/registro-empresa/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(empresaData),
-      });
+      const res = await api.post('/api/registro-empresa/', empresaData);
+const data = res.data;
 
-      // ✅ CAMBIO: Manejo seguro de la respuesta (puede no tener JSON válido)
-      // 🟢 CAMBIO: verificar si la respuesta es JSON o no
-      let data;
-      try {
-        data = await res.json();
-      } catch (err) {
-        console.error("Respuesta no es JSON:", err);
-        data = null;
-      }
+if (!res.status || res.status >= 400) {
+  Alert.alert("Error", JSON.stringify(data));
+  setCargando(false);
+  return;
+}
 
-      if (!res.ok) {
-        Alert.alert("Error", JSON.stringify(data));
-        setCargando(false);
-        return;
-      }
-
-      // 🟢 CAMBIO: log para confirmar éxito
-      console.log("Empresa registrada:", data);
-
-
-      // ✅ CAMBIO: si llega aquí, la empresa se registró
-      setCargando(false);
-      setVerificado(false);
-      setCorreo(empresaData.email); 
-      setMostrarPin(true);
-
+console.log("Empresa registrada:", data);
+setCargando(false);
+setVerificado(false);
+setCorreo(empresaData.email);
+setMostrarPin(true);
 
     } else {
       console.log("Token recuperado:", token);
       // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada
-      const rifFormateado = /^\d{9}$/.test(rif)
-        ? `J-${rif.slice(0, 8)}-${rif.slice(8)}`
-        : rif;
+      const res = await api.post('/api/empresas/', {
+  rif: rifFormateado,
+  lugar,
+  telefono,
+  nombre,
+  descripcion: descripcion || "",
+  email_contacto: correo,
+  redes_sociales: redes || "",
+  email: correo,
+  password: "00000000",
+});
 
-      const res = await fetch(`http://${ipAddress}:8000/api/empresas/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          rif: rifFormateado,
-          lugar,
-          telefono,
-          nombre,
-          descripcion: descripcion || "",
-          email_contacto: correo,
-          redes_sociales: redes || "",
-          email: correo,
-          password: "00000000",
-        }),
-      });
+const data = res.data;
 
-      // ✅ CAMBIO: Manejo seguro de la respuesta
-      let data = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = {};
-      }
+if (!res.status || res.status >= 400) {
+  console.error("Error backend:", data);
+  Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
+  setCargando(false);
+  return;
+}
 
-      if (!res.ok) {
-        console.error("Error backend:", data);
-        Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
-        setCargando(false);
-        return;
-      }
+if (data.id) {
+  await AsyncStorage.setItem("empresaId", data.id.toString());
+}
 
-      if (data.id) {
-        await AsyncStorage.setItem("empresaId", data.id.toString());
-      }
-
-      console.log("Empresa creada:", data);
-      navigation.navigate("Empresa", { empresaId: data.id });
-
-      setCargando(false);
+console.log("Empresa creada:", data);
+navigation.navigate("Empresa", { empresaId: data.id });
+setCargando(false);
     }
   } catch (error) {
     // 🟢 CAMBIO: mostrar error real en consola
@@ -271,69 +236,56 @@ const handleValidarPin = async () => {
 }
   try {
     setCargando(true);
-    const res = await fetch(`http://${ipAddress}:8000/api/validar-pin-empresa/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: correo,
-        pin: pinIngresado,
-        password: "00000000",
-        empresa: {
-          nombre,
-          rif,
-          lugar,
-          telefono,
-          email_contacto: correo,
-          redes_sociales: redes || "",
-          descripcion,
-        }
-      })
-    });
+    const res = await api.post('/api/validar-pin-empresa/', {
+  email: correo,
+  pin: pinIngresado,
+  password: "00000000",
+  empresa: {
+    nombre,
+    rif,
+    lugar,
+    telefono,
+    email_contacto: correo,
+    redes_sociales: redes || "",
+    descripcion,
+  }
+});
 
-    let data = {};
-    try {
-      data = await res.json();
-    } catch (err) {
-      data = {};
-    }
+const data = res.data;
 
+if (!res.status || res.status >= 400) {
+  Alert.alert("Error", data?.detail || "No se pudo validar el pin");
+  setCargando(false);
+  return;
+}
 
-    if (!res.ok) {
-      Alert.alert("Error", data?.detail || "No se pudo validar el pin");
-      setCargando(false);
-      return;
-    }
-    console.log("PIN validado y empresa creada:", data);
+console.log("PIN validado y empresa creada:", data);
 
-    if (data.empresa.id) {
-          await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
-          if (data.usuario_id) {
-            await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
-          }
-      }
-      else {
-        Alert.alert("Error", "No se pudo obtener el ID de la empresa");
-        setCargando(false);
-        return;
-      }
+if (data.empresa.id) {
+  await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
+  if (data.usuario_id) {
+    await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
+  }
+} else {
+  Alert.alert("Error", "No se pudo obtener el ID de la empresa");
+  setCargando(false);
+  return;
+}
 
-      
-      console.log("Tokens recibidos:", data.access, data.refresh);
+await AsyncStorage.setItem('accessToken', data.access);
+await AsyncStorage.setItem('refreshToken', data.refresh);
+await AsyncStorage.setItem('empresa', JSON.stringify(data));
+if (data.usuario_id) {
+  await AsyncStorage.setItem('usuarioId', data.usuario_id.toString());
+}
 
-      // Guardar tokens y datos de empresa y usuario en AsyncStorage
-      await AsyncStorage.setItem('accessToken', data.access);
-      await AsyncStorage.setItem('refreshToken', data.refresh);
-      await AsyncStorage.setItem('empresa', JSON.stringify(data));
-      if (data.usuario_id) {
-        await AsyncStorage.setItem('usuarioId', data.usuario_id.toString());
-      }
-      Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
-      setCargando(false);
-      // Redirigir automáticamente a la pantalla principal con sesión iniciada y usuarioId
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
-      });
+Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
+setCargando(false);
+navigation.reset({
+  index: 0,
+  routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
+});
+    
   } catch (error) {
     setCargando(false);
     Alert.alert("Error", "No se pudo conectar con el servidor");
@@ -355,20 +307,17 @@ const handleValidarPin = async () => {
               <TouchableOpacity onPress={async () => {
                 setPinResendAvailable(false);
                 try {
-                  const response = await fetch(`http://${ipAddress}:8000/api/reenviar-pin-empresa/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: correo })
-                  });
-                  const result = await response.json();
-                  if (response.ok) {
-                    Alert.alert('PIN enviado', result.detail || 'Se ha enviado un nuevo PIN a tu correo.');
-                  } else {
+                const res = await api.post('/api/reenviar-pin-empresa/', { email: correo });
+                const result = res.data;
+
+                 if (res.status < 400) {
+                   Alert.alert('PIN enviado', result.detail || 'Se ha enviado un nuevo PIN a tu correo.');
+                   } else {
                     Alert.alert('Error', result.detail || 'No se pudo reenviar el PIN.');
-                  }
-                } catch (err) {
-                  Alert.alert('Error', err.message || 'No se pudo reenviar el PIN.');
-                }
+                    }
+                   } catch (err) {
+                    Alert.alert('Error', err.message || 'No se pudo reenviar el PIN.');
+                   }
                 const t2 = setTimeout(() => setPinResendAvailable(true), 60000);
               }}>
                 <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el pin? Presione aquí.</Text>

@@ -7,12 +7,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/api';
 
 const { width } = Dimensions.get('window');
 
-const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
-const API_URL = `http://${ipAddress}:8000/api`;
+
+
+
+
+
 
 // helpers/opcional: extrae el primer mensaje legible
 const getFirstMessage = (err) => {
@@ -28,33 +32,17 @@ const getFirstMessage = (err) => {
 };
 
 // función de registro (no guarda tokens todavía)
+// función de registro (no guarda tokens todavía)
 export const registerUser = async (formData) => {
   try {
-    const response = await fetch(`${API_URL}/register/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    });
-
-    const isJson = response.headers
-      ?.get('content-type')
-      ?.includes('application/json');
-
-    const payload = isJson ? await response.json() : null;
-
-    if (!response.ok) {
-      const errorData = payload || { detail: 'Error en el registro' };
-      const err = new Error(getFirstMessage(errorData));
-      err.fields = errorData;
-      err.status = response.status;
-      throw err;
-    }
-
-    const data = payload; // respuesta del backend (solo mensaje/envío de código)
-    // No guardar access, refresh ni user aquí
-    return data;
+    const res = await api.post('/api/register/', formData);
+    return res.data; // respuesta del backend (solo mensaje/envío de código)
   } catch (error) {
-    throw error;
+    const errData = error.response?.data || { detail: 'Error en el registro' };
+    const err = new Error(getFirstMessage(errData));
+    err.fields = errData;
+    err.status = error.response?.status;
+    throw err;
   }
 };
 
