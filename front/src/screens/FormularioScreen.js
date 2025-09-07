@@ -167,22 +167,27 @@ const handleEnviar = async () => {
       };
 
       const res = await api.post('/api/registro-empresa/', empresaData);
-const data = res.data;
+      const data = res.data;
 
-if (!res.status || res.status >= 400) {
-  Alert.alert("Error", JSON.stringify(data));
-  setCargando(false);
-  return;
-}
+      if (!res.status || res.status >= 400) {
+        Alert.alert("Error", JSON.stringify(data));
+        setCargando(false);
+        return;
+      }
 
-console.log("Empresa registrada:", data);
-setCargando(false);
-setVerificado(false);
-setCorreo(empresaData.email);
-setMostrarPin(true);
+      console.log("Empresa registrada:", data);
+      setCargando(false);
+      setVerificado(false);
+      setCorreo(empresaData.email);
+      setMostrarPin(true);
 
     } else {
       console.log("Token recuperado:", token);
+
+      const rifFormateado = /^\d{9}$/.test(rif)
+        ? `J-${rif.slice(0, 8)}-${rif.slice(8)}`
+        : rif;
+        
       // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada
       const res = await api.post('/api/empresas/', {
   rif: rifFormateado,

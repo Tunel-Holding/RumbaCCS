@@ -36,6 +36,7 @@ export default function HomeScreen() {
   //Funcion de logout
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
+    await AsyncStorage.removeItem('refreshToken');
     await AsyncStorage.removeItem('userEmail');
     await AsyncStorage.removeItem('userName');
     await AsyncStorage.removeItem('empresaId');
@@ -45,6 +46,65 @@ export default function HomeScreen() {
   };
 
  // Función del login
+// const handleLogin = async () => {
+//   if (!user.trim() || !pass.trim()) {
+//     Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+//     return;
+//   }
+
+//   try {
+//     // 🔹 Login como usuario
+//     let res = await api.post('/api/login/', {
+//       email: user,
+//       password: pass,
+//     });
+
+//     if (res.status < 400) {
+//       const data = res.data;
+//       console.log("Respuesta login USER:", data);
+
+//       await AsyncStorage.setItem('accessToken', data.access);
+//       await AsyncStorage.setItem('refreshToken', data.refresh);
+//       await AsyncStorage.setItem('userEmail', user);
+//       await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || "");
+//       await AsyncStorage.setItem('userName', data.user?.username || user);
+
+//       setIsLogged(true);
+//       setLoginVisible(false);
+//       Alert.alert('Login correcto', 'Has ingresado como usuario');
+//       navigation.navigate('HomeScreen');
+//       return;
+//     }
+
+//     // 🔹 Login como empresa
+//     res = await api.post('/api/empresa/login/', {
+//       email: user,
+//       password: pass,
+//     });
+
+//     if (res.status < 400) {
+//       const data = res.data;
+//       console.log("Respuesta login EMPRESA:", data);
+
+//       await AsyncStorage.setItem('accessToken', data.token || data.access);
+//       await AsyncStorage.setItem('refreshToken', data.refresh);
+//       await AsyncStorage.setItem('empresaId', data.empresa?.id?.toString() || "");
+//       await AsyncStorage.setItem('userEmail', user);
+
+//       setIsLogged(true);
+//       setLoginVisible(false);
+//       Alert.alert('Login correcto', 'Has ingresado como empresa');
+//       navigation.navigate('HomeScreen');
+//       return;
+//     }
+
+//     Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+//   } catch (error) {
+//     console.error("Error en login:", error);
+//     Alert.alert('Error', 'No se pudo conectar con el servidor');
+//   }
+// };
+
 const handleLogin = async () => {
   if (!user.trim() || !pass.trim()) {
     Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
@@ -52,57 +112,64 @@ const handleLogin = async () => {
   }
 
   try {
-    // 🔹 Login como usuario
-    let res = await api.post('/api/login/', {
-      email: user,
-      password: pass,
-    });
+    // 🔹 Intento de login como usuario
+    const resUser = await api.post('/api/login/', { email: user, password: pass });
+    const data = resUser.data;
 
-    if (res.status < 400) {
-      const data = res.data;
-      console.log("Respuesta login USER:", data);
+    console.log("Login como usuario:", data);
 
-     await AsyncStorage.setItem('accessToken', data.access);
-      await AsyncStorage.setItem('refreshToken', data.refresh);
-      await AsyncStorage.setItem('userEmail', user);
-      await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || "");
-      await AsyncStorage.setItem('userName', data.user?.username || user);
+    await AsyncStorage.setItem('accessToken', data.access);
+    await AsyncStorage.setItem('refreshToken', data.refresh);
+    await AsyncStorage.setItem('userEmail', user);
+    await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || "");
+    await AsyncStorage.setItem('userName', data.user?.username || user);
+    await AsyncStorage.setItem('userKind', 'usuario');
 
-      setIsLogged(true);
-      setLoginVisible(false);
-      Alert.alert('Login correcto', 'Has ingresado como usuario');
-      navigation.navigate('HomeScreen');
+    setIsLogged(true);
+    setLoginVisible(false);
+    Alert.alert('Login correcto', 'Has ingresado como usuario');
+    navigation.navigate('HomeScreen');
+    return;
+
+  } catch (errorUser) {
+    const status = errorUser.response?.status;
+    const msg = errorUser.response?.data?.detail || errorUser.message;
+
+    console.warn("Login usuario falló:", msg);
+
+    if (status !== 401) {
+      Alert.alert('Error inesperado', msg);
       return;
     }
 
-    // 🔹 Login como empresa
-    res = await api.post('/api/empresa/login/', {
-      email: user,
-      password: pass,
-    });
+    // 🔁 Fallback: intento login como empresa
+    try {
+      const resEmpresa = await api.post('/api/empresa/login/', { email: user, password: pass });
+      const data = resEmpresa.data;
 
-    if (res.status < 400) {
-      const data = res.data;
-      console.log("Respuesta login EMPRESA:", data);
+      console.log("Login como empresa:", data);
 
       await AsyncStorage.setItem('accessToken', data.token || data.access);
       await AsyncStorage.setItem('refreshToken', data.refresh);
       await AsyncStorage.setItem('empresaId', data.empresa?.id?.toString() || "");
       await AsyncStorage.setItem('userEmail', user);
+      await AsyncStorage.setItem('userKind', 'empresa');
 
       setIsLogged(true);
       setLoginVisible(false);
       Alert.alert('Login correcto', 'Has ingresado como empresa');
       navigation.navigate('HomeScreen');
       return;
-    }
 
-    Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
-  } catch (error) {
-    console.error("Error en login:", error);
-    Alert.alert('Error', 'No se pudo conectar con el servidor');
+    } catch (errorEmpresa) {
+      const msgEmpresa = errorEmpresa.response?.data?.detail || errorEmpresa.message;
+      console.warn("Login empresa falló:", msgEmpresa);
+      Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+    }
   }
 };
+
+
 
 
   const [events, setEventos] = useState([]);

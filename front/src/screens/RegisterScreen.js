@@ -178,17 +178,15 @@ export default function RegisterScreen({ navigation, route }) {
                 setPinResendAvailable(false);
                 setPinDigits(['','','','','','']);
                 try {
-                  let endpoint = `${API_URL}/reenviar-pin-empresa/`;
-                  if (accountType !== 'empresa') {
-                    endpoint = `${API_URL}/send-verification-code/`;
-                  }
-                  const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
-                  });
-                  const result = await response.json();
-                  if (response.ok) {
+                  const endpoint =
+                      accountType === 'empresa'
+                        ? '/reenviar-pin-empresa/'
+                        : '/send-verification-code/';
+
+                  const res = await api.post(endpoint, { email });
+                  const result = res.data;
+                  
+                  if (res.status === 200) {
                     Alert.alert('PIN enviado', result.detail || result.message || 'Se ha enviado un nuevo PIN a tu correo.');
                   } else {
                     Alert.alert('Error', result.detail || result.message || 'No se pudo reenviar el PIN.');
@@ -249,24 +247,18 @@ export default function RegisterScreen({ navigation, route }) {
                   // Verifica el PIN con el backend
                   const pendingUser = await AsyncStorage.getItem('pending_user');
                   const userData = JSON.parse(pendingUser);
-                  const response = await fetch(`${API_URL}/verify-code/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: userData.email, code: pinIngresado })
-                  });
-                  const result = await response.json();
-                  if (!response.ok) {
+                  const response = await api.post(`/api/verify-code/`, { email: userData.email, code: pinIngresado });
+                  const result = response.data;
+                  if (response.status !== 200) {
                     Alert.alert('PIN incorrecto', result.error || 'El PIN ingresado no es válido.');
                     return;
                   }
                   // Si el PIN es correcto, ahora crea el usuario realmente
-                  const createResponse = await fetch(`${API_URL}/finalize-register/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(userData)
-                  });
-                  const createResult = await createResponse.json();
-                  if (!createResponse.ok) {
+                  const createResponse = await api.post(`/api/finalize-register/`, userData);
+
+                  const createResult = createResponse.data;
+
+                  if (createResponse.status < 200 || createResponse.status >= 300) {
                     Alert.alert('Error', createResult.error || 'No se pudo crear el usuario.');
                     return;
                   }

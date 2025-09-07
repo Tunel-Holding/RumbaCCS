@@ -25,7 +25,9 @@ from rest_framework.permissions import BasePermission, AllowAny
 from .models import Empresa, Evento2, Rating
 from .auth_backend import EmpresaOrUsuarioJWTAuthentication
 from .permissions import IsEmpresaOrUsuarioAuthenticated, IsUsuarioOrReadOnly
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import RetrieveAPIView, ListAPIView
+from .exceptions import * 
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
@@ -246,15 +248,23 @@ def empresa_detail(request, pk):
 # -----------------------------
 @api_view(['GET'])
 def mi_empresa(request):
-    try:
-        empresa = request.user.empresa  # OneToOneField garantiza máximo una empresa
-    except Empresa.DoesNotExist:
-        return Response({"empresa_id": None}, status=200)
+    user = request.user
+
+    # Caso 1: el usuario autenticado ES una Empresa
+    if isinstance(user, Empresa):
+        empresa = user
+    else:
+        # Caso 2: el usuario es un Usuario con OneToOne hacia Empresa
+        try:
+            empresa = user.empresa
+        except (AttributeError, Empresa.DoesNotExist):
+            return Response({"empresa_id": None}, status=200)
 
     serializer = EmpresaSerializer(empresa, context={'request': request})
     data = serializer.data
     data['empresa_id'] = empresa.id
     return Response(data, status=200)
+
 
 class EventoViewSet(viewsets.ModelViewSet):
     serializer_class = EventoSerializer
@@ -410,11 +420,11 @@ class EmpresaRatingsListCreateView(generics.ListCreateAPIView):
         # si estamos en el caso que request.user es AuthEntity("usuario", Usuario) o instancia Usuario:
         if kind == 'empresa' or getattr(user, 'is_empresa', False):
             # no permitimos que una empresa califique
-            raise PermissionError("Solo usuarios pueden calificar a empresas.")
+            raise SoloUsuariosPuedenCalificar()
 
         # No permitir que el dueño/admin de la empresa (si es un Usuario ligado) se califique a sí mismo
         if hasattr(user, 'empresa') and user.empresa and user.empresa.id == empresa.id:
-            raise PermissionError("No puedes calificar tu propia empresa.")
+            raise NoPuedesCalificarTuEmpresa()
 
         # Si ya existe rating del usuario para esa empresa -> actualizar
         rating_obj, created = Rating.objects.update_or_create(

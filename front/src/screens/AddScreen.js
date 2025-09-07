@@ -66,19 +66,21 @@ export default function AddScreen() {
   
    
 
-useEffect(() => {
-  const fetchMiEmpresa = async () => {
-    try {
-      const res = await api.get('/api/empresa/');
-      setEmpresaId(res.data.id);
-    } catch (err) {
-      console.error('Error al obtener empresa:', err.message);
-    }
-  };
+// useEffect(() => {
+//   const fetchMiEmpresa = async () => {
+//     try {
+//       const res = await api.get('/api/mi-empresa/');
+//       setEmpresaId(res.data.id);
+//     } catch (err) {
+//       console.error('Error al obtener empresa:', err.response?.data || err.message);
+//     }
+//   };
 
-      
-  fetchMiEmpresa();
-}, []);
+//   fetchMiEmpresa();
+// }, []);
+
+
+
   // Opciones predefinidas
   const categorias = [
     'Concierto', 'Feria', 'Festival', 'Exposición', 'Conferencia', 
@@ -215,25 +217,18 @@ useEffect(() => {
   console.log('payload:', payload);
 
   const token    = await AsyncStorage.getItem('accessToken');
-  const endpoint = `http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`;
+  const endpoint = `/api/empresas/${empresaId}/eventos/`;
 
   try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    const res = await api.post(endpoint, payload);
 
-    if (!res.ok) {
-      const err = await res.json();
+    if (res.status < 200 || res.status >= 300) {
+      const err = await res.data;
       Alert.alert('Error al crear evento', JSON.stringify(err));
       return;
     }
 
-    const newEvent = await res.json();
+    const newEvent = await res.data;
     Alert.alert('Éxito', 'Evento agregado correctamente', [
       { text: 'OK', onPress: () => navigation.navigate("Empresa") }
     ]);

@@ -1,27 +1,4 @@
-/*import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  Dimensions,
-  Animated,
-  Modal,
-  SafeAreaView,
-  ActivityIndicator,
-  StatusBar,
-  Alert,
-  Linking,
-  TextInput,
-} from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import PersonIcon from '../components/PersonIcon';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRoute } from '@react-navigation/native';*/
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image, StyleSheet,
@@ -88,11 +65,11 @@ const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
       rating,
       comentario,
     });
-
+    console.log("Respuesta de calificación:", res.data);
     return res.data;
-  } catch (err) {
-    console.error(err);
-    Alert.alert('Error', 'No se pudo enviar la calificación');
+  } catch (e) {
+    const msg = e.response?.data?.detail || e.message;
+  Alert.alert('Error', msg);
   }
 };
 
@@ -133,9 +110,6 @@ useEffect(() => {
             ? ev.imagen
             : "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
       }));
-
-      console.log("Status:", res.status);
-      console.log("Fechas:", eventosTransformados.map(ev => ev.fecha));
 
       setEventos(eventosTransformados);
     } catch (error) {
@@ -323,9 +297,10 @@ useEffect(() => {
                 
                 if (rating > 0) {
                   console.log("Empresa id: ", empresaIdParam)
-                  enviarCalificacion({ empresaId: empresaIdParam, rating, comentario: comment });
-                  console.log('Calificación enviada:', { rating, comment });
+                  const valor = enviarCalificacion({ empresaId: empresaIdParam, rating, comentario: comment });
+                  
                   Alert.alert('¡Gracias!', 'Tu calificación ha sido enviada.');
+                  
                   setModalVisible({ ...modalVisible, rating: false });
                   setRating(0);
                   setComment('');

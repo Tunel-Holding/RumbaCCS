@@ -3,7 +3,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const LOCAL_IP = '192.168.0.103'; // ← Cámbiala por tu IP real
+const LOCAL_IP = '192.168.1.101'; // ← Cámbiala por tu IP real
 const PORT = '8000';
 const baseURL = `http://${LOCAL_IP}:${PORT}`;
 
@@ -58,6 +58,13 @@ api.interceptors.response.use(
 
       try {
         const refreshToken = await AsyncStorage.getItem('refreshToken');
+
+        if (!refreshToken) {
+        await AsyncStorage.removeItem('accessToken');
+        await AsyncStorage.removeItem('refreshToken');
+        // aquí puedes redirigir al login
+        return Promise.reject(error);
+}
         const refreshRes = await axios.post(`${baseURL}/api/token/refresh/`, {
           refresh: refreshToken,
         });
@@ -68,6 +75,9 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (err) {
+        
+        await AsyncStorage.removeItem('accessToken');
+        await AsyncStorage.removeItem('refreshToken');
         processQueue(err, null);
         return Promise.reject(err);
       } finally {

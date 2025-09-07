@@ -281,14 +281,14 @@ useEffect(() => {
                 if (next && ratings.length === 0) {
                   try {
                     setRatingsLoading(true);
-                    const token = await AsyncStorage.getItem('accessToken');
+
                     const empresaId = await AsyncStorage.getItem('empresaId');
                     if (!empresaId) { setRatingsLoading(false); return; }
-                    const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/ratings/`, {
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-                    });
-                    const data = await res.json();
-                    if (res.ok) {
+
+                    const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
+
+                    const data = await res.data;
+                    if (res.status >= 200 && res.status < 300) {
                       setRatings(Array.isArray(data) ? data : (data.results || []));
                     } else {
                       console.log('Error ratings', data);
@@ -434,7 +434,8 @@ useEffect(() => {
         </View>
         <View style={styles.eventosGrid}>
           {eventos.length === 0 ? (
-            <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
+        
+        <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
           ) : (
             eventos.map((evento) => (
               <View key={evento.id} style={styles.eventoCard}>
