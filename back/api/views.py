@@ -109,6 +109,8 @@ class FinalizeRegisterView(APIView):
         data = request.data
         email = data.get('email')
         code = data.get('code')
+        
+        
         # Verifica que el correo esté verificado
         try:
             verification = EmailVerification.objects.get(email=email, is_verified=True)
@@ -136,4 +138,4 @@ class FinalizeRegisterView(APIView):
             },
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-        }, status=status.HTTP_201_CREATED)
+        }, status=status.HTTP_201_CREATED,)

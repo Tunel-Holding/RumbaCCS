@@ -180,8 +180,8 @@ export default function RegisterScreen({ navigation, route }) {
                 try {
                   const endpoint =
                       accountType === 'empresa'
-                        ? '/reenviar-pin-empresa/'
-                        : '/send-verification-code/';
+                        ? 'api/reenviar-pin-empresa/'
+                        : 'api/send-verification-code/';
 
                   const res = await api.post(endpoint, { email });
                   const result = res.data;
