@@ -7,12 +7,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/api';
 
 const { width } = Dimensions.get('window');
 
-const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
-const API_URL = `http://${ipAddress}:8000/api`;
+
+
+
+
+
 
 // helpers/opcional: extrae el primer mensaje legible
 const getFirstMessage = (err) => {
@@ -28,33 +32,17 @@ const getFirstMessage = (err) => {
 };
 
 // función de registro (no guarda tokens todavía)
+// función de registro (no guarda tokens todavía)
 export const registerUser = async (formData) => {
   try {
-    const response = await fetch(`${API_URL}/register/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData),
-    });
-
-    const isJson = response.headers
-      ?.get('content-type')
-      ?.includes('application/json');
-
-    const payload = isJson ? await response.json() : null;
-
-    if (!response.ok) {
-      const errorData = payload || { detail: 'Error en el registro' };
-      const err = new Error(getFirstMessage(errorData));
-      err.fields = errorData;
-      err.status = response.status;
-      throw err;
-    }
-
-    const data = payload; // respuesta del backend (solo mensaje/envío de código)
-    // No guardar access, refresh ni user aquí
-    return data;
+    const res = await api.post('/api/register/', formData);
+    return res.data; // respuesta del backend (solo mensaje/envío de código)
   } catch (error) {
-    throw error;
+    const errData = error.response?.data || { detail: 'Error en el registro' };
+    const err = new Error(getFirstMessage(errData));
+    err.fields = errData;
+    err.status = error.response?.status;
+    throw err;
   }
 };
 
@@ -190,17 +178,15 @@ export default function RegisterScreen({ navigation, route }) {
                 setPinResendAvailable(false);
                 setPinDigits(['','','','','','']);
                 try {
-                  let endpoint = `${API_URL}/reenviar-pin-empresa/`;
-                  if (accountType !== 'empresa') {
-                    endpoint = `${API_URL}/send-verification-code/`;
-                  }
-                  const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
-                  });
-                  const result = await response.json();
-                  if (response.ok) {
+                  const endpoint =
+                      accountType === 'empresa'
+                        ? '/reenviar-pin-empresa/'
+                        : '/send-verification-code/';
+
+                  const res = await api.post(endpoint, { email });
+                  const result = res.data;
+                  
+                  if (res.status === 200) {
                     Alert.alert('PIN enviado', result.detail || result.message || 'Se ha enviado un nuevo PIN a tu correo.');
                   } else {
                     Alert.alert('Error', result.detail || result.message || 'No se pudo reenviar el PIN.');
@@ -261,24 +247,18 @@ export default function RegisterScreen({ navigation, route }) {
                   // Verifica el PIN con el backend
                   const pendingUser = await AsyncStorage.getItem('pending_user');
                   const userData = JSON.parse(pendingUser);
-                  const response = await fetch(`${API_URL}/verify-code/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: userData.email, code: pinIngresado })
-                  });
-                  const result = await response.json();
-                  if (!response.ok) {
+                  const response = await api.post(`/api/verify-code/`, { email: userData.email, code: pinIngresado });
+                  const result = response.data;
+                  if (response.status !== 200) {
                     Alert.alert('PIN incorrecto', result.error || 'El PIN ingresado no es válido.');
                     return;
                   }
                   // Si el PIN es correcto, ahora crea el usuario realmente
-                  const createResponse = await fetch(`${API_URL}/finalize-register/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(userData)
-                  });
-                  const createResult = await createResponse.json();
-                  if (!createResponse.ok) {
+                  const createResponse = await api.post(`/api/finalize-register/`, userData);
+
+                  const createResult = createResponse.data;
+
+                  if (createResponse.status < 200 || createResponse.status >= 300) {
                     Alert.alert('Error', createResult.error || 'No se pudo crear el usuario.');
                     return;
                   }

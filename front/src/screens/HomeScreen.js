@@ -4,6 +4,7 @@ import { Animated } from 'react-native';
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, StatusBar,ActivityIndicator, Platform } from 'react-native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/api'; // Asegúrate de que la ruta sea correcta
 
 const { width } = Dimensions.get('window');
 
@@ -19,7 +20,7 @@ export default function HomeScreen() {
   const [isLogged, setIsLogged] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+
 
   useEffect(() => {
     const checkSession = async () => {
@@ -35,6 +36,7 @@ export default function HomeScreen() {
   //Funcion de logout
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
+    await AsyncStorage.removeItem('refreshToken');
     await AsyncStorage.removeItem('userEmail');
     await AsyncStorage.removeItem('userName');
     await AsyncStorage.removeItem('empresaId');
@@ -44,6 +46,65 @@ export default function HomeScreen() {
   };
 
  // Función del login
+// const handleLogin = async () => {
+//   if (!user.trim() || !pass.trim()) {
+//     Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+//     return;
+//   }
+
+//   try {
+//     // 🔹 Login como usuario
+//     let res = await api.post('/api/login/', {
+//       email: user,
+//       password: pass,
+//     });
+
+//     if (res.status < 400) {
+//       const data = res.data;
+//       console.log("Respuesta login USER:", data);
+
+//       await AsyncStorage.setItem('accessToken', data.access);
+//       await AsyncStorage.setItem('refreshToken', data.refresh);
+//       await AsyncStorage.setItem('userEmail', user);
+//       await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || "");
+//       await AsyncStorage.setItem('userName', data.user?.username || user);
+
+//       setIsLogged(true);
+//       setLoginVisible(false);
+//       Alert.alert('Login correcto', 'Has ingresado como usuario');
+//       navigation.navigate('HomeScreen');
+//       return;
+//     }
+
+//     // 🔹 Login como empresa
+//     res = await api.post('/api/empresa/login/', {
+//       email: user,
+//       password: pass,
+//     });
+
+//     if (res.status < 400) {
+//       const data = res.data;
+//       console.log("Respuesta login EMPRESA:", data);
+
+//       await AsyncStorage.setItem('accessToken', data.token || data.access);
+//       await AsyncStorage.setItem('refreshToken', data.refresh);
+//       await AsyncStorage.setItem('empresaId', data.empresa?.id?.toString() || "");
+//       await AsyncStorage.setItem('userEmail', user);
+
+//       setIsLogged(true);
+//       setLoginVisible(false);
+//       Alert.alert('Login correcto', 'Has ingresado como empresa');
+//       navigation.navigate('HomeScreen');
+//       return;
+//     }
+
+//     Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+//   } catch (error) {
+//     console.error("Error en login:", error);
+//     Alert.alert('Error', 'No se pudo conectar con el servidor');
+//   }
+// };
+
 const handleLogin = async () => {
   if (!user.trim() || !pass.trim()) {
     Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
@@ -51,134 +112,107 @@ const handleLogin = async () => {
   }
 
   try {
-    // 🔹 Primero intenta login como User
-    let response = await fetch(`http://${ipAddress}:8000/api/login/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: user,
-        password: pass,
-      }),
-    });
+    // 🔹 Intento de login como usuario
+    const resUser = await api.post('/api/login/', { email: user, password: pass });
+    const data = resUser.data;
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log("Respuesta login USER:", data);
+    console.log("Login como usuario:", data);
 
-      // Guardar token
-      await AsyncStorage.setItem('accessToken', data.access);
-      await AsyncStorage.setItem('refreshToken', data.refresh);
-      await AsyncStorage.setItem('userEmail', user);
+    await AsyncStorage.setItem('accessToken', data.access);
+    await AsyncStorage.setItem('refreshToken', data.refresh);
+    await AsyncStorage.setItem('userEmail', user);
+    await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || "");
+    await AsyncStorage.setItem('userName', data.user?.username || user);
+    await AsyncStorage.setItem('userKind', 'usuario');
 
-      // Si devuelve empresa_id
-      if (data.empresa_id) {
-        await AsyncStorage.setItem('empresaId', data.empresa_id.toString());
-      } else {
-        await AsyncStorage.setItem('empresaId', "");
-      }
+    setIsLogged(true);
+    setLoginVisible(false);
+    Alert.alert('Login correcto', 'Has ingresado como usuario');
+    navigation.navigate('HomeScreen');
+    return;
 
-      // Nombre de usuario
-      if (data.user?.username) {
-        await AsyncStorage.setItem('userName', data.user.username);
-      } else {
-        await AsyncStorage.setItem('userName', user);
-      }
+  } catch (errorUser) {
+    const status = errorUser.response?.status;
+    const msg = errorUser.response?.data?.detail || errorUser.message;
 
-      setIsLogged(true);
-      setLoginVisible(false);
-      Alert.alert('Login correcto', 'Has ingresado como usuario');
-      navigation.navigate('HomeScreen');
+    console.warn("Login usuario falló:", msg);
+
+    if (status !== 401) {
+      Alert.alert('Error inesperado', msg);
       return;
     }
 
-    // 🔹 Si no funcionó, intenta login como Empresa
-    response = await fetch(`http://${ipAddress}:8000/api/empresa/login/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: user,
-        password: pass,
-      }),
-    });
+    // 🔁 Fallback: intento login como empresa
+    try {
+      const resEmpresa = await api.post('/api/empresa/login/', { email: user, password: pass });
+      const data = resEmpresa.data;
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log("Respuesta login EMPRESA:", data);
+      console.log("Login como empresa:", data);
 
-      // Token (tu endpoint de empresa puede llamarlo distinto)
-      if (data.token) {
-        await AsyncStorage.setItem('accessToken', data.token);
-      } else if (data.access) {
-        await AsyncStorage.setItem('accessToken', data.access);
-      }
-
+      await AsyncStorage.setItem('accessToken', data.token || data.access);
       await AsyncStorage.setItem('refreshToken', data.refresh);
-
-      // EmpresaId
-      if (data.empresa?.id) {
-        await AsyncStorage.setItem('empresaId', data.empresa.id.toString());
-      } else {
-        await AsyncStorage.setItem('empresaId', "");
-      }
-
+      await AsyncStorage.setItem('empresaId', data.empresa?.id?.toString() || "");
       await AsyncStorage.setItem('userEmail', user);
+      await AsyncStorage.setItem('userKind', 'empresa');
+
       setIsLogged(true);
       setLoginVisible(false);
       Alert.alert('Login correcto', 'Has ingresado como empresa');
       navigation.navigate('HomeScreen');
       return;
+
+    } catch (errorEmpresa) {
+      const msgEmpresa = errorEmpresa.response?.data?.detail || errorEmpresa.message;
+      console.warn("Login empresa falló:", msgEmpresa);
+      Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
     }
-
-    // 🔹 Si falla ambos
-    const err = await response.json();
-    Alert.alert('Error de login', err?.detail || 'Usuario o contraseña incorrectos');
-
-  } catch (error) {
-    console.error("Error en login:", error);
-    Alert.alert('Error', 'No se pudo conectar con el servidor');
   }
 };
+
+
 
 
   const [events, setEventos] = useState([]);
 
   useEffect(() => {
-    const fetchEventos = async () => {
-      try {
-        // Endpoint público, no requiere token
-  const res = await fetch(`http://${ipAddress}:8000/api/eventos-publicos/`);
-        if (!res.ok) throw new Error(`Error HTTP: ${res.status}`);
-        const data = await res.json();
+  const fetchEventos = async () => {
+    try {
+      const res = await api.get('/api/eventos-publicos/');
+      const data = res.data;
 
-        // Transformar datos al formato esperado
-        const eventosTransformados = data.map(ev => {
-          const categorias = Array.isArray(ev.categoria) ? ev.categoria : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
-          return {
-            id: ev.id,
-            title: ev.titulo,
-            date: ev.fecha_evento
-              ? new Date(ev.fecha_evento).toLocaleDateString()
-              : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-            time: ev.fecha_evento
-              ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : null,
-            location: ev.ubicacion || 'Ubicación no definida',
-            price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
-            type: categorias,
-            tag: categorias[0],
-            image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-            ownerName: ev.empresa_nombre || ev.empresa_usuario || (ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador')
-          };
-        });
-        setEventos(eventosTransformados);
-      } catch (error) {
-        console.error('Error fetching eventos públicos:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchEventos();
-  }, []);
+      const eventosTransformados = data.map(ev => {
+        const categorias = Array.isArray(ev.categoria)
+          ? ev.categoria
+          : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+
+        return {
+          id: ev.id,
+          title: ev.titulo,
+          date: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleDateString()
+            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+          time: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : null,
+          location: ev.ubicacion || 'Ubicación no definida',
+          price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
+          type: categorias,
+          tag: categorias[0],
+          image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+          ownerName: ev.empresa_nombre || ev.empresa_usuario || (ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador')
+        };
+      });
+
+      setEventos(eventosTransformados);
+    } catch (error) {
+      console.error('Error fetching eventos públicos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchEventos();
+}, []);
 
   // Filtros disponibles
   const filters = [
@@ -334,7 +368,7 @@ const handleLogin = async () => {
                 <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
                 <Text style={styles.eventPrice}>{event.price}</Text>
                 <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
-                  <Text style={styles.reserveText}>Reservar</Text>
+                  <Text style={styles.reserveText}>Guardar</Text>
                 </TouchableOpacity>
               </View>
             ))

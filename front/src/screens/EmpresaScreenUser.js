@@ -1,27 +1,17 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  StyleSheet,
-  Dimensions,
-  Animated,
-  Modal,
-  SafeAreaView,
-  ActivityIndicator,
-  StatusBar,
-  Alert,
-  Linking,
-  TextInput,
+  View, Text, ScrollView, TouchableOpacity, Image, StyleSheet,
+  Dimensions, Animated, Modal, SafeAreaView, ActivityIndicator,
+  StatusBar, Alert, Linking, TextInput
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
+import EmpresaMenu from '../components/EmpresaMenu';
+import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRoute } from '@react-navigation/native';
+import api from '../services/api'; // ✅ Tu instancia centralizada
 
 const { width } = Dimensions.get('window');
 
@@ -42,68 +32,44 @@ export default function EmpresaScreenUser() {
 
   const [empresaData, setEmpresaData] = useState(null);
 
-  const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
-  
   useEffect(() => {
-
-    const fetchEmpresa = async () => {
-      try {
-        let empresaId = empresaIdParam;
-        let headers = { "Content-Type": "application/json" };
-        
-        
-        const response = await axios.get(
-          `http://${ipAddress}:8000/api/public/empresas/${empresaId}/`,
-          { headers }
-        );
-        setEmpresaData(response.data);
-      } catch (error) {
-        if (error.response) {
-          console.error("❌ Error HTTP:", error.response.status, error.response.data);
-        } else {
-          console.error("❌ Error:", error.message);
-        }
-      } finally {
-        setLoading(false);
+  const fetchEmpresa = async () => {
+    try {
+      const empresaId = empresaIdParam;
+      const response = await api.get(`/api/public/empresas/${empresaId}/`);
+      setEmpresaData(response.data);
+    } catch (error) {
+      if (error.response) {
+        console.error("❌ Error HTTP:", error.response.status, error.response.data);
+      } else {
+        console.error("❌ Error:", error.message);
       }
-    };
-    fetchEmpresa();
-  }, [empresaIdParam]);
-
-  const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
+    } finally {
+      setLoading(false);
+    }
+  };
+  fetchEmpresa();
+}, [empresaIdParam]);
+  
+const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
   try {
     const token = await AsyncStorage.getItem('accessToken');
     if (!token) {
-
-      Alert.alert('No estás logueado', 'Debes iniciar sesión para calificar');
+     Alert.alert('No estás logueado', 'Debes iniciar sesión para calificar');
       navigation.navigate('HomeScreen');
       return;
     }
 
-    const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/ratings/`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        empresa: empresaId,
-        rating,
-        comentario,
-      }),
+    const res = await api.post(`/api/empresas/${empresaId}/ratings/`, {
+      empresa: empresaId,
+      rating,
+      comentario,
     });
-
-    const data = await res.json();
-    if (!res.ok) {
-      Alert.alert('Error', data.detail || JSON.stringify(data));
-      return;
-    }
-    // data es la calificación creada/actualizada
-    // Alert.alert('Gracias', 'Tu calificación fue enviada');
-    return data;
-  } catch (err) {
-    console.error(err);
-    Alert.alert('Error', 'No se pudo enviar la calificación');
+    console.log("Respuesta de calificación:", res.data);
+    return res.data;
+  } catch (e) {
+    const msg = e.response?.data?.detail || e.message;
+  Alert.alert('Error', msg);
   }
 };
 
@@ -116,32 +82,47 @@ export default function EmpresaScreenUser() {
 
   const [eventos, setEventos] = useState([]);
 
-  useEffect(() => {
-    const fetchEventos = async () => {
-      try {
-        const empresaId = empresaIdParam || await AsyncStorage.getItem("empresaId");
+useEffect(() => {
+  const fetchEventos = async () => {
+    try {
+      const empresaId = empresaIdParam || await AsyncStorage.getItem("empresaId");
 
-        if (!empresaId) {
-          console.log("No se encontró empresaId.");
-          setEventos([]);
-          return;
+      if (!empresaId) {
+        console.log("No se encontró empresaId.");
+        setEventos([]);
+        return;
+      }
+
+      const res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
+      console.log("Eventos de la empresa:", res.data);
+
+      const eventosTransformados = res.data.map(ev => {
+        // Separar fecha y hora si viene en formato ISO
+        let fecha = "Fecha no definida";
+        let hora = "Hora no definida";
+        if (ev.fecha_evento) {
+          const match = ev.fecha_evento.match(/(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
+          if (match) {
+            fecha = match[1];
+            let hour = parseInt(match[2], 10);
+            const minute = match[3];
+            let ampm = 'AM';
+            if (hour >= 12) {
+              ampm = 'PM';
+              if (hour > 12) hour -= 12;
+            } else if (hour === 0) {
+              hour = 12;
+            }
+            hora = `${hour}:${minute} ${ampm}`;
+          } else {
+            fecha = ev.fecha_evento;
+          }
         }
-
-        const res = await fetch(`http://${ipAddress}:8000/api/public/empresas/${empresaId}/eventos/`);
-        
-        if (!res.ok) {
-          throw new Error(`Error HTTP: ${res.status}`);
-        }
-
-        const data = await res.json();
-        console.log("Eventos de la empresa:", data);
-
-        // transformar los datos al formato que quieres
-        const eventosTransformados = data.map(ev => ({
+        return {
           id: ev.id,
           titulo: ev.titulo,
-          fecha: ev.fecha_evento || "Fecha no definida",
-           hora: ev.hora_evento || "Hora no definida",
+          fecha,
+          hora,
           ubicacion: ev.ubicacion,
           precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
           categoria: ev.categoria || "Sin categoría",
@@ -150,18 +131,21 @@ export default function EmpresaScreenUser() {
             ev.imagen && typeof ev.imagen === "string" && ev.imagen.length > 0
               ? ev.imagen
               : "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
-        }));
-        
-        console.log("Status:", res.status);
-        console.log('Fecha:', eventosTransformados.map(ev => ev.fecha_evento));
+        };
+      });
 
-        setEventos(eventosTransformados);
-      } catch (error) {
-        console.error(error);
+      setEventos(eventosTransformados);
+    } catch (error) {
+      if (error.response) {
+        console.error("❌ Error HTTP:", error.response.status, error.response.data);
+      } else {
+        console.error("❌ Error:", error.message);
       }
-    };
+    }
+  };
 
-    fetchEventos();
+  fetchEventos();
+
   }, [empresaIdParam]);
 
   // Animación de notificaciones
@@ -336,9 +320,10 @@ export default function EmpresaScreenUser() {
                 
                 if (rating > 0) {
                   console.log("Empresa id: ", empresaIdParam)
-                  enviarCalificacion({ empresaId: empresaIdParam, rating, comentario: comment });
-                  console.log('Calificación enviada:', { rating, comment });
+                  const valor = enviarCalificacion({ empresaId: empresaIdParam, rating, comentario: comment });
+                  
                   Alert.alert('¡Gracias!', 'Tu calificación ha sido enviada.');
+                  
                   setModalVisible({ ...modalVisible, rating: false });
                   setRating(0);
                   setComment('');
@@ -471,6 +456,11 @@ export default function EmpresaScreenUser() {
                     <View style={styles.eventoInfo}>
                       <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
                     </View>
+                    {evento.hora && evento.hora !== 'Hora no definida' && (
+                      <View style={styles.eventoInfo}>
+                        <Text style={styles.eventoInfoText}>⏰ {evento.hora}</Text>
+                      </View>
+                    )}
                     
                     <View style={styles.eventoInfo}>
                       <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
@@ -485,7 +475,7 @@ export default function EmpresaScreenUser() {
                             navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
                           }}
                         >
-                          <Text style={styles.verDetallesText}>Reservar</Text>
+                          <Text style={styles.verDetallesText}>Guardar</Text>
                         </TouchableOpacity>
                     </View>
                   </View>

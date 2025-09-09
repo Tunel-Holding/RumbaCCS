@@ -20,9 +20,9 @@ import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
 import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-// import { apiFetch } from '../services/api';
+import api from '../services/api';
 
 const { width } = Dimensions.get('window');
 
@@ -44,34 +44,20 @@ export default function EmpresaScreen() {
 
   const [empresaData, setEmpresaData] = useState(null);
 
-  const ipAddress = "192.168.1.101"; // Cambia esto por tu IP real
-  
-useEffect(() => {
+  useEffect(() => {
   const fetchEmpresa = async () => {
     try {
-      const token = await AsyncStorage.getItem("accessToken");
-      const empresaId = await AsyncStorage.getItem("empresaId");
-
-      if (!empresaId || !token) {
-        console.warn("Falta token o empresaId");
+     const empresaId = await AsyncStorage.getItem("empresaId");
+      if (!empresaId) {
+        console.warn("Falta empresaId");
         setLoading(false);
         return;
       }
 
-      const response = await axios.get(
-        `http://${ipAddress}:8000/api/empresas/${empresaId}/`,
-        {
-          headers: { 
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`  // 🔹 IMPORTANTE
-          },
-        }
-      );
-
+      const response = await api.get(`/api/empresas/${empresaId}/`);
       console.log("✅ Empresa data:", response.data);
       setEmpresaData(response.data);
-
-    } catch (error) {
+   } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
       } else {
@@ -99,8 +85,7 @@ useEffect(() => {
 useEffect(() => {
   const fetchEventos = async () => {
     try {
-      const token = await AsyncStorage.getItem("accessToken");
-      const empresaId = await AsyncStorage.getItem("empresaId");
+     const empresaId = await AsyncStorage.getItem("empresaId");
 
       if (!empresaId) {
         console.log("El usuario todavía no tiene empresa asociada.");
@@ -108,20 +93,10 @@ useEffect(() => {
         return;
       }
 
-      else{
-          const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      if (!res.ok) {
-        throw new Error(`Error HTTP: ${res.status}`);}
+      const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
+      console.log("Eventos de la empresa:", res.data);
 
-      const data = await res.json();
-      console.log("Eventos de la empresa:", data);
-
-      // transformar los datos al formato que quieres
-      const eventosTransformados = data.map(ev => ({
+      const eventosTransformados = res.data.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento || "Fecha no definida",
@@ -132,22 +107,21 @@ useEffect(() => {
         categoriaColor: ev.categoriaColor || "#4f46e5",
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
       }));
+
       console.log("Status:", res.status);
-      console.log('Fecha:', eventosTransformados.map(ev => ev.fecha_evento));
+      console.log("Fechas:", eventosTransformados.map(ev => ev.fecha));
 
       setEventos(eventosTransformados);
+   } catch (error) {
+      if (error.response) {
+        console.error("❌ Error HTTP:", error.response.status, error.response.data);
+      } else {
+        console.error("❌ Error:", error.message);
       }
-
-      
-    } catch (error) {
-      console.error(error);
-    }
+   }
   };
 
-  fetchEventos();
-}, []);
-
-
+  fetchEventos(); }, []);
 
   // Animación de notificaciones
   useEffect(() => {
@@ -307,14 +281,14 @@ useEffect(() => {
                 if (next && ratings.length === 0) {
                   try {
                     setRatingsLoading(true);
-                    const token = await AsyncStorage.getItem('accessToken');
+
                     const empresaId = await AsyncStorage.getItem('empresaId');
                     if (!empresaId) { setRatingsLoading(false); return; }
-                    const res = await fetch(`http://${ipAddress}:8000/api/empresas/${empresaId}/ratings/`, {
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-                    });
-                    const data = await res.json();
-                    if (res.ok) {
+
+                    const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
+
+                    const data = await res.data;
+                    if (res.status >= 200 && res.status < 300) {
                       setRatings(Array.isArray(data) ? data : (data.results || []));
                     } else {
                       console.log('Error ratings', data);
@@ -460,7 +434,8 @@ useEffect(() => {
         </View>
         <View style={styles.eventosGrid}>
           {eventos.length === 0 ? (
-            <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
+        
+        <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
           ) : (
             eventos.map((evento) => (
               <View key={evento.id} style={styles.eventoCard}>

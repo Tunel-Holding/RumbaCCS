@@ -23,6 +23,8 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Calendar } from 'react-native-calendars';
 import { useSafeMargins, getDeviceType, hasNotch } from '../utils/safeAreaUtils';
 import { getResponsiveStyles, getBottomSafeAreaHeight, getTopSafeAreaHeight } from '../utils/deviceConfig';
+import api from '../services/api'; // Ajusta el path según tu estructura
+
 
 export default function AddScreen() {
   const navigation = useNavigation();
@@ -61,24 +63,23 @@ export default function AddScreen() {
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [calendarLoading, setCalendarLoading] = useState(false);
+  
+   
 
-    useEffect(() => {
+// useEffect(() => {
+//   const fetchMiEmpresa = async () => {
+//     try {
+//       const res = await api.get('/api/mi-empresa/');
+//       setEmpresaId(res.data.id);
+//     } catch (err) {
+//       console.error('Error al obtener empresa:', err.response?.data || err.message);
+//     }
+//   };
 
-      const fetchMiEmpresa = async () => {
+//   fetchMiEmpresa();
+// }, []);
 
-        const token = await AsyncStorage.getItem('accessToken');
-        const res   = await fetch(`https://${ipAddress}/api/empresa/`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setEmpresaId(data.id);
-        }
-      };
-      fetchMiEmpresa();
-    }, []);
 
-  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
 
   // Opciones predefinidas
   const categorias = [
@@ -216,25 +217,18 @@ export default function AddScreen() {
   console.log('payload:', payload);
 
   const token    = await AsyncStorage.getItem('accessToken');
-  const endpoint = `http://${ipAddress}:8000/api/empresas/${empresaId}/eventos/`;
+  const endpoint = `/api/empresas/${empresaId}/eventos/`;
 
   try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    const res = await api.post(endpoint, payload);
 
-    if (!res.ok) {
-      const err = await res.json();
+    if (res.status < 200 || res.status >= 300) {
+      const err = await res.data;
       Alert.alert('Error al crear evento', JSON.stringify(err));
       return;
     }
 
-    const newEvent = await res.json();
+    const newEvent = await res.data;
     Alert.alert('Éxito', 'Evento agregado correctamente', [
       { text: 'OK', onPress: () => navigation.navigate("Empresa") }
     ]);
