@@ -39,7 +39,12 @@ class EventoSerializer(serializers.ModelSerializer):
             "fecha_evento",
             "creado_en",
             "actualizado_en",
+            "latitude",
+            "longitude",
         ]
+    def get_distance(self, obj):
+        # Si la queryset anotó 'distance', lo muestra; si no, null
+        return getattr(obj, 'distance', None)
 
     def validate(self, attrs):
         # Validaciones extra

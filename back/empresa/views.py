@@ -30,6 +30,7 @@ from rest_framework.generics import RetrieveAPIView, ListAPIView
 from .exceptions import * 
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.db.models.expressions import RawSQL
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -278,6 +279,8 @@ class EventoViewSet(viewsets.ModelViewSet):
             return qs.filter(empresa_id=empresa_pk)
         return qs
 
+   
+    
     def perform_create(self, serializer):
         user = self.request.user
 
@@ -296,6 +299,39 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Evento2.objects.all().order_by('-id')  # orden por id
     serializer_class = EventoSerializer
     permission_classes = [AllowAny]  # público, no requiere token
+    
+    @action(detail=False, methods=['get'])
+    def nearby(self, request):
+        lat = request.query_params.get('lat')
+        lng = request.query_params.get('lng')
+        if lat is None or lng is None:
+            return Response({'detail': 'lat and lng query params are required'}, status=400)
+        try:
+            lat_f = float(lat)
+            lng_f = float(lng)
+        except ValueError:
+            return Response({'detail': 'lat and lng must be floats'}, status=400)
+
+        radius_km = float(request.query_params.get('radius_km', 10))  # default 10 km
+
+        # Haversine formula
+        haversine_sql = (
+            "6371 * acos( "
+            "cos(radians(%s)) * cos(radians(latitude)) * cos(radians(longitude) - radians(%s)) + "
+            "sin(radians(%s)) * sin(radians(latitude)) "
+            ")"
+        )
+        qs = Evento2.objects.annotate(
+            distance=RawSQL(haversine_sql, (lat_f, lng_f, lat_f))
+        ).filter(distance__lte=radius_km).order_by('distance')
+
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
 
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
