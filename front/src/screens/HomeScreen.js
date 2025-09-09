@@ -368,7 +368,7 @@ const handleLogin = async () => {
                 <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
                 <Text style={styles.eventPrice}>{event.price}</Text>
                 <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
-                  <Text style={styles.reserveText}>Reservar</Text>
+                  <Text style={styles.reserveText}>Guardar</Text>
                 </TouchableOpacity>
               </View>
             ))

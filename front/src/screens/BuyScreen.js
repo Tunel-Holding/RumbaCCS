@@ -81,7 +81,6 @@ const { width } = Dimensions.get('window');
 export default function BuyScreen() {
   const topPadding = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isSaved, setIsSaved] = useState(false);
   const navigation = useNavigation();
   const route = useRoute();
   const [loginVisible, setLoginVisible] = useState(false);
@@ -199,43 +198,71 @@ export default function BuyScreen() {
   fetchEmpresa();
 }, [idEmpresa]); // ← aquí va idEmpresa, no empresaIdParam
 
-  const eventDetails = useMemo(
-    () => ({
+  const eventDetails = useMemo(() => {
+    let fecha = 'sin definir';
+    let hora = 'sin definir';
+    if (evento?.fecha_evento) {
+      // Soporta formatos ISO: '2025-09-09T20:30:00Z' o '2025-09-09 20:30:00'
+      const match = evento.fecha_evento.match(/(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
+      if (match) {
+        fecha = match[1];
+        let hour = parseInt(match[2], 10);
+        const minute = match[3];
+        let ampm = 'AM';
+        if (hour >= 12) {
+          ampm = 'PM';
+          if (hour > 12) hour -= 12;
+        } else if (hour === 0) {
+          hour = 12;
+        }
+        hora = `${hour}:${minute} ${ampm}`;
+      } else {
+        fecha = evento.fecha_evento;
+      }
+    }
+    return {
       title: evento?.titulo ?? 'sin definir',
-      description:
-        evento?.descripcion ??
-        'sin definir',
-      lugar: evento?.lugar ?? 'sin definir',
+      description: evento?.descripcion ?? 'sin definir',
+      lugar: evento?.ubicacion ?? 'sin definir',
       categoria: evento?.categoria ?? 'Fiesta',
       vestimenta: evento?.codigo_vestimenta ?? 'sin definir',
-      ubicacion: evento?.ubicacion ?? 'sin definir',
       empresa: empresaData?.nombre ?? 'sin definir',
       empresaId: evento?.empresa,
-      fecha: evento?.fecha_evento ?? 'sin definir',
-    }),
-    [evento, empresaData]
-  );
+      fecha,
+      hora,
+    };
+  }, [evento, empresaData]);
 
-  // Función para reservar
-  const handleReserve = async () => {
-  if (!idEvento || !idEmpresa) return;
-
-  try {
-    const res = await api.post('/api/empresa_evento/', {
-      evento: idEvento,
-      empresa: idEmpresa,
-    });
-
-    if (res.data.id) {
-      alert('Reserva realizada correctamente');
-    } else {
-      alert('Error al reservar: ' + JSON.stringify(res.data));
+  // Función para guardar/quitar de guardados
+  const [isSaved, setIsSaved] = useState(false);
+  const handleSave = async () => {
+    if (!isLogged) {
+      setLoginVisible(true);
+      return;
     }
-  } catch (err) {
-    console.error('❌ Error al reservar:', err.message);
-    alert('Error al reservar: ' + err.message);
-  }
-};
+    if (!idEvento || !idEmpresa) return;
+    try {
+      if (!isSaved) {
+        const res = await api.post('/api/empresa_evento/', {
+          evento: idEvento,
+          empresa: idEmpresa,
+        });
+        if (res.data.id) {
+          setIsSaved(true);
+          alert('Evento guardado correctamente');
+        } else {
+          alert('Error al guardar: ' + JSON.stringify(res.data));
+        }
+      } else {
+        // Aquí deberías hacer una petición DELETE real al backend para quitar de guardados
+        setIsSaved(false);
+        alert('Evento quitado de guardados');
+      }
+    } catch (err) {
+      console.error('❌ Error al guardar/quitar:', err.message);
+      alert('Error al guardar/quitar: ' + err.message);
+    }
+  };
   
   const [relatedIndex, setRelatedIndex] = useState(0);
   // ...existing code...
@@ -243,7 +270,9 @@ export default function BuyScreen() {
   // Header de HomeScreen.js
   const Header = () => (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>Rumba<Text style={{ color: '#ec4899' }}>CCS</Text></Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+        <Text style={styles.headerTitle}>Rumba<Text style={{ color: '#ec4899' }}>CCS</Text></Text>
+      </View>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
 
       {isLogged ? (
@@ -301,6 +330,13 @@ if (loading) {
   return (
     <SafeAreaView style={[styles.safeArea, { paddingTop: topPadding }]}> 
       <Header />
+      {/* Barra de volver debajo del header */}
+      <View style={styles.backBar}>
+        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>
+          <Text style={styles.backBarIcon}>‹</Text>
+          <Text style={styles.backBarText}>Volver</Text>
+        </TouchableOpacity>
+      </View>
       <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
         {/* Carrusel de Evento Principal Mejorado */}
         <Text style={styles.sectionTitle}>Evento Principal</Text>
@@ -375,6 +411,12 @@ if (loading) {
               <Text style={styles.detail}>{eventDetails.fecha}</Text>
             </View>
           )}
+          {eventDetails.hora && eventDetails.hora !== 'sin definir' && (
+            <View style={styles.detailRow}>
+              <Text style={styles.label}>Hora: </Text>
+              <Text style={styles.detail}>{eventDetails.hora}</Text>
+            </View>
+          )}
           <View style={styles.detailRow}>
             <Text style={styles.label}>Lugar: </Text>
             <Text style={styles.detail}>{eventDetails.lugar}</Text>
@@ -387,10 +429,7 @@ if (loading) {
             <Text style={styles.label}>Vestimenta: </Text>
             <Text style={styles.detail}>{eventDetails.vestimenta}</Text>
           </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>Ubicación: </Text>
-            <Text style={styles.detail}>{eventDetails.ubicacion}</Text>
-          </View>
+          {/* Ubicación eliminado */}
           {eventDetails.empresa && (
             <View style={styles.detailRow}>
               <Text style={styles.label}>Empresa: </Text>
@@ -421,7 +460,7 @@ if (loading) {
                   <Image source={ev.image} style={styles.relatedImage} />
                   <Text style={styles.relatedName}>{ev.title}</Text>
                   <Text style={styles.relatedCategory}>{ev.categoria}</Text>
-                  <Text style={styles.relatedLocation}>{ev.ubicacion}</Text>
+                  {/* Ubicación eliminado */}
                 </View>
               ))}
             </ScrollView>
@@ -456,13 +495,13 @@ if (loading) {
 
       <View style={styles.buttonContainer}>
           <TouchableOpacity 
-            style={styles.reserveButton}
-            onPress={handleReserve}
+            style={[styles.reserveButton, isSaved && styles.reserveButtonSaved]}
+            onPress={handleSave}
             activeOpacity={0.8}
           >
             <View style={styles.buttonContent}>
-              <Text style={styles.buttonText}>
-                Reservar
+              <Text style={[styles.buttonText, isSaved && styles.buttonTextSaved]}>
+                {isSaved ? 'Quitar de guardados' : 'Guardar'}
               </Text>
             </View>
           </TouchableOpacity>
@@ -603,6 +642,25 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginLeft: 8, flex: 1 },
   loginBtn: { backgroundColor: '#0ea5e9', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
   loginBtnText: { color: '#fff', fontWeight: 'bold' },
+  backBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    marginTop: -6,
+    marginBottom: 8,
+  },
+  backBarBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#23262F',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  backBarIcon: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginRight: 6, marginTop: -1 },
+  backBarText: { color: '#e5e7eb', fontSize: 15, fontWeight: '600' },
   container: {
     flex: 1,
     paddingHorizontal: 18,

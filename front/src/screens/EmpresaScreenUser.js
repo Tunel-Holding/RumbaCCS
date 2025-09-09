@@ -96,20 +96,43 @@ useEffect(() => {
       const res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
       console.log("Eventos de la empresa:", res.data);
 
-      const eventosTransformados = res.data.map(ev => ({
-        id: ev.id,
-        titulo: ev.titulo,
-        fecha: ev.fecha_evento || "Fecha no definida",
-        hora: ev.hora_evento || "Hora no definida",
-        ubicacion: ev.ubicacion,
-        precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
-        categoria: ev.categoria || "Sin categoría",
-        categoriaColor: ev.categoriaColor || "#4f46e5",
-        imagen:
-          ev.imagen && typeof ev.imagen === "string" && ev.imagen.length > 0
-            ? ev.imagen
-            : "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
-      }));
+      const eventosTransformados = res.data.map(ev => {
+        // Separar fecha y hora si viene en formato ISO
+        let fecha = "Fecha no definida";
+        let hora = "Hora no definida";
+        if (ev.fecha_evento) {
+          const match = ev.fecha_evento.match(/(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
+          if (match) {
+            fecha = match[1];
+            let hour = parseInt(match[2], 10);
+            const minute = match[3];
+            let ampm = 'AM';
+            if (hour >= 12) {
+              ampm = 'PM';
+              if (hour > 12) hour -= 12;
+            } else if (hour === 0) {
+              hour = 12;
+            }
+            hora = `${hour}:${minute} ${ampm}`;
+          } else {
+            fecha = ev.fecha_evento;
+          }
+        }
+        return {
+          id: ev.id,
+          titulo: ev.titulo,
+          fecha,
+          hora,
+          ubicacion: ev.ubicacion,
+          precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
+          categoria: ev.categoria || "Sin categoría",
+          categoriaColor: ev.categoriaColor || "#4f46e5",
+          imagen:
+            ev.imagen && typeof ev.imagen === "string" && ev.imagen.length > 0
+              ? ev.imagen
+              : "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+        };
+      });
 
       setEventos(eventosTransformados);
     } catch (error) {
@@ -433,6 +456,11 @@ useEffect(() => {
                     <View style={styles.eventoInfo}>
                       <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
                     </View>
+                    {evento.hora && evento.hora !== 'Hora no definida' && (
+                      <View style={styles.eventoInfo}>
+                        <Text style={styles.eventoInfoText}>⏰ {evento.hora}</Text>
+                      </View>
+                    )}
                     
                     <View style={styles.eventoInfo}>
                       <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
@@ -447,7 +475,7 @@ useEffect(() => {
                             navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
                           }}
                         >
-                          <Text style={styles.verDetallesText}>Reservar</Text>
+                          <Text style={styles.verDetallesText}>Guardar</Text>
                         </TouchableOpacity>
                     </View>
                   </View>
