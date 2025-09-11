@@ -4,7 +4,7 @@ import { SvgXml } from 'react-native-svg';
 
 const menuIcon = `<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='white'><path stroke-linecap='round' stroke-linejoin='round' d='M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5' /></svg>`;
 
-export default function HamburgerMenu({ visible, setVisible, onMenuItemPress }) {
+export default function HamburgerMenu({ visible, setVisible, onMenuItemPress, hasEmpresa = false }) {
   return (
     <>
       <TouchableOpacity style={styles.menuButton} onPress={() => setVisible(true)}>
@@ -22,15 +22,18 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress }) 
             <TouchableOpacity onPress={() => onMenuItemPress('calendar')} style={styles.menuItem}>
               <Text style={styles.menuText}>Calendario</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => onMenuItemPress('tickets')} style={styles.menuItem}>
-              <Text style={styles.menuText}>Tickets</Text>
-            </TouchableOpacity>
             <TouchableOpacity onPress={() => onMenuItemPress('notifications')} style={styles.menuItem}>
               <Text style={styles.menuText}>Notificaciones</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => onMenuItemPress('register')} style={styles.menuItem}>
-              <Text style={styles.menuText}>Registrarse como empresa</Text>
-            </TouchableOpacity>
+            {hasEmpresa ? (
+              <TouchableOpacity onPress={() => onMenuItemPress('register')} style={styles.menuItem}> 
+                <Text style={styles.menuText}>Perfil empresa</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={() => onMenuItemPress('empresa_form')} style={styles.menuItem}>
+                <Text style={styles.menuText}>Formulario de empresa</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>

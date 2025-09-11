@@ -10,87 +10,118 @@ import {
   Animated,
   Modal,
   SafeAreaView,
+  ActivityIndicator,
   StatusBar,
+  Alert,
+  Linking,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
+import HamburgerMenu from '../components/HamburgerMenu';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import api from '../services/api';
 
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreen() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false });
+  const [showRatingsPanel, setShowRatingsPanel] = useState(false);
+  const [ratings, setRatings] = useState([]);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
   const [notifAnim] = useState(new Animated.Value(0));
-  
+  const [loading, setLoading] = useState(true);
+
+  const datos = false
   // Animaciones
   const menuAnim = useRef(new Animated.Value(0)).current;
 
-  // Datos de la empresa
-  const empresaData = {
-    nombre: 'Empresa',
-    seguidores: 50,
-    eventosPublicados: 5,
+  const [empresaData, setEmpresaData] = useState(null);
+
+  useEffect(() => {
+  const fetchEmpresa = async () => {
+    try {
+     const empresaId = await AsyncStorage.getItem("empresaId");
+      if (!empresaId) {
+        console.warn("Falta empresaId");
+        setLoading(false);
+        return;
+      }
+
+      const response = await api.get(`/api/empresas/${empresaId}/`);
+      console.log("✅ Empresa data:", response.data);
+      setEmpresaData(response.data);
+   } catch (error) {
+      if (error.response) {
+        console.error("❌ Error HTTP:", error.response.status, error.response.data);
+      } else {
+        console.error("❌ Error:", error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Eventos de ejemplo
-  const eventos = [
-    {
-      id: 1,
-      titulo: 'Concierto Electrónico',
-      fecha: '15 Ago 2025',
-      ubicacion: 'Sala Mayor',
-      precio: '$30.000',
-      categoria: 'Concierto',
-      categoriaColor: '#4f46e5',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
-    },
-    {
-      id: 2,
-      titulo: 'Feria Gastronómica',
-      fecha: '22 Sep 2025',
-      ubicacion: 'Plaza Gourmet',
-      precio: 'Entrada libre',
-      categoria: 'Feria',
-      categoriaColor: '#db2777',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2845f684-896f-4604-a8e9-6ce9929b0bbb.png',
-    },
-    {
-      id: 3,
-      titulo: 'Festival de Jazz',
-      fecha: '5 Nov 2025',
-      ubicacion: 'Teatro Central',
-      precio: '$20.000',
-      categoria: 'Festival',
-      categoriaColor: '#ca8a04',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/d202d6da-9e5f-432c-97dd-5ad86b5461af.png',
-    },
-    {
-      id: 4,
-      titulo: 'Expo Arte Urbano',
-      fecha: '12 Dic 2025',
-      ubicacion: 'Galería Libre',
-      precio: '$10.000',
-      categoria: 'Expo',
-      categoriaColor: '#16a34a',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2cd9adb4-9a48-403a-8a0b-c1e9b937bda9.png',
-    },
-    {
-      id: 5,
-      titulo: 'Noche de Stand Up',
-      fecha: '20 Ene 2026',
-      ubicacion: 'Café Teatro',
-      precio: '$12.000',
-      categoria: 'Show',
-      categoriaColor: '#9333ea',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-    },
-  ];
+  fetchEmpresa();
+}, []);
+
+  // Datos de empresa con valores por defecto si no hay datos
+  const empresaData1 = {
+    nombre: empresaData?.nombre || 'Empresa',
+    rif : empresaData?.rif || 'no disponible',
+    seguidores: empresaData?.seguidores || 0,
+    eventosPublicados: empresaData?.eventosPublicados || 0,
+  }
 
 
+  const [eventos, setEventos] = useState([]);
+
+useEffect(() => {
+  const fetchEventos = async () => {
+    try {
+     const empresaId = await AsyncStorage.getItem("empresaId");
+
+      if (!empresaId) {
+        console.log("El usuario todavía no tiene empresa asociada.");
+        setEventos([]);
+        return;
+      }
+
+      const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
+      console.log("Eventos de la empresa:", res.data);
+
+      const eventosTransformados = res.data.map(ev => ({
+        id: ev.id,
+        titulo: ev.titulo,
+        fecha: ev.fecha_evento || "Fecha no definida",
+        hora: ev.hora_evento || "Hora no definida",
+        ubicacion: ev.ubicacion,
+        precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
+        categoria: ev.categoria || "Sin categoría",
+        categoriaColor: ev.categoriaColor || "#4f46e5",
+        imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+      }));
+
+      console.log("Status:", res.status);
+      console.log("Fechas:", eventosTransformados.map(ev => ev.fecha));
+
+      setEventos(eventosTransformados);
+   } catch (error) {
+      if (error.response) {
+        console.error("❌ Error HTTP:", error.response.status, error.response.data);
+      } else {
+        console.error("❌ Error:", error.message);
+      }
+   }
+  };
+
+  fetchEventos(); }, []);
 
   // Animación de notificaciones
   useEffect(() => {
@@ -140,13 +171,13 @@ export default function EmpresaScreen() {
            onMenuItemPress={item => {
              setMobileMenuVisible(false);
              if (item === 'agregar_evento') {
-               // Aquí puedes agregar la lógica para agregar evento
-               console.log('Agregar evento');
+               // Navegar a la pantalla de agregar evento
+               navigation.navigate('Add');
              }
-             else if (item === 'administrar_ganancias') {
+             //else if (item === 'administrar_ganancias') {
                // Aquí puedes agregar la lógica para administrar ganancias
-               console.log('Administrar ganancias');
-             }
+               //console.log('Administrar ganancias');
+             //}
                            else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
               else if (item === 'inicio') navigation.navigate('HomeScreen');
               else if (item === 'register') navigation.navigate('Perfil');
@@ -225,100 +256,236 @@ export default function EmpresaScreen() {
       <View style={styles.perfilContent}>
         {/* Foto de perfil */}
         <View style={styles.fotoContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={() => {
-              // Aquí puedes agregar la lógica para editar el perfil
-              console.log('Editar perfil de empresa');
-            }}
+            onPress={() => console.log('Editar perfil de empresa')}
             activeOpacity={0.7}
           >
             <Text style={styles.fotoIcon}>👤</Text>
           </TouchableOpacity>
         </View>
-
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>
-          <Text style={styles.empresaNombre}>{empresaData.nombre}</Text>
-          <Text style={styles.seguidoresText}>
-            Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData.seguidores}</Text>
-          </Text>
-          <Text style={styles.eventosText}>
-            Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData.eventosPublicados}</Text>
-          </Text>
-          <TouchableOpacity 
-            style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
-            onPress={toggleFollow}
-          >
-                         <View style={styles.seguirIcon}>
-               <PersonIcon size={18} color="#ffffff" />
-             </View>
-            <Text style={styles.seguirText}>
-              {isFollowing ? 'Siguiendo' : 'Seguir'}
-            </Text>
-          </TouchableOpacity>
+          <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
+          <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
+          <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
+          
+          <View style={styles.accionesRow}>
+            {/* Botón de seguir eliminado */}
+            <TouchableOpacity
+              style={styles.clasificarButton}
+              activeOpacity={0.85}
+              onPress={async () => {
+                const next = !showRatingsPanel;
+                setShowRatingsPanel(next);
+                if (next && ratings.length === 0) {
+                  try {
+                    setRatingsLoading(true);
+
+                    const empresaId = await AsyncStorage.getItem('empresaId');
+                    if (!empresaId) { setRatingsLoading(false); return; }
+
+                    const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
+
+                    const data = await res.data;
+                    if (res.status >= 200 && res.status < 300) {
+                      setRatings(Array.isArray(data) ? data : (data.results || []));
+                    } else {
+                      console.log('Error ratings', data);
+                    }
+                  } catch(e){
+                    console.log('Error fetch ratings', e.message);
+                  } finally {
+                    setRatingsLoading(false);
+                  }
+                }
+              }}
+            >
+              <Text style={styles.clasificarStar}>★</Text>
+              <Text style={styles.clasificarText}>{showRatingsPanel ? 'Ver eventos' : 'Valoraciones y reseñas'}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
   );
 
-  const renderEventos = () => (
-    <View style={styles.eventosContainer}>
-      <View style={styles.eventosHeader}>
-        <Text style={styles.eventosTitle}>Eventos publicados</Text>
-                 <TouchableOpacity style={styles.agregarButton}>
-           <Text style={styles.agregarIcon}>+</Text>
-         </TouchableOpacity>
-      </View>
+  // Redes sociales dinámicas (front-only)
+  const redes = [
+    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: empresaData?.instagram || null },
+    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: empresaData?.twitter || null },
+    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: empresaData?.facebook || null },
+    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: empresaData?.tiktok || null },
+    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: empresaData?.youtube || null },
+    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: empresaData?.whatsapp || null },
+    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: empresaData?.website || null },
+  ];
 
-      <View style={styles.eventosGrid}>
-        {eventos.map((evento) => (
-          <View key={evento.id} style={styles.eventoCard}>
-            <View style={styles.eventoImageContainer}>
-              <Image 
-                source={{ uri: evento.imagen }} 
-                style={styles.eventoImage}
-                resizeMode="cover"
-              />
-              <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
-                <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
-              </View>
-            </View>
-            
-            <View style={styles.eventoContent}>
-              <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-              
-              <View style={styles.eventoInfo}>
-                <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
-              </View>
-              
-              <View style={styles.eventoInfo}>
-                <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
-              </View>
-              
-              <View style={styles.eventoFooter}>
-                <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                <TouchableOpacity style={styles.verDetallesButton}>
-                  <Text style={styles.verDetallesText}>Ver detalles</Text>
-                </TouchableOpacity>
-              </View>
+  const openRedSocial = (item) => {
+    if (item.url) {
+      Linking.openURL(item.url).catch(err => console.log('No se pudo abrir', err));
+    }
+  };
+
+  const renderSocialCircles = () => {
+    const hasAny = redes.some(r => !!r.url);
+    if (!hasAny) return null;
+    return (
+      <View style={styles.socialStripContainer}>
+        <Text style={styles.socialStripTitle}>Redes sociales</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {redes.filter(r => r.url).map(r => (
+            <TouchableOpacity
+              key={r.id}
+              style={[styles.socialCircle, { borderColor: r.color }]}
+              activeOpacity={0.75}
+              onPress={() => openRedSocial(r)}
+            >
+              <Text style={styles.socialIcon}>{r.icon}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
+  };
+
+  const renderEventos = () => {
+    if (showRatingsPanel) {
+      return (
+        <View style={styles.eventosContainer}>
+          <View style={styles.eventosHeader}>
+            <View style={{ flex:1 }}>
+              <Text style={styles.eventosTitle}>Valoraciones y reseñas</Text>
+              {(() => {
+                if (ratingsLoading) {
+                  return <Text style={styles.eventosTotalLinea}>Calculando...</Text>;
+                }
+                if (!ratings.length) {
+                  return <Text style={styles.eventosTotalLinea}>Sin valoraciones</Text>;
+                }
+                const sum = ratings.reduce((acc,r)=> acc + (Number(r.rating || r.valor || 0) || 0), 0);
+                const avg = sum / ratings.length;
+                const full = Math.round(avg * 10) / 10; // 1 decimal
+                const stars = [0,1,2,3,4];
+                return (
+                  <View style={{ flexDirection:'row', alignItems:'center', marginTop:4 }}>
+                    {stars.map(i => (
+                      <Text key={i} style={{ fontSize:22, marginRight:2, color: i < Math.round(avg) ? '#facc15' : '#475569' }}>★</Text>
+                    ))}
+                    <Text style={{ color:'#f1f5f9', marginLeft:8, fontWeight:'600' }}>{full}/5 ({ratings.length})</Text>
+                  </View>
+                );
+              })()}
             </View>
           </View>
-        ))}
+          <View style={{ marginTop: 8 }}>
+            {ratingsLoading ? (
+              <ActivityIndicator color="#facc15" size="large" />
+            ) : ratings.length === 0 ? (
+              <Text style={{ color:'#94a3b8', textAlign:'center', marginTop:32 }}>No hay reseñas todavía.</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                {ratings.map((r, idx) => {
+                  const filled = Math.max(0, Math.min(5, r.rating || r.valor || 0));
+                  const stars = Array.from({ length: 5 });
+                  return (
+                    <View key={r.id || idx} style={{ backgroundColor:'#1e293b', padding:16, borderRadius:16, marginBottom:14, borderWidth:1, borderColor:'rgba(255,255,255,0.07)' }}>
+                      <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:6 }}>
+                        <Text style={{ color:'#fff', fontWeight:'600' }}>{r.usuario_username || r.user_name || 'Usuario'}</Text>
+                        <Text style={{ color:'#facc15', fontWeight:'700' }}>{filled}/5</Text>
+                      </View>
+                      <View style={{ flexDirection:'row', marginBottom:6 }}>
+                        {stars.map((_, i) => (
+                          <Text key={i} style={{ color: i < filled ? '#facc15' : '#475569', fontSize:18 }}>★</Text>
+                        ))}
+                      </View>
+                      {!!r.comentario && <Text style={{ color:'#e2e8f0', lineHeight:20 }}>{r.comentario}</Text>}
+                      {r.created_at && <Text style={{ color:'#64748b', marginTop:6, fontSize:12 }}>{new Date(r.created_at).toLocaleDateString()}</Text>}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.eventosContainer}>
+        <View style={styles.eventosHeader}>
+          <View style={{ flex:1 }}>
+            <Text style={styles.eventosTitle}>Eventos publicados</Text>
+            <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
+          </View>
+          <TouchableOpacity
+            style={styles.agregarButton}
+            onPress={async () => {
+              const empresaId = await AsyncStorage.getItem('empresaId');
+              if (empresaId) {
+                navigation.navigate('Add');
+              } else {
+                console.log('Empresa no encontrada', empresaId);
+                Alert.alert('Error', 'No tienes empresa creada');
+              }
+            }}
+          >
+            <Text style={styles.agregarIcon}>+</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.eventosGrid}>
+          {eventos.length === 0 ? (
+        
+        <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
+          ) : (
+            eventos.map((evento) => (
+              <View key={evento.id} style={styles.eventoCard}>
+                <View style={styles.eventoImageContainer}>
+                  <Image source={{ uri: evento.imagen }} style={styles.eventoImage} resizeMode="cover" />
+                  <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}> 
+                    <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
+                  </View>
+                </View>
+                <View style={styles.eventoContent}>
+                  <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
+                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text></View>
+                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text></View>
+                  <View style={styles.eventoFooter}>
+                    <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                    <TouchableOpacity style={styles.verDetallesButton}><Text style={styles.verDetallesText}>Ver detalles</Text></TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
       </View>
-    </View>
+    );
+  };
+  
+  if (loading) {
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#00ff00" /> 
+        <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+      </View>
+    </SafeAreaView>
   );
+}
 
   return (
-    <SafeAreaView style={styles.container}>
+
+  <SafeAreaView style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
       
              {renderHeader()}
        {renderNotificationsModal()}
       
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+  <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
+          {renderSocialCircles()}
           {renderEventos()}
         </View>
       </ScrollView>
@@ -354,21 +521,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-  },
-  logoText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  logoSubtext: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#db2777',
-    marginLeft: 4,
-  },
+  logoContainer: { flexDirection: 'row', alignItems: 'flex-end' },
+  logoText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
+  logoSubtext: { fontSize: 18, fontWeight: '600', color: '#ff007f', marginLeft: 8 },
   
      
 
@@ -377,9 +532,11 @@ const styles = StyleSheet.create({
   // Perfil styles
   perfilContainer: {
     backgroundColor: 'rgba(30, 41, 59, 0.6)',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 48,
+  borderRadius: 16,
+  paddingHorizontal: 24,
+  paddingTop: 22,
+  paddingBottom: 18,
+  marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -408,10 +565,7 @@ const styles = StyleSheet.create({
   fotoIcon: {
     fontSize: 48,
   },
-  datosContainer: {
-    alignItems: 'center',
-    marginTop: 16,
-  },
+  datosContainer: { alignItems: 'center', marginTop: 4 },
   empresaNombre: {
     fontSize: 32,
     fontWeight: '600',
@@ -419,31 +573,22 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
-  seguidoresText: {
-    fontSize: 20,
-    color: '#d1d5db',
-    marginBottom: 4,
-    textAlign: 'center',
-  },
+  seguidoresText: { fontSize: 18, color: '#d1d5db', marginBottom: 4, textAlign: 'center' },
   seguidoresCount: {
     fontWeight: 'bold',
     color: '#db2777',
   },
-  eventosText: {
-    fontSize: 18,
-    color: '#d1d5db',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
+  eventosText: { fontSize: 18, color: '#d1d5db', marginBottom: 16, textAlign: 'center' },
   eventosCount: {
     fontWeight: 'bold',
     color: '#3b82f6',
   },
+  accionesRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
   seguirButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'linear-gradient(135deg, #db2777 0%, #be185d 100%)',
-    paddingHorizontal: 28,
+    paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 30,
     shadowColor: '#db2777',
@@ -452,34 +597,24 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 8,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.1)'
   },
-  seguirButtonActive: {
-    backgroundColor: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
-    shadowColor: '#16a34a',
-  },
-     seguirIcon: {
-     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-     borderRadius: 16,
-     padding: 6,
-     marginRight: 10,
-     borderWidth: 1,
-     borderColor: 'rgba(255, 255, 255, 0.2)',
-     justifyContent: 'center',
-     alignItems: 'center',
-   },
-     seguirText: {
-     color: '#ffffff',
-     fontSize: 18,
-     fontWeight: '900',
-     textShadowColor: 'rgba(0, 0, 0, 0.3)',
-     textShadowOffset: { width: 0, height: 1 },
-     textShadowRadius: 2,
-   },
+  seguirButtonActive: { backgroundColor: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', shadowColor: '#16a34a' },
+  seguirIcon: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: 6, marginRight: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', justifyContent: 'center', alignItems: 'center' },
+  seguirText: { color: '#ffffff', fontSize: 18, fontWeight: '900', textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  // Redes sociales
+  socialStripContainer: { flexDirection: 'column', marginTop: 4, marginBottom: 12, paddingTop: 2 },
+  socialStripTitle: { marginLeft: 4, marginBottom: 6, fontSize: 14, fontWeight: '600', color: '#e2e8f0', letterSpacing: 0.5, textTransform: 'uppercase' },
+  socialCircle: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', borderWidth: 2, marginRight: 10, backgroundColor: '#1e293b', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3, elevation: 3 },
+  socialIcon: { fontSize: 20, color: '#ffffff' },
+  clasificarButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'linear-gradient(135deg, #075819ff 0%, #0d430bff 100%)', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 30, shadowColor: '#0b5318ff', shadowOpacity: 0.4, shadowOffset: { width: 0, height: 6 }, shadowRadius: 8, elevation: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  clasificarStar: { color: '#ffffff', fontSize: 18, marginRight: 8, textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  clasificarText: { color: '#ffffff', fontWeight: 'bold', fontSize: 16 },
 
   // Eventos styles
   eventosContainer: {
-    marginTop: 48,
+    // Reducido desde 48 para acercar la sección a los datos de la empresa
+    marginTop: 20,
   },
   eventosHeader: {
     flexDirection: 'row',
@@ -494,6 +629,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 16,
   },
+  eventosTotalLinea: { fontSize: 16, color: '#f1f5f9', marginTop: 4, fontWeight: '600' },
   agregarButton: {
     backgroundColor: '#16a34a',
     width: 40,
@@ -516,6 +652,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+  },
+  eventosEmptyText: {
+    color: '#94a3b8',
+    fontSize: 16,
+    textAlign: 'center',
+    width: '100%',
+    marginTop: 12,
+    fontStyle: 'italic',
   },
   eventoCard: {
     backgroundColor: '#1e293b',

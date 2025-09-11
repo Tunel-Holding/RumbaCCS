@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { Animated } from 'react-native';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, Platform } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, StatusBar,ActivityIndicator, Platform } from 'react-native';
+import PersonIcon from '../components/PersonIcon';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import api from '../services/api'; // Asegúrate de que la ruta sea correcta
 
 const { width } = Dimensions.get('window');
 
@@ -17,12 +19,20 @@ export default function HomeScreen() {
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
   const [isLogged, setIsLogged] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [empresaNames, setEmpresaNames] = useState({}); // cache de id->nombre
+  const [hasEmpresa, setHasEmpresa] = useState(false);
 
-  const ipAddress = '192.168.1.101'; // Cambia esto por la IP de tu servidor
+
 
   useEffect(() => {
     const checkSession = async () => {
-      const token = await AsyncStorage.getItem('accessToken');
+  const token = await AsyncStorage.getItem('accessToken');
+  const empresaId = await AsyncStorage.getItem('empresaId');
+  setHasEmpresa(!!(empresaId && empresaId !== ''));
+      if(token) {
+        setIsLogged(true);
+      }
       setIsLogged(!!token);
     };
     checkSession();
@@ -31,114 +41,210 @@ export default function HomeScreen() {
   //Funcion de logout
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
+    await AsyncStorage.removeItem('refreshToken');
     await AsyncStorage.removeItem('userEmail');
+    await AsyncStorage.removeItem('userName');
+    await AsyncStorage.removeItem('empresaId');
+    await AsyncStorage.clear();
     setIsLogged(false);
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
 
-  //Funcion del login
-  const handleLogin = async () => {
-    if (!user.trim() || !pass.trim()) {
-      Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
-      return; // Detiene la función si faltan datos
+ // Función del login
+// const handleLogin = async () => {
+//   if (!user.trim() || !pass.trim()) {
+//     Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+//     return;
+//   }
+
+//   try {
+//     // 🔹 Login como usuario
+//     let res = await api.post('/api/login/', {
+//       email: user,
+//       password: pass,
+//     });
+
+//     if (res.status < 400) {
+//       const data = res.data;
+//       console.log("Respuesta login USER:", data);
+
+//       await AsyncStorage.setItem('accessToken', data.access);
+//       await AsyncStorage.setItem('refreshToken', data.refresh);
+//       await AsyncStorage.setItem('userEmail', user);
+//       await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || "");
+//       await AsyncStorage.setItem('userName', data.user?.username || user);
+
+//       setIsLogged(true);
+//       setLoginVisible(false);
+//       Alert.alert('Login correcto', 'Has ingresado como usuario');
+//       navigation.navigate('HomeScreen');
+//       return;
+//     }
+
+//     // 🔹 Login como empresa
+//     res = await api.post('/api/empresa/login/', {
+//       email: user,
+//       password: pass,
+//     });
+
+//     if (res.status < 400) {
+//       const data = res.data;
+//       console.log("Respuesta login EMPRESA:", data);
+
+//       await AsyncStorage.setItem('accessToken', data.token || data.access);
+//       await AsyncStorage.setItem('refreshToken', data.refresh);
+//       await AsyncStorage.setItem('empresaId', data.empresa?.id?.toString() || "");
+//       await AsyncStorage.setItem('userEmail', user);
+
+//       setIsLogged(true);
+//       setLoginVisible(false);
+//       Alert.alert('Login correcto', 'Has ingresado como empresa');
+//       navigation.navigate('HomeScreen');
+//       return;
+//     }
+
+//     Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+//   } catch (error) {
+//     console.error("Error en login:", error);
+//     Alert.alert('Error', 'No se pudo conectar con el servidor');
+//   }
+// };
+
+const handleLogin = async () => {
+  if (!user.trim() || !pass.trim()) {
+    Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+    return;
+  }
+
+  try {
+    // 🔹 Intento de login como usuario
+    const resUser = await api.post('/api/login/', { email: user, password: pass });
+    const data = resUser.data;
+
+    console.log("Login como usuario:", data);
+
+    await AsyncStorage.setItem('accessToken', data.access);
+    await AsyncStorage.setItem('refreshToken', data.refresh);
+    await AsyncStorage.setItem('userEmail', user);
+    await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || "");
+    await AsyncStorage.setItem('userName', data.user?.username || user);
+    await AsyncStorage.setItem('userKind', 'usuario');
+
+    setIsLogged(true);
+    setLoginVisible(false);
+    Alert.alert('Login correcto', 'Has ingresado como usuario');
+    navigation.navigate('HomeScreen');
+    return;
+
+  } catch (errorUser) {
+    const status = errorUser.response?.status;
+    const msg = errorUser.response?.data?.detail || errorUser.message;
+
+    console.warn("Login usuario falló:", msg);
+
+    if (status !== 401) {
+      Alert.alert('Error inesperado', msg);
+      return;
     }
+
+    // 🔁 Fallback: intento login como empresa
     try {
-      const response = await fetch(`http://${ipAddress}:8000/api/login/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: user,
-          password: pass,
-        }),
+      const resEmpresa = await api.post('/api/empresa/login/', { email: user, password: pass });
+      const data = resEmpresa.data;
+
+      console.log("Login como empresa:", data);
+
+      await AsyncStorage.setItem('accessToken', data.token || data.access);
+      await AsyncStorage.setItem('refreshToken', data.refresh);
+      await AsyncStorage.setItem('empresaId', data.empresa?.id?.toString() || "");
+      await AsyncStorage.setItem('userEmail', user);
+      await AsyncStorage.setItem('userKind', 'empresa');
+
+      setIsLogged(true);
+      setLoginVisible(false);
+      Alert.alert('Login correcto', 'Has ingresado como empresa');
+      navigation.navigate('HomeScreen');
+      return;
+
+    } catch (errorEmpresa) {
+      const msgEmpresa = errorEmpresa.response?.data?.detail || errorEmpresa.message;
+      console.warn("Login empresa falló:", msgEmpresa);
+      Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+    }
+  }
+};
+
+
+
+
+  const [events, setEventos] = useState([]);
+
+  useEffect(() => {
+  const fetchEventos = async () => {
+    try {
+      const res = await api.get('/api/eventos-publicos/');
+      const data = res.data;
+
+      const eventosTransformados = data.map(ev => {
+        const categorias = Array.isArray(ev.categoria)
+          ? ev.categoria
+          : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+
+        return {
+          id: ev.id,
+          title: ev.titulo,
+          date: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleDateString()
+            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+          time: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : null,
+          location: ev.ubicacion || 'Ubicación no definida',
+          price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
+          type: categorias,
+          tag: categorias[0],
+          image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+          empresaId: ev.empresa || null,
+          ownerName: (ev.empresa && empresaNames[ev.empresa]) || (ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador')
+        };
       });
-      if (response.ok) {
-        const data = await response.json();
-        // Guardar token y nombre de usuario
-        await AsyncStorage.setItem('accessToken', data.access);
-        await AsyncStorage.setItem('userEmail', user); // email
-        if (data.nombre) {
-          await AsyncStorage.setItem('userName', data.nombre);
-        } else {
-          await AsyncStorage.setItem('userName', user);
+
+      setEventos(eventosTransformados);
+
+      // Obtener IDs de empresas que aún no tenemos en cache
+      const nuevosIds = [...new Set(
+        eventosTransformados
+          .map(e => e.empresaId)
+          .filter(id => id && !empresaNames[id])
+      )];
+
+      if (nuevosIds.length) {
+        // Limitar para evitar exceso de peticiones simultáneas (p.ej. 50)
+        const limited = nuevosIds.slice(0, 50);
+        try {
+          const responses = await Promise.all(limited.map(id => api.get(`/api/public/empresas/${id}/`).catch(() => null)));
+          const mapping = {};
+            responses.forEach((r, idx) => {
+              if (r && r.data) {
+                mapping[limited[idx]] = r.data.nombre || `Empresa #${limited[idx]}`;
+              }
+            });
+          if (Object.keys(mapping).length) {
+            setEmpresaNames(prev => ({ ...prev, ...mapping }));
+          }
+        } catch (e) {
+          console.warn('Error obteniendo nombres de empresas', e.message);
         }
-        setIsLogged(true);
-        setLoginVisible(false); // Cierra el modal y dispara el useEffect
-        Alert.alert('Login correcto', 'Has ingresado correctamente');
-        navigation.navigate('HomeScreen');
-      } else {
-        const err = await response.json();
-        Alert.alert('Error de login','Usuario o contraseña incorrectos');
       }
     } catch (error) {
-      Alert.alert('Error', 'No se pudo conectar con el servidor');
+      console.error('Error fetching eventos públicos:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Eventos de ejemplo
-  const events = [
-    {
-      id: 1,
-      type: 'concert',
-      title: 'Festival Indie 2023',
-      date: '15 Dic 2023',
-      location: 'Estadio Nacional, Santiago',
-      price: '$25.000 - $80.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
-      tag: 'Concierto'
-    },
-    {
-      id: 2,
-      type: 'party',
-      title: 'Nochevieja VIP',
-      date: '21 Dic 2023',
-      location: 'Club Nocturno Momentum',
-      price: '$15.000 - $50.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2845f684-896f-4604-a8e9-6ce9929b0bbb.png',
-      tag: 'Fiesta'
-    },
-    {
-      id: 3,
-      type: 'sports',
-      title: 'Final Copa Nacional',
-      date: '25 Nov 2023',
-      location: 'Estadio Monumental',
-      price: '$10.000 - $45.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/d202d6da-9e5f-432c-97dd-5ad86b5461af.png',
-      tag: 'Deportes'
-    },
-    {
-      id: 4,
-      type: 'concert',
-      title: 'Electric Festival',
-      date: '12 Ene 2024',
-      location: 'Parque Bicentenario',
-      price: '$30.000 - $90.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/2cd9adb4-9a48-403a-8a0b-c1e9b937bda9.png',
-      tag: 'Concierto'
-    },
-    {
-      id: 5,
-      type: 'theater',
-      title: 'Hamlet Moderno',
-      date: '20 Ene 2024',
-      location: 'Teatro Municipal',
-      price: '$12.000 - $35.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-      tag: 'Teatro'
-    },
-    {
-      id: 6,
-      type: 'party',
-      title: 'Noche de San Valentín',
-      date: '14 Feb 2024',
-      location: 'Hotel Luxury SkyBar',
-      price: '$18.000 - $60.000',
-      image: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/3df9dee6-6fdf-450d-9fe0-c750685aee18.png',
-      tag: 'Fiesta'
-    }
-  ];
+  fetchEventos();
+}, [empresaNames]); // cuando cache cambia, eventos se re-mapean on next fetch
 
   // Filtros disponibles
   const filters = [
@@ -157,11 +263,25 @@ export default function HomeScreen() {
     { title: 'API para desarrolladores' }
   ];
 
-  // Filtrado de eventos
-  const filteredEvents = events.filter(e =>
-    (filter === 'all' || e.type === filter) &&
-    (e.title.toLowerCase().includes(search.toLowerCase()) || e.location.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredEvents = events.filter(e => {
+    const categorias = Array.isArray(e.type) ? e.type : [e.type];
+    const matchesFilter = filter === 'all' || categorias.includes(filter);
+    const query = search.toLowerCase();
+    const matchesSearch = e.title.toLowerCase().includes(query) || (e.location||'').toLowerCase().includes(query) || categorias.join(' ').toLowerCase().includes(query);
+    return matchesFilter && matchesSearch;
+  });
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#00ff00" /> 
+          <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -174,32 +294,28 @@ export default function HomeScreen() {
         contentContainerStyle={{ paddingBottom: 48, paddingTop: 48 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header unificado */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Rumba<Text style={{ color: '#ec4899' }}>CCS</Text></Text>
-          {/* Botón iniciar sesión y foto de perfil */}
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {isLogged ? (
-              <TouchableOpacity
-                style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
-                onPress={handleLogout}
-              >
-                <Text style={styles.loginBtnText}>Cerrar sesión</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.loginBtn}
-                onPress={() => setLoginVisible(true)}
-              >
-                <Text style={styles.loginBtnText}>Iniciar sesión</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-              <Image
-                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-                style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
-              />
-            </TouchableOpacity>
+          <View style={styles.headerContainer}>
+            <View style={styles.logoContainer}>
+              <Text style={styles.logoText}>R U M B A</Text>
+              <Text style={styles.logoSubtext}>CCS</Text>
+            </View>
+            <View style={styles.headerRight}>
+              {!isLogged && (
+                <TouchableOpacity
+                  style={styles.loginBtn}
+                  onPress={() => setLoginVisible(true)}
+                >
+                  <Text style={styles.loginBtnText}>Iniciar sesión</Text>
+                </TouchableOpacity>
+              )}
+              {isLogged && (
+                <TouchableOpacity onPress={() => navigation.navigate('Perfil')} style={styles.profileIconWrapper}>
+                  <PersonIcon size={28} color="#0ea5e9" />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
         </View>
 
@@ -231,21 +347,50 @@ export default function HomeScreen() {
           ))}
         </ScrollView>
 
+        {/* Botón para ir a tu panel de Empresa
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#0ea5e9',
+            paddingVertical: 12,
+            paddingHorizontal: 18,
+            borderRadius: 10,
+            alignItems: 'center',
+            marginVertical: 16,
+            flexDirection: 'row',
+            justifyContent: 'center'
+          }}
+          onPress={() => navigation.navigate('Empresa')}
+        >
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ir a mi empresa</Text>
+        </TouchableOpacity> */}
+
         {/* Eventos */}
         <Text style={styles.sectionTitle}>Próximos eventos</Text>
+        
         <View style={styles.eventsGrid}>
           {filteredEvents.length === 0 ? (
             <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>No hay eventos para mostrar.</Text>
           ) : (
             filteredEvents.map(event => (
               <View key={event.id} style={styles.eventCard}>
+                <View style={styles.ownerRow}>
+                  <View style={styles.ownerAvatar}>
+                    <Text style={styles.ownerAvatarText}>{(event.ownerName||'?').charAt(0).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex:1 }}>
+                    <Text style={styles.ownerName}>{event.ownerName}</Text>
+                    <Text style={styles.ownerLabel}>Organizador</Text>
+                  </View>
+                  {event.tag && (
+                    <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
+                  )}
+                </View>
                 <Image source={{ uri: event.image }} style={styles.eventImage} resizeMode="cover" />
-                <View style={styles.eventTag}><Text style={styles.eventTagText}>{event.tag}</Text></View>
                 <Text style={styles.eventTitle}>{event.title}</Text>
-                <Text style={styles.eventInfo}>{event.date} - {event.location}</Text>
+                <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
                 <Text style={styles.eventPrice}>{event.price}</Text>
-                <TouchableOpacity style={styles.reserveBtn}>
-                  <Text style={styles.reserveText}>Reservar</Text>
+                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
+                  <Text style={styles.reserveText}>Guardar</Text>
                 </TouchableOpacity>
               </View>
             ))
@@ -284,56 +429,43 @@ export default function HomeScreen() {
               <Text style={styles.fullMenuOption}>Inicio</Text>
               <Text style={styles.fullMenuOption}>Eventos</Text>
               <Text style={styles.fullMenuOption}>Acerca de</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setMenuVisible(false);
-                  setTimeout(() => setLoginVisible(true), 250);
-                }}
-              >
-                <Text style={styles.fullMenuOption}>Iniciar sesión</Text>
-              </TouchableOpacity>
+              {!isLogged && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setMenuVisible(false);
+                    setTimeout(() => setLoginVisible(true), 250);
+                  }}
+                >
+                  <Text style={styles.fullMenuOption}>Iniciar sesión</Text>
+                </TouchableOpacity>
+              )}
+              {isLogged && hasEmpresa && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setMenuVisible(false);
+                    navigation.navigate('Empresa');
+                  }}
+                >
+                  <Text style={styles.fullMenuOption}>Perfil empresa</Text>
+                </TouchableOpacity>
+              )}
+              {isLogged && !hasEmpresa && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setMenuVisible(false);
+                    navigation.navigate('FormularioScreen');
+                  }}
+                >
+                  <Text style={styles.fullMenuOption}>Formulario de empresa</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <Text style={styles.fullMenuFooter}>© 2025 RumbaCCS</Text>
           </View>
         </Pressable>
       </Modal>
 
-      {/* Modal de Login
-      <Modal
-        visible={loginVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setLoginVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Pressable style={styles.modalClose} onPress={() => setLoginVisible(false)}>
-              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
-            </Pressable>
-            <Text style={styles.loginTitle}>Iniciar sesión</Text>
-            <TextInput style={styles.loginInput} placeholder="Correo electrónico" placeholderTextColor="#888" keyboardType="email-address" />
-            <TextInput style={styles.loginInput} placeholder="Contraseña" placeholderTextColor="#888" secureTextEntry />
-            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin}>
-              <Text style={styles.loginBtnText}>Ingresar</Text>
-            </TouchableOpacity>
-            <View style={styles.loginLinks}>
-              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
-              <Text style={styles.loginLink}>|</Text>
-              <TouchableOpacity onPress={() => {
-                setLoginVisible(false);
-                navigation.navigate('Registro');
-              }}>
-                <Text style={styles.loginLink}>Regístrate</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
-  );
-} */}
-
-{/* Modal de Login */}
+      {/* Modal de Login */}
       <Modal
         visible={loginVisible}
         animationType="slide"
@@ -379,7 +511,7 @@ export default function HomeScreen() {
               <TouchableOpacity
                 onPress={() => {
                   setLoginVisible(false);
-                  navigation.navigate('Registro');
+                  navigation.navigate('AccountTypeScreen');
                 }}
               >
                 <Text style={styles.loginLink}>Regístrate</Text>
@@ -414,7 +546,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f172a',
     zIndex: 10,
   },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 8 },
+  header: { backgroundColor: '#0f172a', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', marginBottom: 12 },
+  headerContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  logoContainer: { flexDirection: 'row', alignItems: 'flex-end' },
+  logoText: { fontSize: 24, fontWeight: 'bold', color: '#ffffff' },
+  logoSubtext: { fontSize: 16, fontWeight: '600', color: '#db2777', marginLeft: 4 },
+  headerRight: { flexDirection: 'row', alignItems: 'center' },
   menuBtn: {
     width: 40,
     height: 40,
@@ -430,7 +567,6 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   logo: { width: 40, height: 40, borderRadius: 20 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginLeft: 8, flex: 1 },
   loginBtn: { backgroundColor: '#0ea5e9', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
   loginBtnText: { color: '#fff', fontWeight: 'bold' },
   heroSection: { height: width < 600 ? 180 : 260, marginBottom: 16, borderRadius: 16, overflow: 'hidden', position: 'relative' },
@@ -445,6 +581,14 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 20, color: '#fff', fontWeight: 'bold', marginVertical: 12 },
   eventsGrid: { flexDirection: width < 600 ? 'column' : 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   eventCard: { backgroundColor: '#334155', borderRadius: 12, padding: 12, marginBottom: 16, position: 'relative', width: CARD_WIDTH, alignSelf: 'center', marginHorizontal: 4 },
+  ownerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  ownerAvatar: { width:36, height:36, borderRadius:18, backgroundColor:'#6366f1', justifyContent:'center', alignItems:'center', marginRight:10 },
+  ownerAvatarText: { color:'#fff', fontWeight:'700', fontSize:16 },
+  ownerName: { color:'#fff', fontSize:14, fontWeight:'600' },
+  ownerLabel: { color:'#94a3b8', fontSize:11, marginTop:2 },
+  ownerChip: { backgroundColor:'#0ea5e9', paddingHorizontal:10, paddingVertical:4, borderRadius:16 },
+  ownerChipText: { color:'#fff', fontSize:12, fontWeight:'600' },
+  profileIconWrapper: { marginLeft:12, width:32, height:32, borderRadius:16, borderWidth:2, borderColor:'#0ea5e9', justifyContent:'center', alignItems:'center', backgroundColor:'#1e293b' },
   eventImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 8 },
   eventTag: { position: 'absolute', top: 12, right: 12, backgroundColor: '#6366f1', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   eventTagText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
