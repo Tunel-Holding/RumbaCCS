@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
+  Alert,
   StyleSheet,
   Image,
   ScrollView,
@@ -16,6 +17,7 @@ import {
   Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { loginConFallback } from '../utils/auth';
 import api from '../services/api'; 
  import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -39,11 +41,7 @@ const COLORS = {
   detailLabel: '#007AFF',
 };
 
-const eventImages = [
-  require('../../assets/register-bg.jpg'),
-  require('../../assets/icon.png'),
-  require('../../assets/splash-icon.png'),
-];
+
 
 // ...existing code...
   // Más eventos de la empresa (ejemplo)
@@ -90,6 +88,7 @@ export default function BuyScreen() {
   const [empresaData, setEmpresaData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLogged, setIsLogged] = useState(false);
+  const [eventoS,setEventoS] = useState(false); //Valida que los datos del evento fueron guardados
 
 
 
@@ -133,6 +132,28 @@ export default function BuyScreen() {
     checkSession();
   }, [loginVisible, isLogged]); // Se ejecuta también cuando cambia isLogged
 
+ const handleLogin = async () => {
+  const resultado = await loginConFallback(user, pass);
+
+  if (resultado.error) {
+    switch (resultado.tipo) {
+      case 'validacion':
+        Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+        break;
+      case 'error':
+        Alert.alert('Error inesperado', resultado.error);
+        break;
+      case 'credenciales':
+        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+        break;
+    }
+    return;
+  }
+
+  setIsLogged(true);
+  setLoginVisible(false);
+  Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
+};
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
@@ -156,6 +177,7 @@ export default function BuyScreen() {
       const res = await api.get(`/api/eventos-publicos/${idEvento}/`);
       console.log('Evento recibido:', res.data);
       setEvento(res.data);
+      setEventoS(true);
     } catch (error) {
       if (error.response) {
         console.error('❌ Error HTTP:', error.response.status, error.response.data);
@@ -163,6 +185,7 @@ export default function BuyScreen() {
         console.error('❌ Error:', error.message);
       }
       setEvento(null);
+      setEventoS(false);
     }
   };
 
@@ -225,13 +248,29 @@ export default function BuyScreen() {
       vestimenta: evento?.codigo_vestimenta ?? 'sin definir',
       empresa: empresaData?.nombre ?? 'sin definir',
       empresaId: evento?.empresa,
+      // imagenes: evento.imagenes,
       fecha,
       hora,
     };
   }, [evento, empresaData]);
 
+    const eventImages = useMemo(() => {
+    if (eventoS && Array.isArray(evento?.imagenes) && evento.imagenes.length > 0) {
+      return evento.imagenes.map(img => ({ uri: img.url }));
+    }
+
+    // Fallback si no hay imágenes o eventoS es falso
+    return [
+      require('../../assets/register-bg.jpg'),
+      require('../../assets/icon.png'),
+      require('../../assets/splash-icon.png'),
+    ];
+  }, [evento, eventoS]);
+
+
   // Función para guardar/quitar de guardados
   const [isSaved, setIsSaved] = useState(false);
+  
   const handleSave = async () => {
     if (!isLogged) {
       setLoginVisible(true);
@@ -541,32 +580,14 @@ if (loading) {
             />
             <TouchableOpacity
               style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 }}
-              onPress={async () => {
-                try {
-                  const res = await api.post('/api/empresas/login/', {
-                    email: user,
-                    password: pass,
-                  });
-                  if (res.data && res.data.access) {
-                    await AsyncStorage.setItem('accessToken', res.data.access);
-                    await AsyncStorage.setItem('refreshToken', res.data.refresh || '');
-                    setIsLogged(true);
-                    setLoginVisible(false);
-                    Alert.alert('Login exitoso', 'Bienvenido');
-                  } else {
-                    Alert.alert('Error', 'Credenciales incorrectas');
-                  }
-                } catch (err) {
-                  Alert.alert('Error', err.message || 'No se pudo iniciar sesión');
-                }
-              }}
+              onPress={handleLogin}    
             >
               <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ingresar</Text>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', marginTop: 12 }}>
               <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>¿Olvidaste tu contraseña?</Text>
               <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>|</Text>
-              <TouchableOpacity onPress={() => { setLoginVisible(false); navigation.navigate('Register'); }}>
+              <TouchableOpacity onPress={() => { setLoginVisible(false); navigation.navigate('AccountTypeScreen'); }}>
                 <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>Regístrate</Text>
               </TouchableOpacity>
             </View>
