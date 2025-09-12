@@ -17,7 +17,8 @@ from .views import (
     EmpresaRatingsListCreateView,
     RatingDetailView,
     EmpresaEventoCreateView,
-    EventoImagenViewSet
+    EventoImagenViewSet,
+    UsuarioEventoViewSet
 )
 
 # 1) Router principal para empresas
@@ -30,6 +31,9 @@ empresas_router.register(r'eventos', EventoViewSet, basename='empresa-eventos')
 
 # 3) Eventos públicos
 router.register(r'eventos-publicos', EventosPublicosViewSet, basename='eventos-publicos')
+
+# 5) Eventos guardados por usuario
+router.register(r'eventos-guardados', UsuarioEventoViewSet, basename='eventos-guardados')
 
 # 4) Imágenes de eventos
 eventos_router = NestedDefaultRouter(empresas_router, r'eventos', lookup='evento')

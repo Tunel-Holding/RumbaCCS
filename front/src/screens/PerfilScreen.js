@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarModal from '../components/CalendarModal';
 import HamburgerMenu from '../components/HamburgerMenu';
@@ -107,7 +108,10 @@ export default function PerfilScreen({ navigation }) {
     <View style={styles.buttonRow}>
       <TouchableOpacity
         style={[styles.sectionButton, styles.blue, selectedSection === 'guardados' && styles.sectionButtonActive]}
-        onPress={() => setSelectedSection('guardados')}
+        onPress={() => {
+          console.log('Botón de guardados presionado');
+          setSelectedSection('guardados');
+        }}
         activeOpacity={0.8}
       >
         <SvgXml xml={svgGuardados} width={24} height={24} />
@@ -123,16 +127,48 @@ export default function PerfilScreen({ navigation }) {
   );
 
   // --- Estado para eventos guardados ---
-  const [guardados, setGuardados] = useState([
-    {
-      id: 1,
-      titulo: 'Festival Indie 2023',
-      fecha: '15 Dic 2023',
-      lugar: 'Estadio Nacional, Santiago',
-      precio: '$25.000 - $80.000',
-      imagen: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png',
-    },
-  ]);
+  const [guardados, setGuardados] = useState([]);
+
+  // Función para cargar eventos guardados desde el backend
+  const fetchGuardados = async () => {
+    try {
+      const token = await AsyncStorage.getItem('accessToken');
+      console.log('Token usado para eventos guardados:', token);
+      const response = await axios.get('http://192.168.1.101:8000/api/eventos-guardados/', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      console.log('Respuesta completa eventos guardados:', response);
+      console.log('Eventos guardados recibidos:', response.data);
+      setGuardados(response.data.map(e => ({
+        id: e.evento_obj.id,
+        titulo: e.evento_obj.titulo,
+        fecha: e.evento_obj.fecha_evento,
+        lugar: e.evento_obj.ubicacion,
+        precio: e.evento_obj.precio,
+        imagen: e.evento_obj.imagenes?.[0]?.url,
+      })));
+    } catch (error) {
+      console.log('Error al cargar eventos guardados:', error);
+      if (error.response) {
+        console.log('Error response:', error.response);
+      } else if (error.request) {
+        console.log('Error request:', error.request);
+      } else {
+        console.log('Error message:', error.message);
+      }
+      setGuardados([]);
+    }
+  };
+
+  // Llama a fetchGuardados cuando el usuario selecciona la sección "guardados"
+  useEffect(() => {
+    if (selectedSection === 'guardados') {
+      console.log('useEffect: selectedSection es guardados, ejecutando fetchGuardados');
+      fetchGuardados();
+    }
+  }, [selectedSection]);
 
   // --- Función para borrar evento guardado ---
   const borrarGuardado = (id) => {
@@ -355,7 +391,7 @@ export default function PerfilScreen({ navigation }) {
           </View>
         </Animated.View>
       </Modal>
-    </View>
+      </View>
   );
 }
 

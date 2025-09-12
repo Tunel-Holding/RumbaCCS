@@ -288,6 +288,7 @@ class Rating(models.Model):
         return f"{self.usuario.username} → {self.empresa} : {self.rating}"
 
 
+
 class EmpresaEvento(models.Model):
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='reservas')
     evento = models.ForeignKey('Evento2', on_delete=models.CASCADE, related_name='reservas')
@@ -295,3 +296,15 @@ class EmpresaEvento(models.Model):
 
     def __str__(self):
         return f"{self.empresa.nombre} - {self.evento.titulo}"
+
+# Nuevo modelo para eventos guardados por usuario
+class UsuarioEvento(models.Model):
+    usuario = models.ForeignKey('api.Usuario', on_delete=models.CASCADE, related_name='eventos_guardados')
+    evento = models.ForeignKey('Evento2', on_delete=models.CASCADE, related_name='usuarios_guardaron')
+    fecha_guardado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('usuario', 'evento')
+
+    def __str__(self):
+        return f"{self.usuario.username} guardó {self.evento.titulo}"

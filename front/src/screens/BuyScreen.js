@@ -237,12 +237,11 @@ export default function BuyScreen() {
       setLoginVisible(true);
       return;
     }
-    if (!idEvento || !idEmpresa) return;
+    if (!idEvento) return;
     try {
       if (!isSaved) {
-        const res = await api.post('/api/empresa_evento/', {
+        const res = await api.post('/api/eventos-guardados/', {
           evento: idEvento,
-          empresa: idEmpresa,
         });
         if (res.data.id) {
           setIsSaved(true);

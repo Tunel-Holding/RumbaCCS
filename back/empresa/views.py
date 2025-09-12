@@ -1,3 +1,7 @@
+from .models import UsuarioEvento
+from .serializers import UsuarioEventoSerializer
+# ViewSet para eventos guardados por usuario
+from rest_framework import viewsets, permissions
 from .models import (
     Empresa, Evento2, Rating,
     EventoImagen,
@@ -562,3 +566,13 @@ class EmpresaEventoCreateView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+class UsuarioEventoViewSet(viewsets.ModelViewSet):
+    serializer_class = UsuarioEventoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return UsuarioEvento.objects.filter(usuario=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(usuario=self.request.user)
