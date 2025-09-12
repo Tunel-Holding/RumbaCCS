@@ -11,6 +11,13 @@ import api from '../services/api';
 
 const { width } = Dimensions.get('window');
 
+
+
+
+
+
+
+
 // helpers/opcional: extrae el primer mensaje legible
 const getFirstMessage = (err) => {
   if (!err || typeof err !== 'object') return 'Error en el registro';

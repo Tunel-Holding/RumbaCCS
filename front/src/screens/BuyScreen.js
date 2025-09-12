@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
+  Alert,
   StyleSheet,
   Image,
   ScrollView,
@@ -16,9 +17,9 @@ import {
   Platform,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { loginConFallback } from '../utils/auth';
 import api from '../services/api'; 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert } from 'react-native';
+ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 // Footer links (copiados de HomeScreen.js)
@@ -40,11 +41,7 @@ const COLORS = {
   detailLabel: '#007AFF',
 };
 
-const eventImages = [
-  require('../../assets/register-bg.jpg'),
-  require('../../assets/icon.png'),
-  require('../../assets/splash-icon.png'),
-];
+
 
 // ...existing code...
   // Más eventos de la empresa (ejemplo)
@@ -91,14 +88,12 @@ export default function BuyScreen() {
   const [empresaData, setEmpresaData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLogged, setIsLogged] = useState(false);
-  // Flag to remember if user tried to save before logging in
-  const [pendingSave, setPendingSave] = useState(false);
+  const [eventoS,setEventoS] = useState(false); //Valida que los datos del evento fueron guardados
 
 
 
   // Recibe los parámetros de navegación
-  const { idEvento, idEmpresa: idEmpresaParam } = route.params ?? {};
-  const [idEmpresa, setIdEmpresa] = useState(idEmpresaParam || null);
+  const { idEvento, idEmpresa } = route.params ?? {};
   const [evento, setEvento] = useState(null);
 
   // Carousel refs y medidas
@@ -132,15 +127,33 @@ export default function BuyScreen() {
   useEffect(() => {
     const checkSession = async () => {
       const token = await AsyncStorage.getItem('accessToken');
-      console.log('Access Token:', token);
-      if(token) {
-        setIsLogged(true);
-      }
       setIsLogged(!!token);
     };
     checkSession();
-  }, [loginVisible]); // Se ejecuta cada vez que el modal cambia
+  }, [loginVisible, isLogged]); // Se ejecuta también cuando cambia isLogged
 
+ const handleLogin = async () => {
+  const resultado = await loginConFallback(user, pass);
+
+  if (resultado.error) {
+    switch (resultado.tipo) {
+      case 'validacion':
+        Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+        break;
+      case 'error':
+        Alert.alert('Error inesperado', resultado.error);
+        break;
+      case 'credenciales':
+        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+        break;
+    }
+    return;
+  }
+
+  setIsLogged(true);
+  setLoginVisible(false);
+  Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
+};
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
@@ -150,67 +163,6 @@ export default function BuyScreen() {
     await AsyncStorage.clear();
     setIsLogged(false);
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
-  };
-
-  // Login con fallback (usuario -> empresa) igual a HomeScreen
-  const handleLogin = async () => {
-    if (!user.trim() || !pass.trim()) {
-      Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
-      return;
-    }
-
-    try {
-      // Intento como usuario
-      const resUser = await api.post('/api/login/', { email: user, password: pass });
-      const data = resUser.data;
-
-      await AsyncStorage.setItem('accessToken', data.access);
-      await AsyncStorage.setItem('refreshToken', data.refresh || '');
-      await AsyncStorage.setItem('userEmail', user);
-      await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || '');
-      await AsyncStorage.setItem('userName', data.user?.username || user);
-      await AsyncStorage.setItem('userKind', 'usuario');
-
-      setIsLogged(true);
-      setLoginVisible(false);
-      Alert.alert('Login correcto', 'Has ingresado como usuario');
-
-    } catch (errorUser) {
-      const status = errorUser.response?.status;
-      const msg = errorUser.response?.data?.detail || errorUser.message;
-      console.warn('Login usuario falló:', msg);
-      if (status !== 401) {
-        Alert.alert('Error inesperado', msg);
-        return;
-      }
-      // Fallback: intento como empresa
-      try {
-        const resEmpresa = await api.post('/api/empresa/login/', { email: user, password: pass });
-        const data = resEmpresa.data;
-
-        await AsyncStorage.setItem('accessToken', data.token || data.access || '');
-        await AsyncStorage.setItem('refreshToken', data.refresh || '');
-        await AsyncStorage.setItem('empresaId', data.empresa?.id?.toString() || '');
-        await AsyncStorage.setItem('userEmail', user);
-        await AsyncStorage.setItem('userKind', 'empresa');
-
-        setIsLogged(true);
-        setLoginVisible(false);
-        Alert.alert('Login correcto', 'Has ingresado como empresa');
-      } catch (errorEmpresa) {
-        const msgEmpresa = errorEmpresa.response?.data?.detail || errorEmpresa.message;
-        console.warn('Login empresa falló:', msgEmpresa);
-        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
-        return;
-      }
-    }
-
-    // Si el usuario intentó guardar antes de loguearse, reintentar ahora
-    if (pendingSave) {
-      setPendingSave(false);
-      // Pequeño timeout para asegurar que isLogged ya se reflejó
-      setTimeout(() => handleSave(), 100);
-    }
   };
 
   // Obtener datos del evento seleccionado
@@ -225,6 +177,7 @@ export default function BuyScreen() {
       const res = await api.get(`/api/eventos-publicos/${idEvento}/`);
       console.log('Evento recibido:', res.data);
       setEvento(res.data);
+      setEventoS(true);
     } catch (error) {
       if (error.response) {
         console.error('❌ Error HTTP:', error.response.status, error.response.data);
@@ -232,6 +185,7 @@ export default function BuyScreen() {
         console.error('❌ Error:', error.message);
       }
       setEvento(null);
+      setEventoS(false);
     }
   };
 
@@ -239,35 +193,30 @@ export default function BuyScreen() {
 }, [idEvento]);
 
   useEffect(() => {
-    // si no tenemos idEmpresa pero ya llegó el evento, usar evento.empresa
-    if (!idEmpresa && evento?.empresa) {
-      setIdEmpresa(evento.empresa);
-    }
-  }, [evento, idEmpresa]);
+  if (!idEmpresa) {
+    console.warn('🟡 idEmpresa está undefined, skip fetchEmpresa');
+    setLoading(false);
+    return;
+  }
 
-  useEffect(() => {
-    if (!idEmpresa) {
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-    const fetchEmpresa = async () => {
-      try {
-        const res = await api.get(`/api/public/empresas/${idEmpresa}/`);
-        if (!cancelled) setEmpresaData(res.data);
-      } catch (error) {
-        if (error.response) {
-          console.error('❌ Error HTTP:', error.response.status, error.response.data);
-        } else {
-          console.error('❌ Error:', error.message);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+  const fetchEmpresa = async () => {
+    try {
+      console.log('🔎 Fetching empresa con ID:', idEmpresa);
+      const res = await api.get(`/api/public/empresas/${idEmpresa}/`);
+      setEmpresaData(res.data);
+    } catch (error) {
+      if (error.response) {
+        console.error('❌ Error HTTP:', error.response.status, error.response.data);
+      } else {
+        console.error('❌ Error:', error.message);
       }
-    };
-    fetchEmpresa();
-    return () => { cancelled = true; };
-  }, [idEmpresa]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchEmpresa();
+}, [idEmpresa]); // ← aquí va idEmpresa, no empresaIdParam
 
   const eventDetails = useMemo(() => {
     let fecha = 'sin definir';
@@ -297,19 +246,34 @@ export default function BuyScreen() {
       lugar: evento?.ubicacion ?? 'sin definir',
       categoria: evento?.categoria ?? 'Fiesta',
       vestimenta: evento?.codigo_vestimenta ?? 'sin definir',
-  empresa: empresaData?.nombre || (empresaData?.nombre === '' ? 'sin definir' : (evento?.empresa ? `Empresa #${evento.empresa}` : 'sin definir')),
-  empresaId: evento?.empresa || idEmpresa,
+      empresa: empresaData?.nombre ?? 'sin definir',
+      empresaId: evento?.empresa,
+      // imagenes: evento.imagenes,
       fecha,
       hora,
     };
   }, [evento, empresaData]);
 
+    const eventImages = useMemo(() => {
+    if (eventoS && Array.isArray(evento?.imagenes) && evento.imagenes.length > 0) {
+      return evento.imagenes.map(img => ({ uri: img.url }));
+    }
+
+    // Fallback si no hay imágenes o eventoS es falso
+    return [
+      require('../../assets/register-bg.jpg'),
+      require('../../assets/icon.png'),
+      require('../../assets/splash-icon.png'),
+    ];
+  }, [evento, eventoS]);
+
+
   // Función para guardar/quitar de guardados
   const [isSaved, setIsSaved] = useState(false);
+  
   const handleSave = async () => {
     if (!isLogged) {
-  setPendingSave(true);
-  setLoginVisible(true);
+      setLoginVisible(true);
       return;
     }
     if (!idEvento || !idEmpresa) return;
@@ -338,7 +302,7 @@ export default function BuyScreen() {
   
   const [relatedIndex, setRelatedIndex] = useState(0);
   // ...existing code...
-
+ 
   // Header de HomeScreen.js
   const Header = () => (
     <View style={styles.header}>
@@ -347,27 +311,28 @@ export default function BuyScreen() {
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
 
+      {/* Logo y foto de perfil si está autenticado, botón de iniciar sesión si no */}
       {isLogged ? (
-        <TouchableOpacity
-          style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
-          onPress={handleLogout}
-        >
-          <Text style={styles.loginBtnText}>Cerrar sesión</Text>
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity
+            style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
+            onPress={handleLogout}
+          >
+            <Text style={styles.loginBtnText}>Cerrar sesión</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
+            <Image
+              source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+              style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
+            />
+          </TouchableOpacity>
+        </>
       ) : (
         <TouchableOpacity
           style={styles.loginBtn}
           onPress={() => setLoginVisible(true)}
         >
           <Text style={styles.loginBtnText}>Iniciar sesión</Text>
-        </TouchableOpacity>
-      )}
-      {isLogged && (
-        <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-          <Image
-            source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-            style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
-          />
         </TouchableOpacity>
       )}
       </View>
@@ -613,13 +578,16 @@ if (loading) {
               autoCapitalize="none"
               autoComplete="password"
             />
-            <TouchableOpacity style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 }} onPress={handleLogin}>
+            <TouchableOpacity
+              style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 }}
+              onPress={handleLogin}    
+            >
               <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ingresar</Text>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', marginTop: 12 }}>
               <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>¿Olvidaste tu contraseña?</Text>
               <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>|</Text>
-              <TouchableOpacity onPress={() => { setLoginVisible(false); navigation.navigate('RegisterScreen', { accountType: 'normal', origin: 'BuyScreen' }); }}>
+              <TouchableOpacity onPress={() => { setLoginVisible(false); navigation.navigate('AccountTypeScreen'); }}>
                 <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>Regístrate</Text>
               </TouchableOpacity>
             </View>

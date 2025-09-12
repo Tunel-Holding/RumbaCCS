@@ -1,3 +1,9 @@
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+from pathlib import Path
+from datetime import timedelta
+
 """
 Django settings for Backend project.
 
@@ -10,10 +16,20 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
-from pathlib import Path
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Cargar variables del .env
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_BUCKET_EVENTOS = os.getenv("SUPABASE_BUCKET_EVENTOS", "Evento")
+
+# Verificación temporal
+print("SUPABASE_URL:", SUPABASE_URL)
 
 
 # Quick-start development settings - unsuitable for production
@@ -182,7 +198,7 @@ REST_FRAMEWORK = {
     #     "rest_framework.permissions.IsAuthenticated",
     # ),
 }
-from datetime import timedelta
+
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
@@ -199,3 +215,6 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'noreplyrumbaccs@gmail.com'  # Cambia por tu correo real si usas Gmail
 EMAIL_HOST_PASSWORD = 'swpe vapt tezf fqtp'
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+

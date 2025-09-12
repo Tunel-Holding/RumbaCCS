@@ -17,6 +17,7 @@ from .views import (
     EmpresaRatingsListCreateView,
     RatingDetailView,
     EmpresaEventoCreateView,
+    EventoImagenViewSet
 )
 
 # 1) Router principal para empresas
@@ -30,12 +31,20 @@ empresas_router.register(r'eventos', EventoViewSet, basename='empresa-eventos')
 # 3) Eventos públicos
 router.register(r'eventos-publicos', EventosPublicosViewSet, basename='eventos-publicos')
 
+# 4) Imágenes de eventos
+eventos_router = NestedDefaultRouter(empresas_router, r'eventos', lookup='evento')
+eventos_router.register(r'imagenes', EventoImagenViewSet, basename='evento-imagenes')
+
+evento_imagenes = EventoImagenViewSet.as_view({'post': 'create'})
+
 urlpatterns = [
     # Rutas base: /api/empresas/ y /api/empresas/<pk>/
     path('', include(router.urls)),
 
     # Rutas anidadas: /api/empresas/<empresa_pk>/eventos/
     path('', include(empresas_router.urls)),
+    
+    path('', include(eventos_router.urls)),
 
     # Endpoint detalle y mi empresa
     path('mi-empresa/', mi_empresa, name='mi-empresa'),
@@ -58,4 +67,7 @@ urlpatterns = [
 
     # Crear evento para una empresa
     path('empresa_evento/', EmpresaEventoCreateView.as_view(), name='empresa_evento-create'),
+    
+    # Imagenes de eventos
+    path('api/eventos/<int:evento_id>/imagenes/', evento_imagenes, name='evento-imagenes'),
 ]

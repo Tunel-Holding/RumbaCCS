@@ -94,7 +94,6 @@ useEffect(() => {
       }
 
       const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
-      console.log("Eventos de la empresa:", res.data);
 
       const eventosTransformados = res.data.map(ev => ({
         id: ev.id,
@@ -105,11 +104,13 @@ useEffect(() => {
         precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
         categoria: ev.categoria || "Sin categoría",
         categoriaColor: ev.categoriaColor || "#4f46e5",
-        imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png"
+        imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
+        imagenes: ev.imagenes,
       }));
 
       console.log("Status:", res.status);
       console.log("Fechas:", eventosTransformados.map(ev => ev.fecha));
+      console.log("Imagenes: ", eventosTransformados.map(ev => ev.imagenes))
 
       setEventos(eventosTransformados);
    } catch (error) {
@@ -440,7 +441,14 @@ useEffect(() => {
             eventos.map((evento) => (
               <View key={evento.id} style={styles.eventoCard}>
                 <View style={styles.eventoImageContainer}>
-                  <Image source={{ uri: evento.imagen }} style={styles.eventoImage} resizeMode="cover" />
+                  {/* <Image source={{ uri: evento.imagenes }} style={styles.eventoImage} resizeMode="cover" /> */}
+                  <Image
+                    source={{
+                      uri: evento.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
+                    }}
+                    style={styles.eventoImage}
+                    resizeMode="cover"
+                  />
                   <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}> 
                     <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
                   </View>
@@ -678,7 +686,7 @@ const styles = StyleSheet.create({
   },
   eventoImage: {
     width: '100%',
-    height: 192,
+    height: 300,
   },
   eventoCategoria: {
     position: 'absolute',

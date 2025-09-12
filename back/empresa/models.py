@@ -6,6 +6,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.utils import timezone
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.auth.hashers import make_password, check_password
+import uuid
 
 Usuario = get_user_model()
 
@@ -115,7 +116,6 @@ class Empresa(models.Model):
     def eventos_publicados(self):
         # si ya tienes un modelo Evento con ForeignKey a Empresa:
         return self.eventos.count() if hasattr(self, "eventos") else 0
-    
 
 
 class Evento2(models.Model):
@@ -164,7 +164,6 @@ class Evento2(models.Model):
     (21, 'Mayores de 21 años'),
     (25, 'Mayores de 25 años'),
 ]
-
     
     titulo = models.CharField(
         max_length=200,
@@ -234,12 +233,12 @@ class Evento2(models.Model):
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     
     # Imagen
-    imagen = models.ImageField(
-        upload_to="eventos_imagenes/",
-        blank=True,
-        null=True,
-        help_text="Imagen promocional del evento"
-    )
+    # imagen = models.ImageField(
+    #     upload_to="eventos_imagenes/",
+    #     blank=True,
+    #     null=True,
+    #     help_text="Imagen promocional del evento"
+    # )
     
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)
@@ -253,7 +252,13 @@ class Evento2(models.Model):
     def __str__(self):
         return f"{self.titulo} – {self.empresa.nombre}"
 
-
+class EventoImagen(models.Model):
+    evento = models.ForeignKey(Evento2, related_name="imagenes", on_delete=models.CASCADE)
+    url = models.URLField()
+    creada_en = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.evento_id} - {self.url}"
 
 class Rating(models.Model):
     empresa = models.ForeignKey(
@@ -281,6 +286,7 @@ class Rating(models.Model):
 
     def __str__(self):
         return f"{self.usuario.username} → {self.empresa} : {self.rating}"
+
 
 class EmpresaEvento(models.Model):
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='reservas')

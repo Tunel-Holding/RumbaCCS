@@ -3,17 +3,25 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from django.db import IntegrityError
 from django.db.models import Avg, Count
-from .models import Empresa, Evento2, Rating, EmpresaEvento
+from .models import Empresa, Evento2, Rating, EmpresaEvento, EventoImagen
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
 
+class EventoImagenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventoImagen
+        fields = ["id", "url", "creada_en"]
+
+class TempImageSerializer(serializers.Serializer):
+    url = serializers.URLField()
+    
 class EventoSerializer(serializers.ModelSerializer):
     categoria = serializers.ListField(
         child=serializers.ChoiceField(choices=Evento2.CATEGORIA_CHOICES),
         allow_empty=False,
         help_text="Lista de categorías válidas"
     )
-    
+    imagenes = EventoImagenSerializer(many=True, read_only=True)
     empresa = serializers.PrimaryKeyRelatedField(read_only=True)
     edad_minima = serializers.IntegerField()
     capacidad = serializers.IntegerField()
@@ -35,13 +43,14 @@ class EventoSerializer(serializers.ModelSerializer):
             "capacidad",
             "precio",
             "moneda",
-            "imagen",
+            "imagenes",
             "fecha_evento",
             "creado_en",
             "actualizado_en",
             "latitude",
             "longitude",
         ]
+
     def get_distance(self, obj):
         # Si la queryset anotó 'distance', lo muestra; si no, null
         return getattr(obj, 'distance', None)
@@ -247,6 +256,36 @@ class RatingSerializer(serializers.ModelSerializer):
         return value
 
 class EmpresaEventoSerializer(serializers.ModelSerializer):
+    # Lista de URLs temporales que vienen del front
+    imagenesTemp = serializers.ListField(
+        child=serializers.URLField(),
+        write_only=True,
+        required=False,
+        help_text="URLs de imágenes temporales a asignar al evento"
+    )
+
+    # Datos para crear el evento
+    evento_data = serializers.DictField(write_only=True)
+
     class Meta:
         model = EmpresaEvento
-        fields = ['id', 'evento', 'empresa', 'fecha_reserva']
+        fields = ['id', 'empresa', 'evento_data', 'fecha_reserva', 'imagenesTemp']
+
+    def create(self, validated_data):
+        imagenes_temp = validated_data.pop("imagenesTemp", [])
+        evento_data = validated_data.pop("evento_data")
+
+        # 1️⃣ Crear el Evento2
+        evento = Evento2.objects.create(**evento_data)
+
+        # 2️⃣ Reasignar las imágenes temporales al evento
+        for url in imagenes_temp:
+            EventoImagen.objects.create(evento=evento, url=url)
+
+        # 3️⃣ Crear el registro EmpresaEvento
+        empresa_evento = EmpresaEvento.objects.create(
+            evento=evento,
+            empresa=validated_data.get("empresa")
+        )
+
+        return empresa_evento

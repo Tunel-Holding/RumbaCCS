@@ -62,17 +62,31 @@ export default function PerfilScreen({ navigation }) {
 
 
  const handleLogout = async () => {
-   try {
-     await Promise.all([
-       AsyncStorage.removeItem('userName'),
-       AsyncStorage.removeItem('userEmail'),
-       AsyncStorage.removeItem('accessToken'),
-       AsyncStorage.removeItem('empresaId'),
-     ]);
-   } catch (e) { /* noop */ }
-   setUserName('');
-   navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
- };
+  await Promise.all([
+    AsyncStorage.removeItem('userName'),
+    AsyncStorage.removeItem('userEmail'),
+    AsyncStorage.removeItem('accessToken'),
+    AsyncStorage.removeItem('empresaId'),
+  ]);
+
+  setUserName('');
+
+  Alert.alert(
+    'Sesión cerrada',
+    'Has cerrado sesión correctamente',
+    [
+      {
+        text: 'OK',
+        onPress: () => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'HomeScreen' }], // nombre exacto en el Stack
+          });
+        },
+      },
+    ]
+  );
+};
   const [notifAnim] = useState(new Animated.Value(0));
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedSection, setSelectedSection] = useState(null);

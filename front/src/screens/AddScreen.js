@@ -17,6 +17,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -24,7 +25,8 @@ import { Calendar } from 'react-native-calendars';
 import { useSafeMargins, getDeviceType, hasNotch } from '../utils/safeAreaUtils';
 import { getResponsiveStyles, getBottomSafeAreaHeight, getTopSafeAreaHeight } from '../utils/deviceConfig';
 import api from '../services/api'; // Ajusta el path según tu estructura
-
+import * as ImagePicker from "expo-image-picker";
+import { uploadImage } from "../services/uploadImage"; // Ajusta path
 
 export default function AddScreen() {
   const navigation = useNavigation();
@@ -45,12 +47,14 @@ export default function AddScreen() {
     descripcion: '',
     precio: '',
     moneda: 'USD',
-    imagen: '',
+    imagenesTemp: [],
+    imagenesLocales: [], 
     // Campos añadidos solo FRONT para fecha/hora
     fecha_evento_fecha: '',
     fecha_evento_hora: '',
   });
   const [showPrecio, setShowPrecio] = useState(false);
+  const [eventoId, setEventoId] = useState(null);
 
   // Estados para los modales
   const [categoriaModalVisible, setCategoriaModalVisible] = useState(false);
@@ -63,24 +67,8 @@ export default function AddScreen() {
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [calendarLoading, setCalendarLoading] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
   
-   
-
-// useEffect(() => {
-//   const fetchMiEmpresa = async () => {
-//     try {
-//       const res = await api.get('/api/mi-empresa/');
-//       setEmpresaId(res.data.id);
-//     } catch (err) {
-//       console.error('Error al obtener empresa:', err.response?.data || err.message);
-//     }
-//   };
-
-//   fetchMiEmpresa();
-// }, []);
-
-
-
   // Opciones predefinidas
   const categorias = [
     'Concierto', 'Feria', 'Festival', 'Exposición', 'Conferencia', 
@@ -128,14 +116,91 @@ export default function AddScreen() {
     categoria.toLowerCase().includes(categoriaSearchText.toLowerCase())
   );
 
+  // const uploadImage = async (fileUri) => {
+  //   try {
+  //     const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
+  //     const fileBuffer = Buffer.from(base64, 'base64');
+  //     const fileName = `temp/evento_${Date.now()}.jpg`;
+
+  //     const { data, error } = await supabase.storage
+  //       .from('eventos')
+  //       .upload(fileName, fileBuffer, { contentType: 'image/jpeg', upsert: true });
+
+  //     if (error) throw error;
+
+  //     const { data: urlData } = supabase.storage.from('eventos').getPublicUrl(fileName);
+  //     return urlData.publicUrl;
+  //   } catch (err) {
+  //     console.error("Error al subir imagen:", err);
+  //     return null;
+  //   }
+  // };
+
+  const handlePickImages = async () => {
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions?.Images ?? ImagePicker.MediaType?.Images ?? undefined,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result || result.canceled) return;
+
+    // result.assets es un array; guardamos solo las URIs
+    const uris = (result.assets || []).map(a => a.uri).filter(Boolean);
+
+    if (uris.length === 0) return;
+
+    setFormData(prev => ({
+      ...prev,
+      imagenesLocales: [...(prev.imagenesLocales || []), ...uris],
+    }));
+  } catch (err) {
+    console.error("Error al seleccionar imágenes:", err);
+    Alert.alert("Error", "No se pudieron seleccionar las imágenes");
+  }
+};
+
+  const uploadEventoImage = async (eventoId, uri,empresaId) => {
+  const formData = new FormData();
+  formData.append("file", {
+    uri,
+    name: `image_${Date.now()}.jpg`,
+    type: "image/jpeg",
+  });
+
+  const token = await AsyncStorage.getItem("accesToken")
+
+  await api.post(`api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`, formData, {
+  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+  });
+
+  if (!res.ok) {
+    const err = await res.data
+    throw new Error(err.error || "Error al subir imagen");
+  }
+
+  const data = await res.data;
+  return data.url;
+};
+
+
+  const createEvento = async (payload, empresaId) => {
+
+  const endpoint = `/api/empresas/${empresaId}/eventos/`;
+  const res = await api.post(endpoint, payload);
+
+  if (res.status < 200 || res.status >= 300) {
+    const err = await res.data;
+    throw new Error(JSON.stringify(err));
+  }
+  return res.data; // devuelve el evento creado
+};
+
 
   const handleCreateEvent = async () => {
     const empresaId = await AsyncStorage.getItem('empresaId');
 
-
-    console.log('boton presionado')
-
-    console.log('empresaId:', empresaId)
   if (!empresaId) {
     Alert.alert('Error', 'No se ha recuperado el ID de tu empresa');
     return;
@@ -202,80 +267,165 @@ export default function AddScreen() {
       ? new Date(`${formData.fecha_evento_fecha}T${formData.fecha_evento_hora}:00`).toISOString()
       : null,
   };
-  console.log('titulo', typeof(payload.titulo));
-  console.log('categoria', typeof(payload.categoria));
-  console.log('codigo_vestimenta', typeof(payload.codigo_vestimenta));
-  console.log('descripcion_vestimenta', typeof(payload.descripcion_vestimenta));
-  console.log('edad_minima', typeof(payload.edad_minima));
-  console.log('ubicacion', typeof(payload.ubicacion));
-  console.log('capacidad', typeof(payload.capacidad));
-  console.log('descripcion', typeof(payload.descripcion));
-  console.log('precio', typeof(payload.precio));
-  console.log('moneda', typeof(payload.moneda));
-  console.log('fecha_evento', typeof(payload.fecha_evento));
 
   console.log('payload:', payload);
 
-  const token    = await AsyncStorage.getItem('accessToken');
-  const endpoint = `/api/empresas/${empresaId}/eventos/`;
+  
+ try {
+    // 1) crear evento
+    const newEvent = await createEvento(payload, empresaId);
+    const eventoId = newEvent.id;
+    setEventoId(eventoId);
 
-  try {
-    const res = await api.post(endpoint, payload);
+    // 2) subir imágenes locales (si existen)
+    const localImgs = formData.imagenesLocales || [];
+    if (localImgs.length > 0) {
+      // opcional: mostrar loader
+      setUploadingImages(true);
 
-    if (res.status < 200 || res.status >= 300) {
-      const err = await res.data;
-      Alert.alert('Error al crear evento', JSON.stringify(err));
-      return;
+      const uploads = localImgs.map(uri => uploadEventoImage(eventoId, uri,empresaId));
+      const results = await Promise.allSettled(uploads);
+
+      const uploadedUrls = [];
+      const failed = [];
+
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') uploadedUrls.push(r.value);
+        else failed.push({ uri: localImgs[i], reason: r.reason });
+      });
+
+      // actualizar el estado: limpiar locales y agregar las urls subidas
+      setFormData(prev => ({
+        ...prev,
+        imagenesLocales: [],
+        imagenesTemp: [...(prev.imagenesTemp || []), ...uploadedUrls],
+      }));
+
+      setUploadingImages(false);
+
+      if (failed.length > 0) {
+        console.warn('Algunas imágenes no se subieron:', failed);
+        Alert.alert('Aviso', `${failed.length} imagen(es) no se pudieron subir.`);
+      }
     }
 
-    const newEvent = await res.data;
     Alert.alert('Éxito', 'Evento agregado correctamente', [
-      { text: 'OK', onPress: () => navigation.navigate("Empresa") }
+      { text: 'OK', onPress: () => navigation.navigate('Empresa') },
     ]);
   } catch (e) {
     Alert.alert('Error de red', e.message);
   }
   };
 
-  const handleImageUpload = () => {
-    Alert.alert(
-      'Agregar Imagen',
-      'Selecciona una opción',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'URL de imagen', 
-          onPress: () => {
-            Alert.prompt(
-              'URL de imagen',
-              'Ingresa la URL de la imagen del evento:',
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                { 
-                  text: 'Agregar', 
-                  onPress: (url) => {
-                    if (url && url.trim()) {
-                      setFormData({ ...formData, imagen: url.trim() });
-                    }
-                  }
-                }
-              ],
-              'plain-text',
-              formData.imagen
-            );
-          }
-        },
-        { 
-          text: 'Galería', 
-          onPress: () => Alert.alert('Info', 'Funcionalidad de galería próximamente') 
-        },
-        { 
-          text: 'Cámara', 
-          onPress: () => Alert.alert('Info', 'Funcionalidad de cámara próximamente') 
-        }
-      ]
+/**
+ * Devuelve un objeto con la propiedad mediaTypes si se detectó alguna API válida,
+ * o un objeto vacío (sin mediaTypes) si no hay una opción segura.
+ */
+function getMediaTypesOption() {
+  // Expo antiguas: ImagePicker.MediaTypeOptions.Images
+  if (ImagePicker?.MediaTypeOptions?.Images) {
+    return { mediaTypes: ImagePicker.MediaTypeOptions.Images };
+  }
+  // Variantes intermedias: ImagePicker.MediaType.Images (o array)
+  if (ImagePicker?.MediaType?.Images) {
+    // Algunas versiones esperan un array, otras un valor directo. Intentamos usar array.
+    return { mediaTypes: [ImagePicker.MediaType.Images] };
+  }
+  // No hay mediaTypes seguro -> devolvemos vacío (fallback)
+  return {};
+}
+/**
+ * Abre el selector de imagenes de forma robusta y sube la primera imagen seleccionada.
+ * Reintenta sin mediaTypes si la llamada inicial falla por tipos.
+ */
+const pickAndUploadImage = async (eventoId) => {
+  try {
+    const baseOptions = {
+      allowsMultipleSelection: true,
+      allowsEditing: true,
+      quality: 0.8,
+    };
+
+    const mediaOpt = getMediaTypesOption();
+    let result;
+
+    // Intentamos la llamada con la opción detectada (si la hay)
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({ ...baseOptions, ...mediaOpt });
+    } catch (err) {
+      console.warn("launchImageLibraryAsync con mediaTypes falló, reintentando sin mediaTypes:", err);
+      // Fallback: reintentar sin mediaTypes (más compatible)
+      result = await ImagePicker.launchImageLibraryAsync(baseOptions);
+    }
+
+    if (!result) {
+      Alert.alert("Error", "No se obtuvo resultado del selector");
+      return;
+    }
+
+    if (result.canceled) return;
+
+    // Dependiendo de la versión, el asset puede venir con .type o .mediaType.
+    // Filtramos por lo que tenga tipo 'image' (por seguridad)
+    const assets = Array.isArray(result.assets) ? result.assets : [result];
+    const images = assets.filter(a =>
+      a.type === "image" || a.mediaType === "image" || (a.uri && /\.(jpe?g|png|gif|webp|heic)$/i.test(a.uri))
     );
-  };
+
+    if (images.length === 0) {
+      Alert.alert("Selecciona una imagen", "No se seleccionó ninguna imagen válida.");
+      return;
+    }
+
+    const file = images[0]; // el primer asset válido
+    console.log("FILE SELECCIONADO:", file);
+
+    // Normalizar campos para handleImageUpload
+    const normalizedFile = {
+      uri: file.uri,
+      name: file.fileName || file.name || `image_${Date.now()}.jpg`,
+      type: file.type || "image/jpeg",
+    };
+
+    // Llama tu función que sube al backend (Django) o al flow que uses
+    const url = await handleImageUpload(eventoId, normalizedFile);
+
+    if (url) {
+      // Actualiza estado con la URL devuelta si quieres mostrar preview
+      setFormData(prev => ({
+        ...prev,
+        imagenesTemp: [...(prev.imagenesTemp || []), url],
+      }));
+    }
+
+    Alert.alert("Éxito", "Imagen subida correctamente");
+  } catch (err) {
+    console.error("pickAndUploadImage error:", err);
+    Alert.alert("Error", err.message || "Error al seleccionar/subir la imagen");
+  }
+};
+
+
+const handleImageUpload = async (eventoId, file) => {
+  
+  const formData = new FormData();
+  formData.append("file", {
+    uri: file.uri,
+    name: file.name || `image_${Date.now()}.jpg`,
+    type: "image/jpeg",
+  });
+
+  const res = await api.post(`api/eventos/${eventoId}/imagenes/`, {
+    formData
+  });
+
+  const data = await res.data;
+
+  console.log("Data:",data)
+  if (!res.ok) throw new Error(data.error);
+  return data.url;
+};
+
 
   const renderCategoriaModal = () => (
     <Modal
@@ -573,22 +723,45 @@ export default function AddScreen() {
               <Text style={styles.label}>Imagen del evento</Text>
               <TouchableOpacity
                 style={styles.imageUploadButton}
-                onPress={handleImageUpload}
+                onPress={handlePickImages} // ahora solo selecciona imágenes localmente
               >
-                {formData.imagen ? (
-                  <View style={styles.imagePreviewContainer}>
-                    <Image 
-                      source={{ uri: formData.imagen }} 
-                      style={styles.imagePreview}
-                      resizeMode="cover"
-                    />
-                    <TouchableOpacity 
-                      style={styles.removeImageButton}
-                      onPress={() => setFormData({...formData, imagen: ''})}
-                    >
-                      <Text style={styles.removeImageText}>×</Text>
-                    </TouchableOpacity>
-                  </View>
+                {(formData.imagenesLocales?.length || formData.imagenesTemp?.length) > 0 ? (
+                  <ScrollView horizontal>
+                    {/* mostrar primero las locales (no subidas) y luego las subidas */}
+                    {formData.imagenesLocales?.map((uri, index) => (
+                      <View key={`local-${index}`} style={styles.imagePreviewContainer}>
+                        <Image source={{ uri }} style={styles.imagePreview} resizeMode="cover" />
+                        <TouchableOpacity
+                          style={styles.removeImageButton}
+                          onPress={() =>
+                            setFormData(prev => ({
+                              ...prev,
+                              imagenesLocales: prev.imagenesLocales.filter((_, i) => i !== index),
+                            }))
+                          }
+                        >
+                          <Text style={styles.removeImageText}>×</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+
+                    {formData.imagenesTemp?.map((url, index) => (
+                      <View key={`uploaded-${index}`} style={styles.imagePreviewContainer}>
+                        <Image source={{ uri: url }} style={styles.imagePreview} resizeMode="cover" />
+                        <TouchableOpacity
+                          style={styles.removeImageButton}
+                          onPress={() =>
+                            setFormData(prev => ({
+                              ...prev,
+                              imagenesTemp: prev.imagenesTemp.filter((_, i) => i !== index),
+                            }))
+                          }
+                        >
+                          <Text style={styles.removeImageText}>×</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
                 ) : (
                   <View style={styles.imageUploadPlaceholder}>
                     <Text style={styles.imageUploadIcon}>📷</Text>
@@ -597,6 +770,8 @@ export default function AddScreen() {
                   </View>
                 )}
               </TouchableOpacity>
+
+
             </View>
 
             {/* Categoría */}

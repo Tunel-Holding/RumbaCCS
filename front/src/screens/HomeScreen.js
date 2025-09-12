@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { Animated } from 'react-native';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, StatusBar,ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, StatusBar,ActivityIndicator, StatusBar,ActivityIndicator, Platform } from 'react-native';
+import { loginConFallback } from '../utils/auth';
 import PersonIcon from '../components/PersonIcon';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -50,130 +51,29 @@ export default function HomeScreen() {
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
 
- // Función del login
-// const handleLogin = async () => {
-//   if (!user.trim() || !pass.trim()) {
-//     Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
-//     return;
-//   }
-
-//   try {
-//     // 🔹 Login como usuario
-//     let res = await api.post('/api/login/', {
-//       email: user,
-//       password: pass,
-//     });
-
-//     if (res.status < 400) {
-//       const data = res.data;
-//       console.log("Respuesta login USER:", data);
-
-//       await AsyncStorage.setItem('accessToken', data.access);
-//       await AsyncStorage.setItem('refreshToken', data.refresh);
-//       await AsyncStorage.setItem('userEmail', user);
-//       await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || "");
-//       await AsyncStorage.setItem('userName', data.user?.username || user);
-
-//       setIsLogged(true);
-//       setLoginVisible(false);
-//       Alert.alert('Login correcto', 'Has ingresado como usuario');
-//       navigation.navigate('HomeScreen');
-//       return;
-//     }
-
-//     // 🔹 Login como empresa
-//     res = await api.post('/api/empresa/login/', {
-//       email: user,
-//       password: pass,
-//     });
-
-//     if (res.status < 400) {
-//       const data = res.data;
-//       console.log("Respuesta login EMPRESA:", data);
-
-//       await AsyncStorage.setItem('accessToken', data.token || data.access);
-//       await AsyncStorage.setItem('refreshToken', data.refresh);
-//       await AsyncStorage.setItem('empresaId', data.empresa?.id?.toString() || "");
-//       await AsyncStorage.setItem('userEmail', user);
-
-//       setIsLogged(true);
-//       setLoginVisible(false);
-//       Alert.alert('Login correcto', 'Has ingresado como empresa');
-//       navigation.navigate('HomeScreen');
-//       return;
-//     }
-
-//     Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
-//   } catch (error) {
-//     console.error("Error en login:", error);
-//     Alert.alert('Error', 'No se pudo conectar con el servidor');
-//   }
-// };
-
 const handleLogin = async () => {
-  if (!user.trim() || !pass.trim()) {
-    Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+  const resultado = await loginConFallback(user, pass);
+
+  if (resultado.error) {
+    switch (resultado.tipo) {
+      case 'validacion':
+        Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+        break;
+      case 'error':
+        Alert.alert('Error inesperado', resultado.error);
+        break;
+      case 'credenciales':
+        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+        break;
+    }
     return;
   }
 
-  try {
-    // 🔹 Intento de login como usuario
-    const resUser = await api.post('/api/login/', { email: user, password: pass });
-    const data = resUser.data;
-
-    console.log("Login como usuario:", data);
-
-    await AsyncStorage.setItem('accessToken', data.access);
-    await AsyncStorage.setItem('refreshToken', data.refresh);
-    await AsyncStorage.setItem('userEmail', user);
-    await AsyncStorage.setItem('empresaId', data.empresa_id?.toString() || "");
-    await AsyncStorage.setItem('userName', data.user?.username || user);
-    await AsyncStorage.setItem('userKind', 'usuario');
-
-    setIsLogged(true);
-    setLoginVisible(false);
-    Alert.alert('Login correcto', 'Has ingresado como usuario');
-    navigation.navigate('HomeScreen');
-    return;
-
-  } catch (errorUser) {
-    const status = errorUser.response?.status;
-    const msg = errorUser.response?.data?.detail || errorUser.message;
-
-    console.warn("Login usuario falló:", msg);
-
-    if (status !== 401) {
-      Alert.alert('Error inesperado', msg);
-      return;
-    }
-
-    // 🔁 Fallback: intento login como empresa
-    try {
-      const resEmpresa = await api.post('/api/empresa/login/', { email: user, password: pass });
-      const data = resEmpresa.data;
-
-      console.log("Login como empresa:", data);
-
-      await AsyncStorage.setItem('accessToken', data.token || data.access);
-      await AsyncStorage.setItem('refreshToken', data.refresh);
-      await AsyncStorage.setItem('empresaId', data.empresa?.id?.toString() || "");
-      await AsyncStorage.setItem('userEmail', user);
-      await AsyncStorage.setItem('userKind', 'empresa');
-
-      setIsLogged(true);
-      setLoginVisible(false);
-      Alert.alert('Login correcto', 'Has ingresado como empresa');
-      navigation.navigate('HomeScreen');
-      return;
-
-    } catch (errorEmpresa) {
-      const msgEmpresa = errorEmpresa.response?.data?.detail || errorEmpresa.message;
-      console.warn("Login empresa falló:", msgEmpresa);
-      Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
-    }
-  }
+  setIsLogged(true);
+  setLoginVisible(false);
+  Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
+  navigation.navigate('HomeScreen');
 };
-
 
 
 
@@ -203,9 +103,9 @@ const handleLogin = async () => {
           price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
           type: categorias,
           tag: categorias[0],
+          imagenes: ev.imagenes,
           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-          empresaId: ev.empresa || null,
-          ownerName: (ev.empresa && empresaNames[ev.empresa]) || (ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador')
+          ownerName: ev.empresa_nombre || ev.empresa_usuario || (ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador')
         };
       });
 
@@ -302,7 +202,14 @@ const handleLogin = async () => {
               <Text style={styles.logoSubtext}>CCS</Text>
             </View>
             <View style={styles.headerRight}>
-              {!isLogged && (
+              {isLogged ? (
+                <TouchableOpacity
+                  style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
+                  onPress={handleLogout}
+                >
+                  <Text style={styles.loginBtnText}>Cerrar sesión</Text>
+                </TouchableOpacity>
+              ) : (
                 <TouchableOpacity
                   style={styles.loginBtn}
                   onPress={() => setLoginVisible(true)}
@@ -311,8 +218,11 @@ const handleLogin = async () => {
                 </TouchableOpacity>
               )}
               {isLogged && (
-                <TouchableOpacity onPress={() => navigation.navigate('Perfil')} style={styles.profileIconWrapper}>
-                  <PersonIcon size={28} color="#0ea5e9" />
+                <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
+                  <Image
+                    source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                    style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
+                  />
                 </TouchableOpacity>
               )}
             </View>
@@ -385,10 +295,19 @@ const handleLogin = async () => {
                     <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
                   )}
                 </View>
-                <Image source={{ uri: event.image }} style={styles.eventImage} resizeMode="cover" />
+                <Image
+                  source={{
+                    uri: event.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
+                  }}
+                  style={styles.eventImage}
+                  resizeMode="cover"
+                />
                 <Text style={styles.eventTitle}>{event.title}</Text>
                 <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
+                <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
                 <Text style={styles.eventPrice}>{event.price}</Text>
+                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
+                  <Text style={styles.reserveText}>Guardar</Text>
                 <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
                   <Text style={styles.reserveText}>Guardar</Text>
                 </TouchableOpacity>
