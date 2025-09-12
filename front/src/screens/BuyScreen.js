@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import api from '../services/api'; 
+ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
 // Footer links (copiados de HomeScreen.js)
@@ -127,14 +128,10 @@ export default function BuyScreen() {
   useEffect(() => {
     const checkSession = async () => {
       const token = await AsyncStorage.getItem('accessToken');
-      console.log('Access Token:', token);
-      if(token) {
-        setIsLogged(true);
-      }
       setIsLogged(!!token);
     };
     checkSession();
-  }, [loginVisible]); // Se ejecuta cada vez que el modal cambia
+  }, [loginVisible, isLogged]); // Se ejecuta también cuando cambia isLogged
 
 
   const handleLogout = async () => {
@@ -266,7 +263,7 @@ export default function BuyScreen() {
   
   const [relatedIndex, setRelatedIndex] = useState(0);
   // ...existing code...
-
+ 
   // Header de HomeScreen.js
   const Header = () => (
     <View style={styles.header}>
@@ -275,12 +272,13 @@ export default function BuyScreen() {
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
 
+      {/* Logo y foto de perfil si está autenticado, botón de iniciar sesión si no */}
       {isLogged ? (
-        <TouchableOpacity
-          style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
-          onPress={handleLogout}
-        >
-          <Text style={styles.loginBtnText}>Cerrar sesión</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
+          <Image
+            source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+            style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
+          />
         </TouchableOpacity>
       ) : (
         <TouchableOpacity
@@ -288,14 +286,6 @@ export default function BuyScreen() {
           onPress={() => setLoginVisible(true)}
         >
           <Text style={styles.loginBtnText}>Iniciar sesión</Text>
-        </TouchableOpacity>
-      )}
-      {isLogged && (
-        <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-          <Image
-            source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-            style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
-          />
         </TouchableOpacity>
       )}
       </View>
@@ -541,7 +531,28 @@ if (loading) {
               autoCapitalize="none"
               autoComplete="password"
             />
-            <TouchableOpacity style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 }} onPress={() => {/* lógica de login */}}>
+            <TouchableOpacity
+              style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 }}
+              onPress={async () => {
+                try {
+                  const res = await api.post('/api/empresas/login/', {
+                    email: user,
+                    password: pass,
+                  });
+                  if (res.data && res.data.access) {
+                    await AsyncStorage.setItem('accessToken', res.data.access);
+                    await AsyncStorage.setItem('refreshToken', res.data.refresh || '');
+                    setIsLogged(true);
+                    setLoginVisible(false);
+                    Alert.alert('Login exitoso', 'Bienvenido');
+                  } else {
+                    Alert.alert('Error', 'Credenciales incorrectas');
+                  }
+                } catch (err) {
+                  Alert.alert('Error', err.message || 'No se pudo iniciar sesión');
+                }
+              }}
+            >
               <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ingresar</Text>
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', marginTop: 12 }}>
