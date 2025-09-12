@@ -274,12 +274,20 @@ export default function BuyScreen() {
 
       {/* Logo y foto de perfil si está autenticado, botón de iniciar sesión si no */}
       {isLogged ? (
-        <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-          <Image
-            source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-            style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
-          />
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity
+            style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
+            onPress={handleLogout}
+          >
+            <Text style={styles.loginBtnText}>Cerrar sesión</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
+            <Image
+              source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+              style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
+            />
+          </TouchableOpacity>
+        </>
       ) : (
         <TouchableOpacity
           style={styles.loginBtn}
