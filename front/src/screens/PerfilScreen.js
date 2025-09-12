@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarModal from '../components/CalendarModal';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Image, Modal, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 
 
@@ -132,15 +132,9 @@ export default function PerfilScreen({ navigation }) {
   // Función para cargar eventos guardados desde el backend
   const fetchGuardados = async () => {
     try {
-      const token = await AsyncStorage.getItem('accessToken');
-      console.log('Token usado para eventos guardados:', token);
-      const response = await axios.get('http://192.168.1.101:8000/api/eventos-guardados/', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      console.log('Respuesta completa eventos guardados:', response);
-      console.log('Eventos guardados recibidos:', response.data);
+      
+      const response = await api.get('api/eventos-guardados/');
+
       setGuardados(response.data.map(e => ({
         id: e.evento_obj.id,
         titulo: e.evento_obj.titulo,
