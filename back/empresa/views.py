@@ -489,7 +489,6 @@ class EmpresaPublicEventosView(ListAPIView):
     
 
 
-
 # Listar + crear (POST: crea o actualiza la calificación del usuario para esa empresa)
 class EmpresaRatingsListCreateView(generics.ListCreateAPIView):
     serializer_class = RatingSerializer
