@@ -55,7 +55,7 @@ export default function EmpresaScreen() {
       }
 
       const response = await api.get(`/api/empresas/${empresaId}/`);
-      console.log("✅ Empresa data:", response.data);
+      
       setEmpresaData(response.data);
    } catch (error) {
       if (error.response) {

@@ -206,7 +206,7 @@ class Evento2(models.Model):
         help_text="Edad mínima para asistir"
     )
     ubicacion = models.CharField(
-        max_length=255,
+        max_length=300,
         blank=True,
         null=True,
         help_text="Lugar o dirección del evento"

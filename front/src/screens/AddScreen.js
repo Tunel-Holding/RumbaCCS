@@ -68,6 +68,10 @@ export default function AddScreen() {
   const [timePickerVisible, setTimePickerVisible] = useState(false);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  
+
   
   // Opciones predefinidas
   const categorias = [
@@ -273,6 +277,8 @@ export default function AddScreen() {
     ubicacion: formData.ubicacion,
     capacidad: formData.capacidad ? parseInt(formData.capacidad.replace(/,/g, ''), 10) : null,
     descripcion: formData.descripcion || '',
+    latitude: formData.latitude,
+    longitude: formData.longitude,
     precio: formData.precio === 'Entrada libre' ? 0 : (formData.precio ? parseFloat(cleanPrice(formData.precio)) : 0),
     moneda: formData.moneda || 'USD',
     // Campo adicional opcional (solo si backend lo acepta)
@@ -442,6 +448,97 @@ const handleImageUpload = async (eventoId, file) => {
   if (!res.ok) throw new Error(data.error);
   return data.url;
 };
+
+
+// const fetchCoordinatesOSM = async (address) => {
+//   try {
+//     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+//     const response = await fetch(url, {
+//       headers: {
+//         'User-Agent': 'RumbaApp/1.0 (noreplyrumbaccs@gmail.com)' // obligatorio para Nominatim
+//       }
+//     });
+//     const data = await response.json();
+//     if (data && data.length > 0) {
+//       const { lat, lon } = data[0];
+//       return { latitude: parseFloat(lat), longitude: parseFloat(lon) };
+//     } else {
+//       console.warn('No se encontraron coordenadas para', address);
+//       return null;
+//     }
+//   } catch (error) {
+//     console.error('Error al obtener coordenadas OSM:', error);
+//     return null;
+//   }
+// };
+
+const searchAddress = async (query) => {
+    if (!query || query.trim() === "") return [];
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=VE&limit=5`;
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'RumbaApp/1.0 (noreplyrumbaccs@gmail.com)'
+      }
+    });
+
+    const data = await response.json();
+
+    return data.map((item) => {
+      const addr = item.address || {};
+
+      // Prioridad para sitio específico
+      const site =
+        addr.house ||
+        addr.building ||
+        addr.attraction ||
+        addr.amenity ||
+        addr.tourism ||
+        addr.leisure ||
+        addr.historic ||
+        addr.shop ||
+        '';
+
+      const road = addr.road || addr.pedestrian || '';
+      const suburb = addr.suburb || addr.neighbourhood || '';
+      const city = addr.city || addr.town || addr.village || '';
+
+      // Combinar solo los que existan
+      const name = [site, road, suburb, city].filter(Boolean).join(', ');
+
+      return {
+        name,                  // "Edificio XYZ, Avenida Urdaneta, La Candelaria, Caracas"
+        latitude: parseFloat(item.lat),
+        longitude: parseFloat(item.lon),
+      };
+    });
+
+  } catch (error) {
+    console.error("Error buscando dirección:", error);
+    return [];
+  }
+};
+
+useEffect(() => {
+  const delayDebounce = setTimeout(async () => {
+    if (!searchQuery || searchQuery.trim() === "") {
+      setSearchResults([]);
+      return;
+    }
+
+    try {
+      const results = await searchAddress(searchQuery);
+      setSearchResults(results);
+    } catch (e) {
+      console.log("Error fetch dentro de useEffect:", e);
+      setSearchResults([]);
+    }
+  }, 500); // 500ms debounce
+
+  return () => clearTimeout(delayDebounce);
+}, [searchQuery]);
 
 
   const renderCategoriaModal = () => (
@@ -621,78 +718,135 @@ const handleImageUpload = async (eventoId, file) => {
       </View>
     </Modal>
   );
-
-  const renderUbicacionModal = () => (
-    <Modal
-      visible={ubicacionModalVisible}
-      transparent
-      animationType="slide"
-      onRequestClose={() => setUbicacionModalVisible(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Seleccionar Ubicación</Text>
-            <TouchableOpacity onPress={() => setUbicacionModalVisible(false)}>
-              <Text style={styles.closeButton}>×</Text>
-            </TouchableOpacity>
-          </View>
-          
-          {/* Simulación de Google Maps */}
-          <View style={styles.mapContainer}>
-            <View style={styles.mapPlaceholder}>
-              <Text style={styles.mapPlaceholderText}>🗺️</Text>
-              <Text style={styles.mapPlaceholderText}>Google Maps</Text>
-              <Text style={styles.mapPlaceholderText}>Selecciona ubicación</Text>
-            </View>
-            
-            <View style={styles.searchContainer}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Buscar ubicación..."
-                placeholderTextColor="#64748b"
-                value={formData.ubicacion}
-                onChangeText={(text) => setFormData({...formData, ubicacion: text})}
-              />
-              <TouchableOpacity style={styles.searchButton}>
-                <Text style={styles.searchButtonText}>🔍</Text>
-              </TouchableOpacity>
-            </View>
-            
-            <View style={styles.locationOptions}>
-              <TouchableOpacity 
-                style={styles.locationOption}
-                onPress={() => {
-                  setFormData({...formData, ubicacion: 'Estadio Nacional, Santiago'});
-                  setUbicacionModalVisible(false);
-                }}
-              >
-                <Text style={styles.locationOptionText}>📍 Estadio Nacional, Santiago</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.locationOption}
-                onPress={() => {
-                  setFormData({...formData, ubicacion: 'Plaza de Armas, Santiago'});
-                  setUbicacionModalVisible(false);
-                }}
-              >
-                <Text style={styles.locationOptionText}>📍 Plaza de Armas, Santiago</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={styles.locationOption}
-                onPress={() => {
-                  setFormData({...formData, ubicacion: 'Teatro Municipal, Santiago'});
-                  setUbicacionModalVisible(false);
-                }}
-              >
-                <Text style={styles.locationOptionText}>📍 Teatro Municipal, Santiago</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+ const renderUbicacionModal = () => (
+  <Modal
+    visible={ubicacionModalVisible}
+    transparent
+    animationType="slide"
+    onRequestClose={() => setUbicacionModalVisible(false)}
+  >
+    <View style={styles.modalOverlay}>
+      <View style={styles.modalContent}>
+        {/* Header */}
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Seleccionar Ubicación</Text>
+          <TouchableOpacity onPress={() => setUbicacionModalVisible(false)}>
+            <Text style={styles.closeButton}>×</Text>
+          </TouchableOpacity>
         </View>
+
+        {/* Input estilo "barra de dirección Yummy" */}
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Ingresa una dirección..."
+            placeholderTextColor="#64748b"
+            value={searchQuery}
+            onChangeText={setSearchQuery} // ahora solo actualiza el estado, el useEffect hace fetch
+          />
+          <TouchableOpacity style={styles.searchButton}>
+            <Text style={styles.searchButtonText}>🔍</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Resultados de búsqueda */}
+        <ScrollView style={{ maxHeight: 200, marginTop: 10 }}>
+          {searchResults.map((item, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.locationOption}
+              onPress={() => {
+                setFormData({
+                  ...formData,
+                  ubicacion: item.name,
+                  latitude: item.latitude,
+                  longitude: item.longitude,
+                });
+                setUbicacionModalVisible(false);
+                setSearchQuery(''); // limpiar input después de seleccionar
+                setSearchResults([]); // limpiar sugerencias
+              }}
+            >
+              <Text style={styles.locationOptionText}>📍 {item.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
-    </Modal>
-  );
+    </View>
+  </Modal>
+);
+
+  // const renderUbicacionModal = () => (
+  //   <Modal
+  //     visible={ubicacionModalVisible}
+  //     transparent
+  //     animationType="slide"
+  //     onRequestClose={() => setUbicacionModalVisible(false)}
+  //   >
+  //     <View style={styles.modalOverlay}>
+  //       <View style={styles.modalContent}>
+  //         <View style={styles.modalHeader}>
+  //           <Text style={styles.modalTitle}>Seleccionar Ubicación</Text>
+  //           <TouchableOpacity onPress={() => setUbicacionModalVisible(false)}>
+  //             <Text style={styles.closeButton}>×</Text>
+  //           </TouchableOpacity>
+  //         </View>
+          
+  //         {/* Simulación de Google Maps */}
+  //         <View style={styles.mapContainer}>
+  //           <View style={styles.mapPlaceholder}>
+  //             <Text style={styles.mapPlaceholderText}>🗺️</Text>
+  //             <Text style={styles.mapPlaceholderText}>Google Maps</Text>
+  //             <Text style={styles.mapPlaceholderText}>Selecciona ubicación</Text>
+  //           </View>
+            
+  //           <View style={styles.searchContainer}>
+  //             <TextInput
+  //               style={styles.searchInput}
+  //               placeholder="Buscar ubicación..."
+  //               placeholderTextColor="#64748b"
+  //               value={formData.ubicacion}
+  //               onChangeText={(text) => setFormData({...formData, ubicacion: text})}
+  //             />
+  //             <TouchableOpacity style={styles.searchButton}>
+  //               <Text style={styles.searchButtonText}>🔍</Text>
+  //             </TouchableOpacity>
+  //           </View>
+            
+  //           <View style={styles.locationOptions}>
+  //             <TouchableOpacity 
+  //               style={styles.locationOption}
+  //               onPress={() => {
+  //                 setFormData({...formData, ubicacion: 'Estadio Nacional, Santiago'});
+  //                 setUbicacionModalVisible(false);
+  //               }}
+  //             >
+  //               <Text style={styles.locationOptionText}>📍 Estadio Nacional, Santiago</Text>
+  //             </TouchableOpacity>
+  //             <TouchableOpacity 
+  //               style={styles.locationOption}
+  //               onPress={() => {
+  //                 setFormData({...formData, ubicacion: 'Plaza de Armas, Santiago'});
+  //                 setUbicacionModalVisible(false);
+  //               }}
+  //             >
+  //               <Text style={styles.locationOptionText}>📍 Plaza de Armas, Santiago</Text>
+  //             </TouchableOpacity>
+  //             <TouchableOpacity 
+  //               style={styles.locationOption}
+  //               onPress={() => {
+  //                 setFormData({...formData, ubicacion: 'Teatro Municipal, Santiago'});
+  //                 setUbicacionModalVisible(false);
+  //               }}
+  //             >
+  //               <Text style={styles.locationOptionText}>📍 Teatro Municipal, Santiago</Text>
+  //             </TouchableOpacity>
+  //           </View>
+  //         </View>
+  //       </View>
+  //     </View>
+  //   </Modal>
+  // );
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: safeMargins.top }]}>
@@ -1561,4 +1715,54 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontStyle: 'italic',
   },
+
+// Estilos combinados para búsqueda de ubicación en modal
+searchContainer: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: "#334155", // color oscuro del modal
+  borderRadius: 8,
+  paddingHorizontal: 10,
+  marginTop: 10,
+  marginBottom: 16, // mantener spacing inferior
+},
+searchInput: {
+  flex: 1,
+  backgroundColor: "#334155",
+  borderWidth: 1,
+  borderColor: "#475569",
+  borderRadius: 8,
+  padding: 12,
+  color: "#fff",
+  fontSize: 16,
+},
+searchButton: {
+  backgroundColor: "#6366f1",
+  padding: 12,
+  borderRadius: 8,
+  justifyContent: "center",
+  alignItems: "center",
+  marginLeft: 8,
+},
+searchButtonText: {
+  fontSize: 16,
+  color: "#fff",
+},
+locationOptions: {
+  gap: 10,
+  marginTop: 10,
+},
+locationOption: {
+  backgroundColor: "#334155",
+  padding: 16,
+  borderRadius: 8,
+  borderWidth: 1,
+  borderColor: "#475569",
+},
+locationOptionText: {
+  color: "#fff",
+  fontSize: 16,
+},
+
+
 });
