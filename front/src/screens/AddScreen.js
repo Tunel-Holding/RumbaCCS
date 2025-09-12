@@ -161,7 +161,7 @@ export default function AddScreen() {
   }
 };
 
-  const uploadEventoImage = async (eventoId, uri,empresaId) => {
+  const uploadEventoImage = async (eventoId, uri, empresaId) => {
   const formData = new FormData();
   formData.append("file", {
     uri,
@@ -169,20 +169,33 @@ export default function AddScreen() {
     type: "image/jpeg",
   });
 
-  const token = await AsyncStorage.getItem("accesToken")
+  try {
+    const token = await AsyncStorage.getItem("accesToken");
 
-  await api.post(`api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`, formData, {
-  headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
-  });
+  const res = await api.post(
+    `api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
+    formData,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
 
-  if (!res.ok) {
-    const err = await res.data
-    throw new Error(err.error || "Error al subir imagen");
+  // en axios, si hay error de status, lanza excepción, así que esta parte es innecesaria
+  // pero si quieres validación extra:
+  if (!res || res.status < 200 || res.status >= 300) {
+    throw new Error(res?.data?.error || "Error al subir imagen");
   }
 
-  const data = await res.data;
-  return data.url;
+  // la respuesta ya está en res.data
+  return res.data.url;
+  } catch (e) {
+    Alert.alert('Al subir la imagen', e.message);
+  }
 };
+
 
 
   const createEvento = async (payload, empresaId) => {
@@ -286,6 +299,8 @@ export default function AddScreen() {
       const uploads = localImgs.map(uri => uploadEventoImage(eventoId, uri,empresaId));
       const results = await Promise.allSettled(uploads);
 
+      console.log("Results",results)
+
       const uploadedUrls = [];
       const failed = [];
 
@@ -303,13 +318,15 @@ export default function AddScreen() {
 
       setUploadingImages(false);
 
+      console.log("failed:",failed)
+
       if (failed.length > 0) {
         console.warn('Algunas imágenes no se subieron:', failed);
         Alert.alert('Aviso', `${failed.length} imagen(es) no se pudieron subir.`);
       }
     }
 
-    Alert.alert('Éxito', 'Evento agregado correctamente', [
+      Alert.alert('Éxito', 'Evento agregado correctamente', [
       { text: 'OK', onPress: () => navigation.navigate('Empresa') },
     ]);
   } catch (e) {

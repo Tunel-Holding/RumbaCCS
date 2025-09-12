@@ -253,7 +253,7 @@ class Evento2(models.Model):
         return f"{self.titulo} – {self.empresa.nombre}"
 
 class EventoImagen(models.Model):
-    evento = models.ForeignKey(Evento2, related_name="imagenes", on_delete=models.CASCADE)
+    evento = models.ForeignKey(Evento2,on_delete=models.CASCADE, related_name="imagenes")
     url = models.URLField()
     creada_en = models.DateTimeField(auto_now_add=True)
     

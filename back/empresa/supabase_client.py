@@ -1,6 +1,7 @@
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 from supabase import create_client
 from django.conf import settings
-
 supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_KEY)
 
 # supabase_client.py
@@ -26,3 +27,7 @@ def upload_image_to_supabase(file):
     return public_url
 
 
+# @receiver(post_delete, sender=EmpresaEventoImagen)
+# def delete_file_from_supabase(sender, instance, **kwargs):
+#     if instance.image_path:  # asumiendo que guardas la ruta del archivo
+#         supabase.storage.from_("tu-bucket").remove([instance.image_path])
