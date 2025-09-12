@@ -9,7 +9,7 @@ __pycache__/
 # 📦 Entornos virtuales
 venv/
 venv311/
-.env/
+# .env
 .envrc
 .venv/
 

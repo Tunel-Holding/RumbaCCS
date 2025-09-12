@@ -1,3 +1,14 @@
+from .models import (
+    Empresa, Evento2, Rating,
+    EventoImagen,
+    )
+from .serializers import (
+    EmpresaTokenObtainPairSerializer,
+    EmpresaPublicSerializer, 
+    RatingSerializer,
+    EventoImagenSerializer,
+    TempImageSerializer,
+    )
 from api.models import EmailVerification
 from django.utils import timezone
 import random
@@ -17,12 +28,13 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.hashers import make_password
 import jwt
+import os
+import uuid
+
 from rest_framework.authentication import BaseAuthentication
 from rest_framework import exceptions
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import EmpresaTokenObtainPairSerializer, EmpresaPublicSerializer, RatingSerializer
 from rest_framework.permissions import BasePermission, AllowAny
-from .models import Empresa, Evento2, Rating
 from .auth_backend import EmpresaOrUsuarioJWTAuthentication
 from .permissions import IsEmpresaOrUsuarioAuthenticated, IsUsuarioOrReadOnly
 from rest_framework.exceptions import PermissionDenied
@@ -31,6 +43,10 @@ from .exceptions import *
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.db.models.expressions import RawSQL
+from rest_framework.parsers import MultiPartParser, FormParser
+from .supabase_client import supabase, upload_image_to_supabase
+from django.conf import settings
+from rest_framework.parsers import MultiPartParser, FormParser
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -267,6 +283,7 @@ def mi_empresa(request):
     return Response(data, status=200)
 
 
+
 class EventoViewSet(viewsets.ModelViewSet):
     serializer_class = EventoSerializer
     authentication_classes = [EmpresaJWTAuthentication]
@@ -279,21 +296,53 @@ class EventoViewSet(viewsets.ModelViewSet):
             return qs.filter(empresa_id=empresa_pk)
         return qs
 
-   
     
     def perform_create(self, serializer):
         user = self.request.user
 
         # Detecta flujo: user con empresa asociada o empresa login directo
-        if hasattr(user, "empresa"):
-            empresa = user.empresa
-        else:
-            empresa = user
+        if hasattr(user, "empresa"):  # user normal con empresa
+            empresa_id = user.empresa.id
+        else:  # si el usuario es la empresa misma
+            empresa_id = user.id
 
-        serializer.save(empresa=empresa)
-        print("CREANDO EVENTO PARA EMPRESA:", empresa.id)
-        print("DATOS POST:", self.request.data)
+        serializer.save(empresa_id=empresa_id)
+        print("CREANDO EVENTO PARA EMPRESA ID:", empresa_id)
+
         
+class TempImageUploadView(APIView):
+    def post(self, request):
+        serializer = TempImageSerializer(data=request.data)
+        if serializer.is_valid():
+            # Solo devolvemos la URL para guardarla temporalmente en el front
+            return Response(serializer.validated_data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class EventoImagenViewSet(viewsets.ModelViewSet):
+    queryset = EventoImagen.objects.all()
+    serializer_class = EventoImagenSerializer
+    parser_classes = [MultiPartParser, FormParser]
+
+    def create(self, request, *args, **kwargs):
+        evento_id = kwargs.get('evento_pk')  # si usas router anidado
+        file = request.data.get("file")
+        if not file:
+            return Response({"error": "No se subió archivo"}, status=400)
+
+        try:
+            evento = Evento2.objects.get(id=evento_id)
+        except Evento2.DoesNotExist:
+            return Response({"error": "Evento no encontrado"}, status=404)
+
+        try:
+            url = upload_image_to_supabase(file)
+            evento.imagenes.create(url=url)
+            return Response({"url": url}, status=201)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()  # imprime stack completo en consola
+            return Response({"error": str(e)}, status=500)
+
 
 class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Evento2.objects.all().order_by('-id')  # orden por id

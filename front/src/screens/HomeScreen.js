@@ -198,6 +198,7 @@ const handleLogin = async () => {
           price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
           type: categorias,
           tag: categorias[0],
+          imagenes: ev.imagenes,
           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
           ownerName: ev.empresa_nombre || ev.empresa_usuario || (ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador')
         };
@@ -363,7 +364,13 @@ const handleLogin = async () => {
                     <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
                   )}
                 </View>
-                <Image source={{ uri: event.image }} style={styles.eventImage} resizeMode="cover" />
+                <Image
+                  source={{
+                    uri: event.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
+                  }}
+                  style={styles.eventImage}
+                  resizeMode="cover"
+                />
                 <Text style={styles.eventTitle}>{event.title}</Text>
                 <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
                 <Text style={styles.eventPrice}>{event.price}</Text>
@@ -544,7 +551,7 @@ const styles = StyleSheet.create({
   ownerLabel: { color:'#94a3b8', fontSize:11, marginTop:2 },
   ownerChip: { backgroundColor:'#0ea5e9', paddingHorizontal:10, paddingVertical:4, borderRadius:16 },
   ownerChipText: { color:'#fff', fontSize:12, fontWeight:'600' },
-  eventImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 8 },
+  eventImage: { width: '100%', height: 300, borderRadius: 8, marginBottom: 8 },
   eventTag: { position: 'absolute', top: 12, right: 12, backgroundColor: '#6366f1', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   eventTagText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
