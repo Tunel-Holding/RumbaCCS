@@ -231,9 +231,39 @@ export default function BuyScreen() {
   }, [evento, eventoS]);
 
 
-  // Función para guardar/quitar de guardados
+  // Estado para saber si el evento actual está guardado
   const [isSaved, setIsSaved] = useState(false);
-  
+  const [savedId, setSavedId] = useState(null); // id del registro guardado
+  const [currentEventoId, setCurrentEventoId] = useState(null);
+
+  // Verificar si el evento está guardado (recarga en cambios de usuario, evento y tras guardar/quitar)
+  const [refreshSaved, setRefreshSaved] = useState(0);
+  useEffect(() => {
+    setIsSaved(false);
+    setSavedId(null);
+    setCurrentEventoId(idEvento);
+    const checkSaved = async () => {
+      if (!isLogged || !idEvento) {
+        setIsSaved(false);
+        setSavedId(null);
+        return;
+      }
+      try {
+        // Forzar recarga sin cache
+        const res = await api.get('/api/eventos-guardados/?evento=' + idEvento + '&_=' + Date.now());
+        const isGuardado = Array.isArray(res.data) && res.data.length > 0;
+        setIsSaved(isGuardado);
+        setSavedId(isGuardado ? res.data[0].id : null);
+        console.log(`Evento ${idEvento} guardado:`, isGuardado, res.data);
+      } catch (err) {
+        setIsSaved(false);
+        setSavedId(null);
+      }
+    };
+    checkSaved();
+  }, [isLogged, idEvento, refreshSaved]);
+
+  // Guardar o quitar de guardados y refrescar estado
   const handleSave = async () => {
     if (!isLogged) {
       setLoginVisible(true);
@@ -242,19 +272,23 @@ export default function BuyScreen() {
     if (!idEvento) return;
     try {
       if (!isSaved) {
+        // Guardar evento
         const res = await api.post('/api/eventos-guardados/', {
           evento: idEvento,
         });
         if (res.data.id) {
-          setIsSaved(true);
           alert('Evento guardado correctamente');
+          setRefreshSaved(r => r + 1); // fuerza recarga
         } else {
           alert('Error al guardar: ' + JSON.stringify(res.data));
         }
       } else {
-        // Aquí deberías hacer una petición DELETE real al backend para quitar de guardados
-        setIsSaved(false);
+        // Quitar de guardados
+        if (savedId) {
+          await api.delete('/api/eventos-guardados/' + savedId + '/');
+        }
         alert('Evento quitado de guardados');
+        setRefreshSaved(r => r + 1); // fuerza recarga
       }
     } catch (err) {
       console.error('❌ Error al guardar/quitar:', err.message);
@@ -623,18 +657,22 @@ if (loading) {
         )}
 
       <View style={styles.buttonContainer}>
+        {/* Log para depuración en cada render */}
+        {isSaved !== null && (
           <TouchableOpacity 
-            style={[styles.reserveButton, isSaved && styles.reserveButtonSaved]}
+            style={[styles.reserveButton, isSaved ? styles.reserveButtonSaved : null]}
             onPress={handleSave}
             activeOpacity={0.8}
+            disabled={isSaved === null}
           >
             <View style={styles.buttonContent}>
-              <Text style={[styles.buttonText, isSaved && styles.buttonTextSaved]}>
+              <Text style={[styles.buttonText, isSaved ? styles.buttonTextSaved : null]}>
                 {isSaved ? 'Quitar de guardados' : 'Guardar'}
               </Text>
             </View>
           </TouchableOpacity>
-        </View>
+        )}
+      </View>
         <Footer />
       </ScrollView>
       {/* Modal de Login (traído desde prueba.js) */}
