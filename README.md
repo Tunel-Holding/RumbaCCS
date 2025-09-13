@@ -5,6 +5,8 @@ NOTA:
 Se tiene que cambiar la dirección ip en los archivos screens para el funcionanmiento de la app
 (proximamente se creará la fx para automatizar el proceso)
 
+Para crear el entorno virtual: python -m venv venv
+
 Para activar el entorno virtual en la carpeta back (Debes tenerlo creado):
 ./venv/Scripts/Activate.ps1
 

@@ -22,6 +22,8 @@ const sectionTitles = {
 export default function PerfilScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false });
   const [userName, setUserName] = useState('');
+  const [hasEmpresa, setHasEmpresa] = useState(false);
+  const [isLogged, setIsLogged] = useState(false);
 
   useEffect(() => {
     
@@ -29,6 +31,10 @@ export default function PerfilScreen({ navigation }) {
   const fetchUserName = async () => {
     try {
       const name = await AsyncStorage.getItem('userName');
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      const token = await AsyncStorage.getItem('accessToken');
+      setHasEmpresa(!!(empresaId && empresaId !== ''));
+      setIsLogged(!!token);
 
       if (name) {
         setUserName(name);
@@ -190,6 +196,7 @@ export default function PerfilScreen({ navigation }) {
         <HamburgerMenu
           visible={menuVisible}
           setVisible={setMenuVisible}
+          hasEmpresa={hasEmpresa}
           onMenuItemPress={item => {
             setMenuVisible(false);
            if (item === 'calendar') setModalVisible({ ...modalVisible, calendar: true });
@@ -211,7 +218,7 @@ export default function PerfilScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={styles.userName}>{userName ? userName : 'Usuario'}</Text>
         {/* Botón cerrar sesión si hay usuario logueado */}
-        {userName ? (
+  {isLogged ? (
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
             <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
           </TouchableOpacity>

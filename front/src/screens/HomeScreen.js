@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { Animated } from 'react-native';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, StatusBar,ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, StatusBar,ActivityIndicator} from 'react-native';
 import { loginConFallback } from '../utils/auth';
+import PersonIcon from '../components/PersonIcon';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api'; // Asegúrate de que la ruta sea correcta
 import { get } from 'react-native/Libraries/TurboModule/TurboModuleRegistry';
@@ -20,12 +22,16 @@ export default function HomeScreen() {
   const [pass, setPass] = useState('');
   const [isLogged, setIsLogged] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [empresaNames, setEmpresaNames] = useState({}); // cache de id->nombre
+  const [hasEmpresa, setHasEmpresa] = useState(false);
 
 
 
   useEffect(() => {
     const checkSession = async () => {
-      const token = await AsyncStorage.getItem('accessToken');
+  const token = await AsyncStorage.getItem('accessToken');
+  const empresaId = await AsyncStorage.getItem('empresaId');
+  setHasEmpresa(!!(empresaId && empresaId !== ''));
       if(token) {
         setIsLogged(true);
       }
@@ -230,159 +236,6 @@ useEffect(() => {
 
   fetchEventos();
 }, []);
-
-
-//   useEffect(() => {
-//   const fetchEventos = async () => {
-//     try {
-//       const res = await api.get('/api/eventos-publicos/');
-//       const data = res.data;
-
-//       // Transformamos eventos
-//       const eventosTransformados = data.map(ev => {
-//         const categorias = Array.isArray(ev.categoria)
-//           ? ev.categoria
-//           : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
-
-//         return {
-//           id: ev.id,
-//           rawEmpresaId: ev.empresa,
-//           title: ev.titulo,
-//           date: ev.fecha_evento
-//             ? new Date(ev.fecha_evento).toLocaleDateString()
-//             : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-//           time: ev.fecha_evento
-//             ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-//             : null,
-//           location: ev.ubicacion || 'Ubicación no definida',
-//           price: ev.precio === '0.00'
-//             ? 'Entrada libre'
-//             : `$${parseFloat(ev.precio).toLocaleString()}`,
-//           type: categorias,
-//           tag: categorias[0],
-//           imagenes: ev.imagenes,
-//           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-//           ownerName: ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador',
-//         };
-//       });
-
-//       setEventos(eventosTransformados);
-
-//       // ---- Resolver nombres de empresa en paralelo ----
-//       const idsPendientes = [...new Set(eventosTransformados
-//         .filter(ev => ev.rawEmpresaId && !companyNames[ev.rawEmpresaId])
-//         .map(ev => ev.rawEmpresaId))];
-
-//       if (idsPendientes.length) {
-//         try {
-//           const resultados = await Promise.all(idsPendientes.map(async id => {
-//             try {
-//               const resp = await api.get(`/api/public/empresas/${id}/`);
-//               return { id, nombre: resp.data?.nombre || `Empresa #${id}` };
-//             } catch (e) {
-//               console.warn('No se pudo obtener nombre de empresa', id, e.message);
-//               return { id, nombre: `Empresa #${id}` };
-//             }
-//           }));
-
-//           const nuevos = Object.fromEntries(resultados.map(r => [r.id, r.nombre]));
-
-//           setCompanyNames(prev => ({ ...prev, ...nuevos }));
-//           setEventos(prev =>
-//             prev.map(ev =>
-//               ev.rawEmpresaId && nuevos[ev.rawEmpresaId]
-//                 ? { ...ev, ownerName: nuevos[ev.rawEmpresaId] }
-//                 : ev
-//             )
-//           );
-//         } catch (err) {
-//           console.error('Error resolviendo nombres de empresa:', err);
-//         }
-//       }
-//     } catch (error) {
-//       console.error('Error fetching eventos públicos:', error);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   fetchEventos();
-// }, []);
-
-
-//   useEffect(() => {
-//   const fetchEventos = async () => {
-//     try {
-//       const res = await api.get('/api/eventos-publicos/');
-//       const data = res.data;
-
-//       // Transformamos los eventos iniciales
-//       const eventosTransformados = data.map(ev => {
-//         const categorias = Array.isArray(ev.categoria)
-//           ? ev.categoria
-//           : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
-
-//         return {
-//           id: ev.id,
-//           rawEmpresaId: ev.empresa, // guardamos el id para resolver luego
-//           title: ev.titulo,
-//           date: ev.fecha_evento
-//             ? new Date(ev.fecha_evento).toLocaleDateString()
-//             : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-//           time: ev.fecha_evento
-//             ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-//             : null,
-//           location: ev.ubicacion || 'Ubicación no definida',
-//           price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
-//           type: categorias,
-//           tag: categorias[0],
-//           imagenes: ev.imagenes,
-//           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-//           ownerName: ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador',
-//         };
-//       });
-
-//       setEventos(eventosTransformados);
-
-//       // ---- Resolución de nombres de empresa ----
-//       const idsPendientes = [...new Set(eventosTransformados
-//         .filter(ev => ev.rawEmpresaId && !companyNames[ev.rawEmpresaId])
-//         .map(ev => ev.rawEmpresaId))];
-
-//       if (idsPendientes.length) {
-//         const nuevos = {};
-//         for (const id of idsPendientes) {
-//           try {
-//             const resp = await api.get(`/api/public/empresas/${id}/`);
-//             const nombre = resp.data?.nombre || `Empresa #${id}`;
-//             nuevos[id] = nombre;
-//           } catch (e) {
-//             console.warn('No se pudo obtener nombre de empresa', id, e.message);
-//             nuevos[id] = `Empresa #${id}`;
-//           }
-//         }
-
-//         if (Object.keys(nuevos).length) {
-//           setCompanyNames(prev => ({ ...prev, ...nuevos }));
-//           setEventos(prev =>
-//             prev.map(ev =>
-//               ev.rawEmpresaId && nuevos[ev.rawEmpresaId]
-//                 ? { ...ev, ownerName: nuevos[ev.rawEmpresaId] }
-//                 : ev
-//             )
-//           );
-//         }
-//       }
-//     } catch (error) {
-//       console.error('Error fetching eventos públicos:', error);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   fetchEventos();
-// }, []);
-
 
   // Filtros disponibles
   const filters = [
@@ -664,14 +517,36 @@ useEffect(() => {
               <Text style={styles.fullMenuOption}>Inicio</Text>
               <Text style={styles.fullMenuOption}>Eventos</Text>
               <Text style={styles.fullMenuOption}>Acerca de</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setMenuVisible(false);
-                  setTimeout(() => setLoginVisible(true), 250);
-                }}
-              >
-                <Text style={styles.fullMenuOption}>Iniciar sesión</Text>
-              </TouchableOpacity>
+              {!isLogged && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setMenuVisible(false);
+                    setTimeout(() => setLoginVisible(true), 250);
+                  }}
+                >
+                  <Text style={styles.fullMenuOption}>Iniciar sesión</Text>
+                </TouchableOpacity>
+              )}
+              {isLogged && hasEmpresa && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setMenuVisible(false);
+                    navigation.navigate('Empresa');
+                  }}
+                >
+                  <Text style={styles.fullMenuOption}>Perfil empresa</Text>
+                </TouchableOpacity>
+              )}
+              {isLogged && !hasEmpresa && (
+                <TouchableOpacity
+                  onPress={() => {
+                    setMenuVisible(false);
+                    navigation.navigate('FormularioScreen');
+                  }}
+                >
+                  <Text style={styles.fullMenuOption}>Formulario de empresa</Text>
+                </TouchableOpacity>
+              )}
             </View>
             <Text style={styles.fullMenuFooter}>© 2025 RumbaCCS</Text>
           </View>
@@ -801,7 +676,8 @@ const styles = StyleSheet.create({
   ownerLabel: { color:'#94a3b8', fontSize:11, marginTop:2 },
   ownerChip: { backgroundColor:'#0ea5e9', paddingHorizontal:10, paddingVertical:4, borderRadius:16 },
   ownerChipText: { color:'#fff', fontSize:12, fontWeight:'600' },
-  eventImage: { width: '100%', height: 300, borderRadius: 8, marginBottom: 8 },
+  profileIconWrapper: { marginLeft:12, width:32, height:32, borderRadius:16, borderWidth:2, borderColor:'#0ea5e9', justifyContent:'center', alignItems:'center', backgroundColor:'#1e293b' },
+  eventImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 8 },
   eventTag: { position: 'absolute', top: 12, right: 12, backgroundColor: '#6366f1', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
   eventTagText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
