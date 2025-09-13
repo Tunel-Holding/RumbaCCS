@@ -30,6 +30,8 @@ class EventoSerializer(serializers.ModelSerializer):
     capacidad = serializers.IntegerField()
     precio = serializers.DecimalField(max_digits=10, decimal_places=2)
     fecha_evento = serializers.DateTimeField(required=True,read_only = False)
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()
 
     class Meta:
         model = Evento2
@@ -233,7 +235,7 @@ class EventoPublicSerializer(serializers.ModelSerializer):
             "capacidad",
             "precio",
             "moneda",
-            "imagen",
+            "imagenes",
             "fecha_evento",
         ]
 
