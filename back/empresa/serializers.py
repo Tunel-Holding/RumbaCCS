@@ -222,6 +222,8 @@ class EmpresaPublicSerializer(serializers.ModelSerializer):
         
 
 class EventoPublicSerializer(serializers.ModelSerializer):
+    imagenes = EventoImagenSerializer(many=True, read_only=True)
+    
     class Meta:
         model = Evento2
         fields = [
@@ -296,8 +298,15 @@ class EmpresaEventoSerializer(serializers.ModelSerializer):
         return empresa_evento
     
 class UsuarioEventoSerializer(serializers.ModelSerializer):
+    
     evento = serializers.PrimaryKeyRelatedField(queryset=Evento2.objects.all(), write_only=True)
     evento_obj = EventoSerializer(source='evento', read_only=True)
     class Meta:
         model = UsuarioEvento
         fields = ['id', 'evento', 'evento_obj', 'fecha_guardado']
+
+
+class EmpresaBulkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Empresa
+        fields = ['id', 'nombre']

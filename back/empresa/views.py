@@ -12,6 +12,7 @@ from .serializers import (
     RatingSerializer,
     EventoImagenSerializer,
     TempImageSerializer,
+    EmpresaBulkSerializer,
     )
 from api.models import EmailVerification
 from django.utils import timezone
@@ -23,7 +24,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework import status, generics
 from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer, EventoPublicSerializer, EmpresaEventoSerializer
 from rest_framework.exceptions import ValidationError
@@ -51,6 +52,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from .supabase_client import supabase, upload_image_to_supabase
 from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import AllowAny
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -487,7 +489,18 @@ class EmpresaPublicEventosView(ListAPIView):
         empresa_id = self.kwargs["id"]
         return Evento2.objects.filter(empresa_id=empresa_id, empresa__activo=True)
     
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def empresas_por_ids(request):
+    ids_param = request.query_params.get('ids', '')
+    if not ids_param:
+        return Response({"error": "Debe proporcionar ?ids="}, status=400)
 
+    ids = [int(x) for x in ids_param.split(',') if x.isdigit()]
+    empresas = Empresa.objects.filter(id__in=ids)
+    serializer = EmpresaBulkSerializer(empresas, many=True, context={"request": request})
+
+    return Response(serializer.data)
 
 # Listar + crear (POST: crea o actualiza la calificación del usuario para esa empresa)
 class EmpresaRatingsListCreateView(generics.ListCreateAPIView):

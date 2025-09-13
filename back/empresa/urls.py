@@ -18,6 +18,7 @@ from .views import (
     RatingDetailView,
     EmpresaEventoCreateView,
     EventoImagenViewSet,
+    empresas_por_ids,
     UsuarioEventoViewSet
 )
 
@@ -55,6 +56,8 @@ urlpatterns = [
     path('empresa/<int:pk>/', empresa_detail, name='empresa-detail'),
     path("public/empresas/<int:id>/", EmpresaPublicDetailView.as_view(), name="empresa-public-detail"),
     path("public/empresas/<int:id>/eventos/", EmpresaPublicEventosView.as_view(), name="empresa-public-eventos"),
+    
+    path("public/empresas/bulk/", empresas_por_ids, name="empresas_por_ids"),
 
     # Flujo B: Registro de empresa independiente
     path('registro-empresa/', EmpresaPreRegistroView.as_view(), name='registro-empresa'),
