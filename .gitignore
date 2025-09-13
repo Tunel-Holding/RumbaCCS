@@ -5,6 +5,10 @@ __pycache__/
 *.pyo
 *.pyd
 *.pyc
+**/__pycache__/
+**/*.py[cod]
+
+
 
 # 📦 Entornos virtuales
 venv/
