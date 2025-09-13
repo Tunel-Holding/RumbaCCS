@@ -231,14 +231,7 @@ class Evento2(models.Model):
 
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
-    
-    # Imagen
-    # imagen = models.ImageField(
-    #     upload_to="eventos_imagenes/",
-    #     blank=True,
-    #     null=True,
-    #     help_text="Imagen promocional del evento"
-    # )
+
     
     creado_en = models.DateTimeField(auto_now_add=True)
     actualizado_en = models.DateTimeField(auto_now=True)

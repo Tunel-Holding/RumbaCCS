@@ -436,38 +436,57 @@ useEffect(() => {
       </View>
 
       <View style={styles.eventosGrid}>
-                {eventos.length === 0 ? (
-              
-              <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
-                ) : (
-                  eventos.map((evento) => (
-                    <View key={evento.id} style={styles.eventoCard}>
-                      <View style={styles.eventoImageContainer}>
-                        {/* <Image source={{ uri: evento.imagenes }} style={styles.eventoImage} resizeMode="cover" /> */}
-                        <Image
-                          source={{
-                            uri: evento.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
-                          }}
-                          style={styles.eventoImage}
-                          resizeMode="cover"
-                        />
-                        <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}> 
-                          <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
-                        </View>
-                      </View>
-                      <View style={styles.eventoContent}>
-                        <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-                        <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📅 {evento.fecha} {evento.hora ? ` ${evento.hora}` : ''}</Text></View>
-                        <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📍 {evento.ubicacion} </Text></View>
-                        <View style={styles.eventoFooter}>
-                          <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                          <TouchableOpacity style={styles.verDetallesButton}><Text style={styles.verDetallesText}>Ver detalles</Text></TouchableOpacity>
-                        </View>
-                      </View>
+        {eventos.length === 0 ? (
+          <Text style={styles.eventosEmptyText}>Esta empresa no tiene eventos publicados</Text>
+        ) : (
+              eventos.map((evento) => (
+                <View key={evento.id} style={styles.eventoCard}>
+                  <View style={styles.eventoImageContainer}>
+                    <Image
+                      source={{
+                        uri: evento.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
+                      }}
+                      style={styles.eventoImage}
+                      resizeMode="cover"
+                    />
+                    <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
+                      <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
                     </View>
-                  ))
-                )}
-              </View>
+                  </View>
+                  
+                  <View style={styles.eventoContent}>
+                    <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
+                    
+                    <View style={styles.eventoInfo}>
+                      <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
+                    </View>
+                    {evento.hora && evento.hora !== 'Hora no definida' && (
+                      <View style={styles.eventoInfo}>
+                        <Text style={styles.eventoInfoText}>⏰ {evento.hora}</Text>
+                      </View>
+                    )}
+                    
+                    <View style={styles.eventoInfo}>
+                      <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
+                    </View>
+                    
+                    <View style={styles.eventoFooter}>
+                      <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                        <TouchableOpacity 
+                          style={styles.verDetallesButton}
+                          onPress={() => {
+                            console.log('Navegando a Reservar/Comprar con:', evento.id, empresaIdParam || empresaData?.id);
+                            navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
+                          }}
+                        >
+                          <Text style={styles.verDetallesText}>Guardar</Text>
+                        </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+          ))
+        )}
+      </View>
     </View>
   );
   
