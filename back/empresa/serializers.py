@@ -235,7 +235,7 @@ class EventoPublicSerializer(serializers.ModelSerializer):
             "capacidad",
             "precio",
             "moneda",
-            "imagen",
+            "imagenes",
             "fecha_evento",
         ]
 

@@ -98,8 +98,14 @@ useEffect(() => {
       const eventosTransformados = res.data.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
-        fecha: ev.fecha_evento || "Fecha no definida",
-        hora: ev.hora_evento || "Hora no definida",
+        fecha: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleDateString()
+            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+        hora: ev.fecha_evento
+          ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : null,
+        // fecha: ev.fecha_evento || "Fecha no definida",
+        // hora: ev.hora_evento || "Hora no definida",
         ubicacion: ev.ubicacion,
         precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
         categoria: ev.categoria || "Sin categoría",
@@ -350,6 +356,9 @@ useEffect(() => {
     );
   };
 
+console.log("imagenes del evento",eventos.imagenes)
+
+
   const renderEventos = () => {
     if (showRatingsPanel) {
       return (
@@ -455,8 +464,8 @@ useEffect(() => {
                 </View>
                 <View style={styles.eventoContent}>
                   <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text></View>
-                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text></View>
+                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📅 {evento.fecha} {evento.hora ? ` ${evento.hora}` : ''}</Text></View>
+                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📍 {evento.ubicacion} </Text></View>
                   <View style={styles.eventoFooter}>
                     <Text style={styles.eventoPrecio}>{evento.precio}</Text>
                     <TouchableOpacity style={styles.verDetallesButton}><Text style={styles.verDetallesText}>Ver detalles</Text></TouchableOpacity>
