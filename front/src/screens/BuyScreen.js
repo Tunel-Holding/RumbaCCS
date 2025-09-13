@@ -43,43 +43,19 @@ const COLORS = {
 
 
 
-// ...existing code...
-  // Más eventos de la empresa (ejemplo)
-  const moreFromCompany = [
-    {
-      id: 10,
-      image: require('../../assets/register-bg.jpg'),
-      title: 'Sunset Party',
-      categoria: 'Fiesta',
-      ubicacion: 'Terraza Este',
-      price: 9.99,
-      extra: 'Caracas',
-    },
-    {
-      id: 11,
-      image: require('../../assets/icon.png'),
-      title: 'Jazz Night',
-      categoria: 'Música',
-      ubicacion: 'Jazz Club',
-      price: 15.99,
-      extra: 'Caracas',
-    },
-    {
-      id: 12,
-      image: require('../../assets/splash-icon.png'),
-      title: 'Gala Anual',
-      categoria: 'Gala',
-      ubicacion: 'Hotel Caracas',
-      price: 11.99,
-      extra: 'Caracas',
-    },
-  ];
+// Eventos de la misma empresa (dinámicos)
+// Se cargan una vez que conocemos el evento principal.
+// Si la empresa no tiene más eventos, la sección no se mostrará.
+let companyEventsInit = [];
 
 const { width } = Dimensions.get('window');
 
 export default function BuyScreen() {
   const topPadding = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
   const [activeIndex, setActiveIndex] = useState(0);
+  const [companyEvents, setCompanyEvents] = useState([]); // eventos de la misma empresa
+  const [companyEventsLoading, setCompanyEventsLoading] = useState(false);
+  const [companyIndex, setCompanyIndex] = useState(0);
   const navigation = useNavigation();
   const route = useRoute();
   const [loginVisible, setLoginVisible] = useState(false);
@@ -300,6 +276,93 @@ export default function BuyScreen() {
   };
   
   const [relatedIndex, setRelatedIndex] = useState(0);
+  // Eventos relacionados por categoría
+  const [relatedEvents, setRelatedEvents] = useState([]);
+  const [relatedLoading, setRelatedLoading] = useState(false);
+
+  // Cargar eventos relacionados cuando el evento principal esté disponible
+  useEffect(() => {
+    if (!evento || !evento.id) return;
+
+    const categoriasBase = Array.isArray(evento.categoria)
+      ? evento.categoria
+      : (evento.categoria ? [evento.categoria] : []);
+
+    if (categoriasBase.length === 0) {
+      setRelatedEvents([]);
+      return;
+    }
+
+    let cancelado = false;
+    const fetchRelated = async () => {
+      try {
+        setRelatedLoading(true);
+        setCompanyEventsLoading(true);
+        const res = await api.get('/api/eventos-publicos/');
+        if (cancelado) return;
+        const filtrados = res.data.filter(ev => {
+          if (ev.id === evento.id) return false;
+          const catsEv = Array.isArray(ev.categoria)
+            ? ev.categoria
+            : (ev.categoria ? [ev.categoria] : []);
+          return catsEv.some(c => categoriasBase.includes(c));
+        });
+        const mapeados = filtrados.map(ev => {
+          const catsTexto = Array.isArray(ev.categoria)
+            ? ev.categoria.join(', ')
+            : (ev.categoria || 'Sin categoría');
+          let imgSource = require('../../assets/register-bg.jpg');
+          if (Array.isArray(ev.imagenes) && ev.imagenes.length > 0 && ev.imagenes[0]?.url) {
+            imgSource = { uri: ev.imagenes[0].url };
+          } else if (ev.imagen) {
+            imgSource = { uri: ev.imagen };
+          }
+          return {
+            id: ev.id,
+            title: ev.titulo || 'Sin título',
+            categoria: catsTexto,
+            image: imgSource,
+            empresa: ev.empresa,
+          };
+        });
+        setRelatedEvents(mapeados);
+        setRelatedIndex(0);
+
+        // Eventos de la misma empresa (excluyendo el actual)
+        const mismos = res.data.filter(ev => ev.empresa === evento.empresa && ev.id !== evento.id);
+        const mismosMap = mismos.map(ev => {
+          let imgSource = require('../../assets/register-bg.jpg');
+          if (Array.isArray(ev.imagenes) && ev.imagenes.length > 0 && ev.imagenes[0]?.url) {
+            imgSource = { uri: ev.imagenes[0].url };
+          } else if (ev.imagen) {
+            imgSource = { uri: ev.imagen };
+          }
+          return {
+            id: ev.id,
+            title: ev.titulo || 'Sin título',
+            price: ev.precio ? parseFloat(ev.precio) : 0,
+            extra: ev.ubicacion || '',
+            image: imgSource,
+            empresa: ev.empresa,
+          };
+        });
+        setCompanyEvents(mismosMap);
+        setCompanyIndex(0);
+      } catch (e) {
+        console.error('Error cargando eventos relacionados/empresa:', e.message);
+        setRelatedEvents([]);
+        setCompanyEvents([]);
+      } finally {
+        if (!cancelado) {
+          setRelatedLoading(false);
+          setCompanyEventsLoading(false);
+        }
+      }
+    };
+
+    fetchRelated();
+    return () => { cancelado = true; };
+  }, [evento]);
   // ...existing code...
  
   // Header de HomeScreen.js
@@ -479,55 +542,98 @@ if (loading) {
         </View>
 
 
-        {/* Eventos Relacionados */}
-        <Text style={styles.sectionTitle}>Eventos relacionados por Categoria</Text>
-        <View style={styles.relatedBox}>
-          <View style={styles.relatedCarouselWrapper}>
-            <TouchableOpacity onPress={() => setRelatedIndex(Math.max(relatedIndex - 1, 0))} style={styles.arrowBtn}>
-              <Text style={styles.arrowText}>{'<'}</Text>
-            </TouchableOpacity>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.relatedCarousel}
-            >
-              {moreFromCompany.slice(relatedIndex, relatedIndex + 3).map((ev, idx) => (
-                <View key={ev.id} style={styles.relatedCard}>
-                  <Image source={ev.image} style={styles.relatedImage} />
-                  <Text style={styles.relatedName}>{ev.title}</Text>
-                  <Text style={styles.relatedCategory}>{ev.categoria}</Text>
-                  {/* Ubicación eliminado */}
-                </View>
-              ))}
-            </ScrollView>
-            <TouchableOpacity onPress={() => setRelatedIndex(Math.min(relatedIndex + 1, moreFromCompany.length - 3))} style={styles.arrowBtn}>
-              <Text style={styles.arrowText}>{'>'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        {/* Eventos Relacionados (oculto si no hay) */}
+        {relatedLoading ? (
+          <View style={styles.relatedBox}><ActivityIndicator color={COLORS.primary} /></View>
+        ) : relatedEvents.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Eventos relacionados por categoría</Text>
+            <View style={styles.relatedBox}>
+              <View style={styles.relatedCarouselWrapper}>
+                <TouchableOpacity
+                  onPress={() => setRelatedIndex(prev => Math.max(prev - 1, 0))}
+                  style={styles.arrowBtn}
+                  disabled={relatedIndex === 0}
+                >
+                  <Text style={[styles.arrowText, relatedIndex === 0 && { opacity: 0.35 }]}>{'<'}</Text>
+                </TouchableOpacity>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.relatedCarousel}
+                >
+                  {relatedEvents.slice(relatedIndex, relatedIndex + 3).map(ev => (
+                    <TouchableOpacity
+                      key={ev.id}
+                      style={styles.relatedCard}
+                      activeOpacity={0.8}
+                      onPress={() => navigation.push('BuyScreen', { idEvento: ev.id, idEmpresa: ev.empresa })}
+                    >
+                      <Image source={ev.image} style={styles.relatedImage} />
+                      <Text style={styles.relatedName} numberOfLines={2}>{ev.title}</Text>
+                      <Text style={styles.relatedCategory} numberOfLines={1}>{ev.categoria}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity
+                  onPress={() => setRelatedIndex(prev => Math.min(prev + 1, Math.max(relatedEvents.length - 3, 0)))}
+                  style={styles.arrowBtn}
+                  disabled={relatedIndex >= relatedEvents.length - 3}
+                >
+                  <Text style={[styles.arrowText, relatedIndex >= relatedEvents.length - 3 && { opacity: 0.35 }]}>{'>'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
+        )}
 
-        {/* Más eventos de la empresa */}
-        <Text style={styles.sectionTitle}>Eventos de la misma empresa</Text>
-        <View style={styles.relatedBox}>
-          <View style={styles.relatedCarouselWrapper}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.relatedCarousel}
-            >
-              {moreFromCompany.map((ev) => (
-                <View key={ev.id} style={styles.companyCard}>
-                  <Image source={ev.image} style={styles.companyCardImage} />
-                  <View style={styles.companyCardContent}>
-                    <Text style={styles.companyCardTitle}>{ev.title}</Text>
-                    <Text style={styles.companyCardPrice}>US${' '}{ev.price.toFixed(2)}</Text>
-                    <Text style={styles.companyCardExtra}>{ev.extra}</Text>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
+        {/* Eventos de la misma empresa (solo si hay otros) */}
+        {companyEventsLoading ? (
+          <View style={styles.relatedBox}><ActivityIndicator color={COLORS.primary} /></View>
+        ) : companyEvents.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Eventos de la misma empresa</Text>
+            <View style={styles.relatedBox}>
+              <View style={styles.relatedCarouselWrapper}>
+                <TouchableOpacity
+                  onPress={() => setCompanyIndex(prev => Math.max(prev - 1, 0))}
+                  style={styles.arrowBtn}
+                  disabled={companyIndex === 0}
+                >
+                  <Text style={[styles.arrowText, companyIndex === 0 && { opacity: 0.35 }]}>{'<'}</Text>
+                </TouchableOpacity>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.relatedCarousel}
+                >
+                  {companyEvents.slice(companyIndex, companyIndex + 3).map(ev => (
+                    <TouchableOpacity
+                      key={ev.id}
+                      style={styles.companyCard}
+                      activeOpacity={0.8}
+                      onPress={() => navigation.push('BuyScreen', { idEvento: ev.id, idEmpresa: ev.empresa })}
+                    >
+                      <Image source={ev.image} style={styles.companyCardImage} />
+                      <View style={styles.companyCardContent}>
+                        <Text style={styles.companyCardTitle} numberOfLines={2}>{ev.title}</Text>
+                        <Text style={styles.companyCardPrice}>US$ {ev.price.toFixed(2)}</Text>
+                        {ev.extra ? <Text style={styles.companyCardExtra} numberOfLines={1}>{ev.extra}</Text> : null}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+                <TouchableOpacity
+                  onPress={() => setCompanyIndex(prev => Math.min(prev + 1, Math.max(companyEvents.length - 3, 0)))}
+                  style={styles.arrowBtn}
+                  disabled={companyIndex >= companyEvents.length - 3}
+                >
+                  <Text style={[styles.arrowText, companyIndex >= companyEvents.length - 3 && { opacity: 0.35 }]}>{'>'}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
+        )}
 
       <View style={styles.buttonContainer}>
           <TouchableOpacity 

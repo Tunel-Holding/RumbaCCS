@@ -5,6 +5,7 @@ import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput,
 import { loginConFallback } from '../utils/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api'; // Asegúrate de que la ruta sea correcta
+import { get } from 'react-native/Libraries/TurboModule/TurboModuleRegistry';
 
 const { width } = Dimensions.get('window');
 
@@ -72,55 +73,174 @@ const handleLogin = async () => {
 
 
   const [events, setEventos] = useState([]);
+  // Cache local de nombres de empresas para evitar múltiples llamadas.
+  const [companyNames, setCompanyNames] = useState({}); // { empresaId: nombre }
+  const pageSize = 10;
+  const [page, setPage] = useState(0); // página actual 0-index
+  // Estados de ubicación (placeholder, sin llamadas nativas todavía)
+  const [userLocation, setUserLocation] = useState(null); // { latitude, longitude }
+  const [locationStatus, setLocationStatus] = useState('idle'); // idle | requesting | granted | denied
 
-  useEffect(() => {
-  const fetchEventos = async () => {
-    try {
-      const res = await api.get('/api/eventos-publicos/');
-      const data = res.data;
-
-      const eventosTransformados = data.map(ev => {
-        const categorias = Array.isArray(ev.categoria)
-          ? ev.categoria
-          : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
-
-        return {
-          id: ev.id,
-          title: ev.titulo,
-          date: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleDateString()
-            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-          time: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : null,
-          location: ev.ubicacion || 'Ubicación no definida',
-          price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
-          type: categorias,
-          tag: categorias[0],
-          imagenes: ev.imagenes,
-          image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-          ownerName: ev.empresa_nombre || ev.empresa_usuario || (ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador')
-        };
-      });
-
-      setEventos(eventosTransformados);
-    } catch (error) {
-      console.error('Error fetching eventos públicos:', error);
-    } finally {
-      setLoading(false);
+  // Función placeholder para cuando se integre backend / permisos reales
+  const solicitarUbicacion = () => {
+    // Aquí en el futuro se pedirá el permiso real y se actualizará userLocation
+    // Por ahora solo alternamos estados para feedback visual.
+    if (locationStatus === 'idle') {
+      setLocationStatus('requesting');
+      // Simulación ligera de espera
+      setTimeout(() => {
+        // No establecemos userLocation a propósito para seguir mostrando el mensaje
+        setLocationStatus('denied');
+      }, 700);
+    } else if (locationStatus === 'denied') {
+      setLocationStatus('idle');
     }
   };
 
-  fetchEventos();
-}, []);
+  // ---- Normalización y búsqueda difusa (fuzzy) ----
+  const normalizeText = (str = '') => {
+    try {
+      return str
+        .toString()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}+/gu, '') // quita acentos y diacríticos
+        .toLowerCase()
+        .trim();
+    } catch {
+      return (str || '').toLowerCase();
+    }
+  };
+
+  const levenshtein = (a, b) => {
+    if (a === b) return 0;
+    const al = a.length, bl = b.length;
+    if (al === 0) return bl; if (bl === 0) return al;
+    const dp = Array.from({ length: al + 1 }, (_, i) => Array(bl + 1).fill(0));
+    for (let i = 0; i <= al; i++) dp[i][0] = i;
+    for (let j = 0; j <= bl; j++) dp[0][j] = j;
+    for (let i = 1; i <= al; i++) {
+      for (let j = 1; j <= bl; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i][j] = Math.min(
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + cost
+        );
+      }
+    }
+    return dp[al][bl];
+  };
+
+  const fuzzyMatch = (needleRaw, haystackRaw, maxRelative = 0.4) => {
+    const needle = normalizeText(needleRaw);
+    const haystack = normalizeText(haystackRaw);
+    if (!needle || !haystack) return false;
+    if (haystack.includes(needle)) return true; // substring directo
+    const tokens = haystack.split(/\s+/).filter(Boolean);
+    for (const tk of tokens) {
+      if (tk.startsWith(needle)) return true; // prefijo
+      const dist = levenshtein(needle, tk);
+      const rel = dist / Math.max(needle.length, tk.length);
+      if (rel <= maxRelative) return true;
+    }
+    return false;
+  };
+
+  useEffect(() => {
+    const fetchEventos = async () => {
+      try {
+        const res = await api.get('/api/eventos-publicos/');
+        const data = res.data;
+        const eventosTransformados = data.map(ev => {
+          const categorias = Array.isArray(ev.categoria)
+            ? ev.categoria
+            : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+
+          return {
+            id: ev.id,
+            rawEmpresaId: ev.empresa, // guardamos el id para resolución posterior
+            title: ev.titulo,
+            date: ev.fecha_evento
+              ? new Date(ev.fecha_evento).toLocaleDateString()
+              : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+            time: ev.fecha_evento
+              ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : null,
+            location: ev.ubicacion || 'Ubicación no definida',
+            price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
+            type: categorias,
+            tag: categorias[0],
+            imagenes: ev.imagenes,
+            image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+            ownerName: ev.empresa ? `Empresa #${ ev.empresa}` : 'Organizador'
+          };        
+        });
+
+        setEventos(eventosTransformados);
+      } catch (error) {
+        console.error('Error fetching eventos públicos:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEventos();
+  }, []);
+
+  // Efecto para resolver nombres de empresa faltantes (solo IDs desconocidos en cache)
+  useEffect(() => {
+    const resolverNombres = async () => {
+      const idsPendientes = [...new Set(events
+        .filter(ev => ev.rawEmpresaId && !companyNames[ev.rawEmpresaId])
+        .map(ev => ev.rawEmpresaId))];
+      if (idsPendientes.length === 0) return;
+
+      // Realizamos fetch secuencial simple para evitar saturar servidor
+      const nuevos = {};
+      for (const id of idsPendientes) {
+        try {
+          // Endpoint público disponible según urls: /api/public/empresas/<id>/
+          const resp = await api.get(`/api/public/empresas/${id}/`);
+          const nombre = resp.data?.nombre || `Empresa #${id}`;
+          nuevos[id] = nombre;
+        } catch (e) {
+          console.warn('No se pudo obtener nombre de empresa', id, e.message);
+          nuevos[id] = `Empresa #${id}`; // fallback
+        }
+      }
+      if (Object.keys(nuevos).length) {
+        setCompanyNames(prev => ({ ...prev, ...nuevos }));
+        // Actualizamos events con ownerName definitivo
+        setEventos(prev => prev.map(ev => {
+          if (ev.rawEmpresaId && nuevos[ev.rawEmpresaId]) {
+            return { ...ev, ownerName: nuevos[ev.rawEmpresaId] };
+          }
+            return ev;
+        }));
+      }
+    };
+    if (events.length) resolverNombres();
+  }, [events, companyNames]);
 
   // Filtros disponibles
   const filters = [
     { key: 'all', label: 'Todos' },
-    { key: 'concert', label: 'Conciertos' },
-    { key: 'party', label: 'Fiestas' },
-    { key: 'theater', label: 'Teatro' },
-    { key: 'sports', label: 'Deportes' }
+    { key: 'nearby', label: 'Eventos cerca de ti' },
+    { key: 'Concierto', label: 'Concierto' },
+    { key: 'Feria', label: 'Feria' },
+    { key: 'Festival', label: 'Festival' },
+    { key: 'Exposición', label: 'Exposición' },
+    { key: 'Conferencia', label: 'Conferencia' },
+    { key: 'Workshop', label: 'Workshop' },
+    { key: 'Networking', label: 'Networking' },
+    { key: 'Show', label: 'Show' },
+    { key: 'Deportivo', label: 'Deportivo' },
+    { key: 'Cultural', label: 'Cultural' },
+    { key: 'Gastronómico', label: 'Gastronómico' },
+    { key: 'Tecnológico', label: 'Tecnológico' },
+    { key: 'Arte', label: 'Arte' },
+    { key: 'Música', label: 'Música' },
+    { key: 'Teatro', label: 'Teatro' },
   ];
 
   // Footer links
@@ -131,13 +251,30 @@ const handleLogin = async () => {
     { title: 'API para desarrolladores' }
   ];
 
-  const filteredEvents = events.filter(e => {
+  const fuente = filter === 'nearby' ? events /* placeholder: luego lista filtrada por distancia */ : events;
+  const filteredEvents = fuente.filter(e => {
     const categorias = Array.isArray(e.type) ? e.type : [e.type];
-    const matchesFilter = filter === 'all' || categorias.includes(filter);
-    const query = search.toLowerCase();
-    const matchesSearch = e.title.toLowerCase().includes(query) || (e.location||'').toLowerCase().includes(query) || categorias.join(' ').toLowerCase().includes(query);
-    return matchesFilter && matchesSearch;
+    const matchesFilter = filter === 'all' || filter === 'nearby' || categorias.includes(filter);
+    const rawQuery = search.trim();
+    if (!rawQuery) return matchesFilter; // sin búsqueda textual
+
+    const qTokens = normalizeText(rawQuery).split(/\s+/).filter(Boolean);
+    if (!qTokens.length) return matchesFilter;
+
+    const fields = [e.title || '', e.location || '', categorias.join(' '), e.ownerName || ''];
+
+    // Cada token debe hacer match aprox en algún campo
+    const allTokens = qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
+    return matchesFilter && allTokens;
   });
+  // Reiniciar página si cambian filtro o búsqueda
+  useEffect(() => { setPage(0); }, [filter, search]);
+  const totalPages = Math.ceil(filteredEvents.length / pageSize) || 1;
+  const pageEvents = filteredEvents.slice(page * pageSize, (page + 1) * pageSize);
+  const canPrev = page > 0;
+  const canNext = page < totalPages - 1;
+  const goPrev = () => { if (canPrev) setPage(p => p - 1); };
+  const goNext = () => { if (canNext) setPage(p => p + 1); };
 
   if (loading) {
     return (
@@ -212,7 +349,7 @@ const handleLogin = async () => {
           onChangeText={setSearch}
         />
 
-        {/* Filtros */}
+        {/* Filtros (revertido a una sola fila scrollable) */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={{ paddingRight: 8 }}>
           {filters.map(f => (
             <TouchableOpacity
@@ -243,43 +380,85 @@ const handleLogin = async () => {
         </TouchableOpacity> */}
 
         {/* Eventos */}
-        <Text style={styles.sectionTitle}>Próximos eventos</Text>
+        <Text style={styles.sectionTitle}>
+          {filter === 'all' && 'Próximos eventos'}
+          {filter === 'nearby' && 'Eventos cerca de ti'}
+          {filter !== 'all' && filter !== 'nearby' && `Eventos de ${filter}`}
+        </Text>
+
+        {/* Mensaje de permiso de ubicación (placeholder) */}
+        {filter === 'nearby' && !userLocation && (
+          <View style={styles.permissionBox}>
+            <Text style={styles.permissionText}>
+              Debes otorgar permiso a RumbaCCS para acceder a tu ubicación y mostrar eventos cerca de ti.
+            </Text>
+            <TouchableOpacity
+              style={styles.permissionBtn}
+              onPress={solicitarUbicacion}
+              disabled={locationStatus === 'requesting'}
+            >
+              <Text style={styles.permissionBtnText}>
+                {locationStatus === 'requesting' ? 'Solicitando...' : (locationStatus === 'denied' ? 'Intentar de nuevo' : 'Permitir ubicación')}
+              </Text>
+            </TouchableOpacity>
+            {locationStatus === 'denied' && (
+              <Text style={[styles.permissionText, { marginTop: 8, fontSize: 12, opacity: 0.8 }]}>Permiso denegado (simulado). Intenta nuevamente.</Text>
+            )}
+          </View>
+        )}
         
-        <View style={styles.eventsGrid}>
-          {filteredEvents.length === 0 ? (
-            <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>No hay eventos para mostrar.</Text>
-          ) : (
-            filteredEvents.map(event => (
-              <View key={event.id} style={styles.eventCard}>
-                <View style={styles.ownerRow}>
-                  <View style={styles.ownerAvatar}>
-                    <Text style={styles.ownerAvatarText}>{(event.ownerName||'?').charAt(0).toUpperCase()}</Text>
+        {/* Lista de eventos (oculta si se requiere ubicación para 'nearby') */}
+        {!(filter === 'nearby' && !userLocation) && (
+          <>
+            <View style={styles.eventsGrid}>
+              {pageEvents.length === 0 ? (
+                <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>No hay eventos para mostrar.</Text>
+              ) : (
+                pageEvents.map(event => (
+                  <View key={event.id} style={styles.eventCard}>
+                    <View style={styles.ownerRow}>
+                      <View style={styles.ownerAvatar}>
+                        <Text style={styles.ownerAvatarText}>{(event.ownerName||'?').charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex:1 }}>
+                        <Text style={styles.ownerName}>{event.ownerName}</Text>
+                        <Text style={styles.ownerLabel}>Organizador</Text>
+                      </View>
+                      {event.tag && (
+                        <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
+                      )}
+                    </View>
+                    <Image
+                      source={{
+                        uri: event.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
+                      }}
+                      style={styles.eventImage}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.eventTitle}>{event.title}</Text>
+                    <Text style={styles.eventInfo}>{event.date}{event.time ? ` · ${event.time}` : ''} · {event.location}</Text>
+                    <Text style={styles.eventPrice}>{event.price}</Text>
+                    <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
+                      <Text style={styles.reserveText}>Guardar</Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={{ flex:1 }}>
-                    <Text style={styles.ownerName}>{event.ownerName}</Text>
-                    <Text style={styles.ownerLabel}>Organizador</Text>
-                  </View>
-                  {event.tag && (
-                    <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
-                  )}
-                </View>
-                <Image
-                  source={{
-                    uri: event.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
-                  }}
-                  style={styles.eventImage}
-                  resizeMode="cover"
-                />
-                <Text style={styles.eventTitle}>{event.title}</Text>
-                <Text style={styles.eventInfo}>{event.date}{event.time ? ` ${event.time}` : ''} · {event.location}</Text>
-                <Text style={styles.eventPrice}>{event.price}</Text>
-                <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
-                  <Text style={styles.reserveText}>Guardar</Text>
+                ))
+              )}
+            </View>
+
+            {filteredEvents.length > pageSize && (
+              <View style={styles.paginationBar}>
+                <TouchableOpacity onPress={goPrev} disabled={!canPrev} style={[styles.pageArrow, !canPrev && styles.pageArrowDisabled]}>
+                  <Text style={styles.pageArrowText}>{'<'}</Text>
+                </TouchableOpacity>
+                <Text style={styles.pageIndicator}>Página {page + 1} de {totalPages}</Text>
+                <TouchableOpacity onPress={goNext} disabled={!canNext} style={[styles.pageArrow, !canNext && styles.pageArrowDisabled]}>
+                  <Text style={styles.pageArrowText}>{'>'}</Text>
                 </TouchableOpacity>
               </View>
-            ))
-          )}
-        </View>
+            )}
+          </>
+        )}
 
         {/* Testimonios eliminados */}
 
@@ -458,6 +637,15 @@ const styles = StyleSheet.create({
   eventPrice: { color: '#bef264', fontWeight: 'bold', marginBottom: 8 },
   reserveBtn: { backgroundColor: '#6366f1', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 8 },
   reserveText: { color: '#fff', fontWeight: 'bold' },
+  paginationBar: { flexDirection:'row', alignItems:'center', justifyContent:'center', marginTop:12, marginBottom:16, gap:16 },
+  permissionBox: { backgroundColor:'#1e293b', borderRadius:12, padding:16, marginBottom:16, borderWidth:1, borderColor:'#334155' },
+  permissionText: { color:'#fff', fontSize:14, lineHeight:18 },
+  permissionBtn: { backgroundColor:'#0ea5e9', paddingVertical:8, paddingHorizontal:16, borderRadius:8, marginTop:12, alignSelf:'flex-start' },
+  permissionBtnText: { color:'#fff', fontWeight:'600' },
+  pageArrow: { backgroundColor:'#475569', paddingVertical:8, paddingHorizontal:16, borderRadius:8 },
+  pageArrowDisabled: { backgroundColor:'#1e293b' },
+  pageArrowText: { color:'#fff', fontSize:18, fontWeight:'700' },
+  pageIndicator: { color:'#fff', fontSize:14, fontWeight:'600' },
   testimonialCard: { backgroundColor: '#0369a1', borderRadius: 12, padding: 16, marginRight: 16, alignItems: 'center', width: width < 600 ? width * 0.7 : 320 },
   testimonialImage: { width: 48, height: 48, borderRadius: 24, marginBottom: 8 },
   testimonialName: { color: '#fff', fontWeight: 'bold', marginBottom: 4 },
