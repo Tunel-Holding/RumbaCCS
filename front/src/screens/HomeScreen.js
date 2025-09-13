@@ -146,81 +146,243 @@ const handleLogin = async () => {
     return false;
   };
 
-  useEffect(() => {
-    const fetchEventos = async () => {
-      try {
-        const res = await api.get('/api/eventos-publicos/');
-        const data = res.data;
-        const eventosTransformados = data.map(ev => {
-          const categorias = Array.isArray(ev.categoria)
-            ? ev.categoria
-            : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+useEffect(() => {
+  const fetchEventos = async () => {
+    try {
+      const res = await api.get('/api/eventos-publicos/');
+      const data = res.data;
 
-          return {
-            id: ev.id,
-            rawEmpresaId: ev.empresa, // guardamos el id para resolución posterior
-            title: ev.titulo,
-            date: ev.fecha_evento
-              ? new Date(ev.fecha_evento).toLocaleDateString()
-              : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-            time: ev.fecha_evento
-              ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : null,
-            location: ev.ubicacion || 'Ubicación no definida',
-            price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
-            type: categorias,
-            tag: categorias[0],
-            imagenes: ev.imagenes,
-            image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-            ownerName: ev.empresa ? `Empresa #${ ev.empresa}` : 'Organizador'
-          };        
-        });
+      // Transformamos eventos
+      const eventosTransformados = data.map(ev => {
+        const categorias = Array.isArray(ev.categoria)
+          ? ev.categoria
+          : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
 
-        setEventos(eventosTransformados);
-      } catch (error) {
-        console.error('Error fetching eventos públicos:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+        return {
+          id: ev.id,
+          rawEmpresaId: ev.empresa,
+          title: ev.titulo,
+          date: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleDateString()
+            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+          time: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : null,
+          location: ev.ubicacion || 'Ubicación no definida',
+          price: ev.precio === '0.00'
+            ? 'Entrada libre'
+            : `$${parseFloat(ev.precio).toLocaleString()}`,
+          type: categorias,
+          tag: categorias[0],
+          imagenes: ev.imagenes,
+          image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+          ownerName: ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador',
+        };
+      });
 
-    fetchEventos();
-  }, []);
+      setEventos(eventosTransformados);
 
-  // Efecto para resolver nombres de empresa faltantes (solo IDs desconocidos en cache)
-  useEffect(() => {
-    const resolverNombres = async () => {
-      const idsPendientes = [...new Set(events
-        .filter(ev => ev.rawEmpresaId && !companyNames[ev.rawEmpresaId])
-        .map(ev => ev.rawEmpresaId))];
-      if (idsPendientes.length === 0) return;
+      // ---- Resolver nombres de empresa usando el endpoint bulk ----
+      const idsPendientes = [...new Set(
+        eventosTransformados
+          .filter(ev => ev.rawEmpresaId && !companyNames[ev.rawEmpresaId])
+          .map(ev => ev.rawEmpresaId)
+      )];
 
-      // Realizamos fetch secuencial simple para evitar saturar servidor
-      const nuevos = {};
-      for (const id of idsPendientes) {
+      if (idsPendientes.length) {
         try {
-          // Endpoint público disponible según urls: /api/public/empresas/<id>/
-          const resp = await api.get(`/api/public/empresas/${id}/`);
-          const nombre = resp.data?.nombre || `Empresa #${id}`;
-          nuevos[id] = nombre;
-        } catch (e) {
-          console.warn('No se pudo obtener nombre de empresa', id, e.message);
-          nuevos[id] = `Empresa #${id}`; // fallback
+          const resp = await api.get(`/api/public/empresas/bulk/`, {
+            params: { ids: idsPendientes.join(',') },
+            timeout: 10000 // 10 segundos
+          });
+
+          const empresas = resp.data; // ← debería ser un array de { id, nombre }
+          const nuevos = {};
+          empresas.forEach(emp => {
+            nuevos[emp.id] = emp.nombre;
+          });
+
+          // fallback por si alguna empresa no existe en la respuesta
+          idsPendientes.forEach(id => {
+            if (!nuevos[id]) {
+              nuevos[id] = `Empresa #${id}`;
+            }
+          });
+
+          setCompanyNames(prev => ({ ...prev, ...nuevos }));
+          setEventos(prev =>
+            prev.map(ev =>
+              ev.rawEmpresaId && nuevos[ev.rawEmpresaId]
+                ? { ...ev, ownerName: nuevos[ev.rawEmpresaId] }
+                : ev
+            )
+          );
+        } catch (err) {
+          console.error('Error resolviendo nombres de empresa en bulk:', err);
         }
       }
-      if (Object.keys(nuevos).length) {
-        setCompanyNames(prev => ({ ...prev, ...nuevos }));
-        // Actualizamos events con ownerName definitivo
-        setEventos(prev => prev.map(ev => {
-          if (ev.rawEmpresaId && nuevos[ev.rawEmpresaId]) {
-            return { ...ev, ownerName: nuevos[ev.rawEmpresaId] };
-          }
-            return ev;
-        }));
-      }
-    };
-    if (events.length) resolverNombres();
-  }, [events, companyNames]);
+    } catch (error) {
+      console.error('Error fetching eventos públicos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchEventos();
+}, []);
+
+
+//   useEffect(() => {
+//   const fetchEventos = async () => {
+//     try {
+//       const res = await api.get('/api/eventos-publicos/');
+//       const data = res.data;
+
+//       // Transformamos eventos
+//       const eventosTransformados = data.map(ev => {
+//         const categorias = Array.isArray(ev.categoria)
+//           ? ev.categoria
+//           : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+
+//         return {
+//           id: ev.id,
+//           rawEmpresaId: ev.empresa,
+//           title: ev.titulo,
+//           date: ev.fecha_evento
+//             ? new Date(ev.fecha_evento).toLocaleDateString()
+//             : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+//           time: ev.fecha_evento
+//             ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+//             : null,
+//           location: ev.ubicacion || 'Ubicación no definida',
+//           price: ev.precio === '0.00'
+//             ? 'Entrada libre'
+//             : `$${parseFloat(ev.precio).toLocaleString()}`,
+//           type: categorias,
+//           tag: categorias[0],
+//           imagenes: ev.imagenes,
+//           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+//           ownerName: ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador',
+//         };
+//       });
+
+//       setEventos(eventosTransformados);
+
+//       // ---- Resolver nombres de empresa en paralelo ----
+//       const idsPendientes = [...new Set(eventosTransformados
+//         .filter(ev => ev.rawEmpresaId && !companyNames[ev.rawEmpresaId])
+//         .map(ev => ev.rawEmpresaId))];
+
+//       if (idsPendientes.length) {
+//         try {
+//           const resultados = await Promise.all(idsPendientes.map(async id => {
+//             try {
+//               const resp = await api.get(`/api/public/empresas/${id}/`);
+//               return { id, nombre: resp.data?.nombre || `Empresa #${id}` };
+//             } catch (e) {
+//               console.warn('No se pudo obtener nombre de empresa', id, e.message);
+//               return { id, nombre: `Empresa #${id}` };
+//             }
+//           }));
+
+//           const nuevos = Object.fromEntries(resultados.map(r => [r.id, r.nombre]));
+
+//           setCompanyNames(prev => ({ ...prev, ...nuevos }));
+//           setEventos(prev =>
+//             prev.map(ev =>
+//               ev.rawEmpresaId && nuevos[ev.rawEmpresaId]
+//                 ? { ...ev, ownerName: nuevos[ev.rawEmpresaId] }
+//                 : ev
+//             )
+//           );
+//         } catch (err) {
+//           console.error('Error resolviendo nombres de empresa:', err);
+//         }
+//       }
+//     } catch (error) {
+//       console.error('Error fetching eventos públicos:', error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   fetchEventos();
+// }, []);
+
+
+//   useEffect(() => {
+//   const fetchEventos = async () => {
+//     try {
+//       const res = await api.get('/api/eventos-publicos/');
+//       const data = res.data;
+
+//       // Transformamos los eventos iniciales
+//       const eventosTransformados = data.map(ev => {
+//         const categorias = Array.isArray(ev.categoria)
+//           ? ev.categoria
+//           : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+
+//         return {
+//           id: ev.id,
+//           rawEmpresaId: ev.empresa, // guardamos el id para resolver luego
+//           title: ev.titulo,
+//           date: ev.fecha_evento
+//             ? new Date(ev.fecha_evento).toLocaleDateString()
+//             : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+//           time: ev.fecha_evento
+//             ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+//             : null,
+//           location: ev.ubicacion || 'Ubicación no definida',
+//           price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
+//           type: categorias,
+//           tag: categorias[0],
+//           imagenes: ev.imagenes,
+//           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+//           ownerName: ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador',
+//         };
+//       });
+
+//       setEventos(eventosTransformados);
+
+//       // ---- Resolución de nombres de empresa ----
+//       const idsPendientes = [...new Set(eventosTransformados
+//         .filter(ev => ev.rawEmpresaId && !companyNames[ev.rawEmpresaId])
+//         .map(ev => ev.rawEmpresaId))];
+
+//       if (idsPendientes.length) {
+//         const nuevos = {};
+//         for (const id of idsPendientes) {
+//           try {
+//             const resp = await api.get(`/api/public/empresas/${id}/`);
+//             const nombre = resp.data?.nombre || `Empresa #${id}`;
+//             nuevos[id] = nombre;
+//           } catch (e) {
+//             console.warn('No se pudo obtener nombre de empresa', id, e.message);
+//             nuevos[id] = `Empresa #${id}`;
+//           }
+//         }
+
+//         if (Object.keys(nuevos).length) {
+//           setCompanyNames(prev => ({ ...prev, ...nuevos }));
+//           setEventos(prev =>
+//             prev.map(ev =>
+//               ev.rawEmpresaId && nuevos[ev.rawEmpresaId]
+//                 ? { ...ev, ownerName: nuevos[ev.rawEmpresaId] }
+//                 : ev
+//             )
+//           );
+//         }
+//       }
+//     } catch (error) {
+//       console.error('Error fetching eventos públicos:', error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   fetchEventos();
+// }, []);
+
 
   // Filtros disponibles
   const filters = [
@@ -435,8 +597,18 @@ const handleLogin = async () => {
                       style={styles.eventImage}
                       resizeMode="cover"
                     />
+                    {/* <Text style={styles.eventTitle}>{event.title}</Text>
+                    <Text style={styles.eventInfo}>{event.date}{event.time ? ` · ${event.time}` : ''} · {event.location}</Text> */}
                     <Text style={styles.eventTitle}>{event.title}</Text>
-                    <Text style={styles.eventInfo}>{event.date}{event.time ? ` · ${event.time}` : ''} · {event.location}</Text>
+                                                          
+                    {event.time && event.time !== 'Hora no definida' && (
+                      <View style={styles.eventoInfo}>
+                        <Text style={styles.eventoInfoText}>📅 {event.date}  ⏰ {event.time}</Text>
+                      </View>
+                    )}
+                    <View style={styles.eventInfo}>
+                      <Text style={styles.eventoInfoText}>📍 {event.location}</Text>
+                    </View>
                     <Text style={styles.eventPrice}>{event.price}</Text>
                     <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
                       <Text style={styles.reserveText}>Guardar</Text>
@@ -720,5 +892,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     textAlign: 'center',
     marginBottom: 32,
+  },
+  eventoInfo: {
+    marginBottom: 4,
+  },
+  eventoInfoText: {
+    color: '#ffffff',
+    fontSize: 14,
   },
 });

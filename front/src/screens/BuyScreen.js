@@ -69,7 +69,7 @@ export default function BuyScreen() {
 
 
   // Recibe los parámetros de navegación
-  const { idEvento, idEmpresa } = route.params ?? {};
+  const { idEvento } = route.params ?? {};
   const [evento, setEvento] = useState(null);
 
   // Carousel refs y medidas
@@ -141,58 +141,45 @@ export default function BuyScreen() {
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
 
-  // Obtener datos del evento seleccionado
   useEffect(() => {
-  const fetchEvento = async () => {
+  const fetchDatos = async () => {
     if (!idEvento) {
-      console.log('idEvento es undefined, no se hace fetch');
+      console.log('🟡 idEvento es undefined, no se hace fetch');
       return;
     }
 
     try {
-      const res = await api.get(`/api/eventos-publicos/${idEvento}/`);
-      console.log('Evento recibido:', res.data);
-      setEvento(res.data);
+      // 1. Fetch del evento
+      const resEvento = await api.get(`/api/eventos-publicos/${idEvento}/`);
+      console.log('📦 Evento recibido:', resEvento.data);
+      setEvento(resEvento.data);
       setEventoS(true);
-    } catch (error) {
-      if (error.response) {
-        console.error('❌ Error HTTP:', error.response.status, error.response.data);
-      } else {
-        console.error('❌ Error:', error.message);
+
+      // 2. Extraer idEmpresa del evento recibido
+      const idEmpresa = resEvento.data?.empresa;
+
+      if (!idEmpresa) {
+        console.warn('🟡 idEmpresa está undefined, skip fetchEmpresa');
+        setLoading(false);
+        return;
       }
+
+      // 3. Fetch de la empresa
+      console.log('🔎 Fetching empresa con ID:', idEmpresa);
+      const resEmpresa = await api.get(`/api/public/empresas/${idEmpresa}/`);
+      setEmpresaData(resEmpresa.data);
+    } catch (error) {
+      console.error('❌ Error en fetchDatos:', error);
       setEvento(null);
       setEventoS(false);
-    }
-  };
-
-  fetchEvento();
-}, [idEvento]);
-
-  useEffect(() => {
-  if (!idEmpresa) {
-    console.warn('🟡 idEmpresa está undefined, skip fetchEmpresa');
-    setLoading(false);
-    return;
-  }
-
-  const fetchEmpresa = async () => {
-    try {
-      console.log('🔎 Fetching empresa con ID:', idEmpresa);
-      const res = await api.get(`/api/public/empresas/${idEmpresa}/`);
-      setEmpresaData(res.data);
-    } catch (error) {
-      if (error.response) {
-        console.error('❌ Error HTTP:', error.response.status, error.response.data);
-      } else {
-        console.error('❌ Error:', error.message);
-      }
     } finally {
       setLoading(false);
     }
   };
 
-  fetchEmpresa();
-}, [idEmpresa]); // ← aquí va idEmpresa, no empresaIdParam
+  fetchDatos();
+}, [idEvento]);
+
 
   const eventDetails = useMemo(() => {
     let fecha = 'sin definir';

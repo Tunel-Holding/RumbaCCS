@@ -95,6 +95,8 @@ useEffect(() => {
 
       const res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
 
+      console.log("Data:",res.data)
+
       const eventosTransformados = res.data.map(ev => {
         // Separar fecha y hora si viene en formato ISO
         let fecha = "Fecha no definida";
@@ -425,6 +427,7 @@ useEffect(() => {
       </View>
     );
   };
+console.log('🖼️ URL de imagen del evento:', eventos);
 
   const renderEventos = () => (
     <View style={styles.eventosContainer}>
@@ -457,12 +460,9 @@ useEffect(() => {
                   <View style={styles.eventoContent}>
                     <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
                     
-                    <View style={styles.eventoInfo}>
-                      <Text style={styles.eventoInfoText}>📅 {evento.fecha}</Text>
-                    </View>
                     {evento.hora && evento.hora !== 'Hora no definida' && (
                       <View style={styles.eventoInfo}>
-                        <Text style={styles.eventoInfoText}>⏰ {evento.hora}</Text>
+                        <Text style={styles.eventoInfoText}>📅 {evento.fecha}  ⏰ {evento.hora}</Text>
                       </View>
                     )}
                     

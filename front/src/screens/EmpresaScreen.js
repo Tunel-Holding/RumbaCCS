@@ -464,8 +464,16 @@ console.log("imagenes del evento",eventos.imagenes)
                 </View>
                 <View style={styles.eventoContent}>
                   <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📅 {evento.fecha} {evento.hora ? ` ${evento.hora}` : ''}</Text></View>
-                  <View style={styles.eventoInfo}><Text style={styles.eventoInfoText}>📍 {evento.ubicacion} </Text></View>
+                                      
+                  {evento.hora && evento.hora !== 'Hora no definida' && (
+                    <View style={styles.eventoInfo}>
+                      <Text style={styles.eventoInfoText}>📅 {evento.fecha}  ⏰ {evento.hora}</Text>
+                    </View>
+                  )}
+                  
+                  <View style={styles.eventoInfo}>
+                    <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
+                  </View>
                   <View style={styles.eventoFooter}>
                     <Text style={styles.eventoPrecio}>{evento.precio}</Text>
                     <TouchableOpacity style={styles.verDetallesButton}><Text style={styles.verDetallesText}>Ver detalles</Text></TouchableOpacity>
