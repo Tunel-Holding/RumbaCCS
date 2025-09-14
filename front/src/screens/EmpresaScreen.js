@@ -14,6 +14,7 @@ import {
   StatusBar,
   Alert,
   Linking,
+  TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
@@ -23,6 +24,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
+import { loginConFallback } from '../utils/auth';
 
 const { width } = Dimensions.get('window');
 
@@ -162,6 +164,32 @@ useEffect(() => {
     setIsFollowing(!isFollowing);
   };
 
+  // Estado y lógica para login modal
+  const [loginVisible, setLoginVisible] = useState(false);
+  const [user, setUser] = useState('');
+  const [pass, setPass] = useState('');
+
+  const handleLogin = async () => {
+    const resultado = await loginConFallback(user, pass);
+    if (resultado.error) {
+      switch (resultado.tipo) {
+        case 'validacion':
+          Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+          break;
+        case 'error':
+          Alert.alert('Error inesperado', resultado.error);
+          break;
+        case 'credenciales':
+          Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+          break;
+      }
+      return;
+    }
+    setLoginVisible(false);
+    Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
+    navigation.navigate('HomeScreen');
+  };
+
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContainer}>
@@ -170,31 +198,26 @@ useEffect(() => {
           <Text style={styles.logoText}>R U M B A</Text>
           <Text style={styles.logoSubtext}>CCS</Text>
         </View>
-
-                 {/* Menú hamburguesa */}
-         <EmpresaMenu
-           visible={mobileMenuVisible}
-           setVisible={setMobileMenuVisible}
-           onMenuItemPress={item => {
-             setMobileMenuVisible(false);
-             if (item === 'agregar_evento') {
-               // Navegar a la pantalla de agregar evento
-               navigation.navigate('Add');
-             }
-             //else if (item === 'administrar_ganancias') {
-               // Aquí puedes agregar la lógica para administrar ganancias
-               //console.log('Administrar ganancias');
-             //}
-                           else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
-              else if (item === 'inicio') navigation.navigate('HomeScreen');
-              else if (item === 'register') navigation.navigate('Perfil');
-           }}
-         />
+        {/* Menú hamburguesa */}
+        <EmpresaMenu
+          visible={mobileMenuVisible}
+          setVisible={setMobileMenuVisible}
+          onMenuItemPress={item => {
+            setMobileMenuVisible(false);
+            if (item === 'agregar_evento') {
+              navigation.navigate('Add');
+            } else if (item === 'notifications') {
+              setModalVisible({ ...modalVisible, notifications: true });
+            } else if (item === 'inicio') {
+              navigation.navigate('HomeScreen');
+            } else if (item === 'register') {
+              setLoginVisible(true);
+            }
+          }}
+        />
       </View>
     </View>
   );
-
-
 
   const renderNotificationsModal = () => (
     <Modal visible={modalVisible.notifications} transparent animationType="slide">
@@ -258,6 +281,8 @@ useEffect(() => {
     </Modal>
   );
 
+  const [profilePicModal, setProfilePicModal] = useState(false);
+
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
       <View style={styles.perfilContent}>
@@ -265,7 +290,7 @@ useEffect(() => {
         <View style={styles.fotoContainer}>
           <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={() => console.log('Editar perfil de empresa')}
+            onPress={() => setProfilePicModal(true)}
             activeOpacity={0.7}
           >
             <Text style={styles.fotoIcon}>👤</Text>
@@ -501,10 +526,78 @@ console.log("imagenes del evento",eventos.imagenes)
 
   return (
 
-  <SafeAreaView style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-      
-             {renderHeader()}
+  <SafeAreaView style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}> 
+      {/* Modal de cambiar foto de perfil */}
+      <Modal
+        visible={profilePicModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setProfilePicModal(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:300 }}>
+            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Cambiar foto de perfil</Text>
+            <TouchableOpacity style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }} onPress={() => {/* lógica de selección */}}>
+              <Text style={{ color:'#fff', textAlign:'center' }}>Seleccionar imagen</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
+              <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      {/* Modal de Login */}
+      <Modal
+        visible={loginVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLoginVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <TouchableOpacity style={styles.modalClose} onPress={() => setLoginVisible(false)}>
+              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
+            </TouchableOpacity>
+            <Text style={styles.loginTitle}>Iniciar sesión</Text>
+            <TextInput
+              style={styles.loginInput}
+              placeholder="Correo electrónico"
+              placeholderTextColor="#888"
+              keyboardType="email-address"
+              value={user}
+              onChangeText={setUser}
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+            <TextInput
+              style={styles.loginInput}
+              placeholder="Contraseña"
+              placeholderTextColor="#888"
+              secureTextEntry
+              value={pass}
+              onChangeText={setPass}
+              autoCapitalize="none"
+              autoComplete="password"
+            />
+            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin}>
+              <Text style={styles.loginBtnText}>Ingresar</Text>
+            </TouchableOpacity>
+            <View style={styles.loginLinks}>
+              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
+              <Text style={styles.loginLink}>|</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setLoginVisible(false);
+                  navigation.navigate('RegisterScreen');
+                }}
+              >
+                <Text style={styles.loginLink}>Regístrate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {renderHeader()}
        {renderNotificationsModal()}
       
   <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
@@ -757,4 +850,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  // Estilos para el modal (agrega al final del objeto styles):
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
+  modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
+  loginTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+  loginInput: { backgroundColor: '#fff', borderRadius: 8, padding: 10, width: '100%', marginBottom: 12 },
+  loginBtnModal: { backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 },
+  loginLinks: { flexDirection: 'row', marginTop: 12 },
+  loginLink: { color: '#0ea5e9', marginHorizontal: 6 },
+  loginBtnText: { color: '#fff', fontWeight: 'bold' },
 });

@@ -24,6 +24,7 @@ export default function PerfilScreen({ navigation }) {
   const [userName, setUserName] = useState('');
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
+  const [profilePicModal, setProfilePicModal] = useState(false);
 
   useEffect(() => {
     
@@ -210,7 +211,7 @@ export default function PerfilScreen({ navigation }) {
 
       {/* Perfil principal móvil */}
       <View style={styles.profileContainer}>
-        <TouchableOpacity onPress={() => {/* lógica de edición de perfil aquí, por ejemplo: alert('Editar perfil') */}} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => setProfilePicModal(true)} activeOpacity={0.7}>
           <Image
             source={{ uri: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png' }}
             style={styles.profileImage}
@@ -328,7 +329,6 @@ export default function PerfilScreen({ navigation }) {
           </View>
         </Animated.View>
       </Modal>
-      </ScrollView>
       <CalendarModal
         visible={modalVisible.calendar}
         onClose={() => setModalVisible({ ...modalVisible, calendar: false })}
@@ -392,7 +392,28 @@ export default function PerfilScreen({ navigation }) {
           </View>
         </Animated.View>
       </Modal>
-      </View>
+
+      {/* Modal para cambiar foto de perfil */}
+      <Modal
+        visible={profilePicModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setProfilePicModal(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:300 }}>
+            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Cambiar foto de perfil</Text>
+            <TouchableOpacity style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }} onPress={() => {/* lógica de selección */}}>
+              <Text style={{ color:'#fff', textAlign:'center' }}>Seleccionar imagen</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
+              <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      </ScrollView>
+    </View>
   );
 }
 

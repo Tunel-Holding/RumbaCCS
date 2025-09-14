@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { Modal } from 'react-native';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, ActivityIndicator, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -77,7 +77,21 @@ export default function RegisterScreen({ navigation, route }) {
   const [pinDigits, setPinDigits] = useState(['','','','','','']);
   const pinRefs = useRef([]);
   const [pinResendAvailable, setPinResendAvailable] = useState(false);
+  const [pinError, setPinError] = useState(false);
+  const [confirmingPin, setConfirmingPin] = useState(false); // nuevo: spinner reemplaza texto en Confirmar PIN
   const [focusedPinIndex, setFocusedPinIndex] = useState(-1);
+  const [pinIncomplete, setPinIncomplete] = useState(false);
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  const triggerShake = () => {
+    shakeAnim.setValue(0);
+    Animated.sequence([
+      Animated.timing(shakeAnim, { toValue: 1, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: -1, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 1, duration: 50, useNativeDriver: true }),
+      Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
+    ]).start();
+  };
 
   const ESTADOS_VE = [
     'Amazonas','Anzoátegui','Apure','Aragua','Barinas','Bolívar','Carabobo','Cojedes','Delta Amacuro','Distrito Capital','Falcón','Guárico','Lara','Mérida','Miranda','Monagas','Nueva Esparta','Portuguesa','Sucre','Táchira','Trujillo','La Guaira','Yaracuy','Zulia'
@@ -166,14 +180,81 @@ export default function RegisterScreen({ navigation, route }) {
           <View style={styles.loadingContainer}>
             <TouchableOpacity
               onPress={() => { setCargando(false); setPinDigits(['','','','','','']); }}
-              style={{ alignSelf:'center', marginBottom: 14, backgroundColor: '#0ea5e9', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 18, shadowColor:'#000', shadowOpacity:0.25, shadowOffset:{width:0,height:2}, shadowRadius:6, elevation:6 }}
+              style={{
+                flexDirection:'row',
+                alignItems:'center',
+                backgroundColor:'rgba(255,255,255,0.06)',
+                paddingVertical:6,
+                paddingHorizontal:12,
+                borderRadius:10,
+                borderWidth:1,
+                borderColor:'rgba(255,255,255,0.12)',
+                alignSelf:'center',
+                marginBottom:18
+              }}
               activeOpacity={0.85}
             >
-              <Text style={{ color: '#0f172a', fontWeight: 'bold', fontSize: 16 }}>← Volver al registro</Text>
+              <Text style={{ fontSize:18, fontWeight:'bold', color:'#fff', marginRight:6, marginTop:-1 }}>←</Text>
+              <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>Volver al registro</Text>
             </TouchableOpacity>
-            <Text style={styles.loadingTitle}>Verificación de correo</Text>
-            <Text style={styles.pinInstructions}>Te enviamos un PIN a tu correo. Ingresa los 6 dígitos para continuar.</Text>
-            {pinResendAvailable ? (
+            {!pinError && (
+              <>
+                <Text style={styles.loadingTitle}>Verificación de correo</Text>
+                <Text style={styles.pinInstructions}>Te enviamos un PIN a tu correo. Ingresa los 6 dígitos para continuar.</Text>
+              </>
+            )}
+            {pinError && (
+              <View style={styles.pinErrorWrapper}>
+                <View style={styles.pinErrorIconCircle}>
+                  <Text style={styles.pinErrorIcon}>✖</Text>
+                </View>
+                <Text style={styles.pinErrorTitle}>PIN incorrecto</Text>
+                <Text style={styles.pinErrorSubtitle}>El código ingresado es inválido o ha expirado. Puedes intentarlo nuevamente o solicitar un nuevo PIN.</Text>
+                <View style={styles.pinErrorButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.pinErrorBtnPrimary]}
+                    onPress={() => {
+                      setPinError(false);
+                      setPinDigits(['','','','','','']);
+                      pinRefs.current[0]?.focus();
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.pinErrorBtnPrimaryText}>Intentar de nuevo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.pinErrorBtnSecondary}
+                    onPress={async () => {
+                      try {
+                        const endpoint =
+                          accountType === 'empresa'
+                            ? 'api/reenviar-pin-empresa/'
+                            : 'api/send-verification-code/';
+                        const res = await api.post(endpoint, { email });
+                        Alert.alert('PIN reenviado', res?.data?.detail || res?.data?.message || 'Revisa tu correo');
+                        setPinError(false);
+                        setPinDigits(['','','','','','']);
+                        setPinResendAvailable(false);
+                        setTimeout(() => setPinResendAvailable(true), 60000);
+                        pinRefs.current[0]?.focus();
+                      } catch (e) {
+                        Alert.alert('Error', 'No se pudo reenviar el PIN');
+                      }
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.pinErrorBtnSecondaryText}>Reenviar PIN</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={styles.pinErrorMenuLink}
+                  onPress={() => navigation.navigate('HomeScreen')}
+                >
+                  <Text style={styles.pinErrorMenuLinkText}>← Volver al menú</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {!pinError && (pinResendAvailable ? (
               <TouchableOpacity onPress={async () => {
                 setPinResendAvailable(false);
                 setPinDigits(['','','','','','']);
@@ -199,9 +280,9 @@ export default function RegisterScreen({ navigation, route }) {
                 <Text style={{ color: '#3b82f6', fontSize: 14, marginTop: 14, textDecorationLine: 'underline' }}>¿No le ha llegado el pin? Presione aquí.</Text>
               </TouchableOpacity>
             ) : (
-              <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo pin en 1 minuto…</Text>
-            )}
-            <View style={styles.pinRow}>
+              !pinError && <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo pin en 1 minuto…</Text>
+            ))}
+            {!pinError && <Animated.View style={[styles.pinRow, { transform: [{ translateX: shakeAnim.interpolate({ inputRange:[-1,1], outputRange:[-8,8] }) }] }] }>
               {pinDigits.map((val, i) => (
                 <TextInput
                   key={i}
@@ -234,49 +315,58 @@ export default function RegisterScreen({ navigation, route }) {
                   onBlur={() => setFocusedPinIndex(prev => prev === i ? -1 : prev)}
                 />
               ))}
-            </View>
-            <TouchableOpacity
-              style={[styles.registerBtn, { marginTop: 32 }]} 
+            </Animated.View>}
+            {pinIncomplete && !pinError && (
+              <Text style={styles.pinInlineError}>Completa los 6 dígitos para continuar</Text>
+            )}
+            {!pinError && <TouchableOpacity
+              style={[styles.registerBtn, { marginTop: 32, alignItems:'center', justifyContent:'center' }]}
+              disabled={confirmingPin}
+              activeOpacity={confirmingPin ? 1 : 0.85}
               onPress={async () => {
+                if (confirmingPin) return;
                 const pinIngresado = pinDigits.join('');
                 if (pinIngresado.length !== PIN_LENGTH) {
-                  Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
+                  setPinIncomplete(true);
+                  triggerShake();
+                  setTimeout(() => setPinIncomplete(false), 1800);
                   return;
                 }
                 try {
-                  // Verifica el PIN con el backend
+                  setConfirmingPin(true);
                   const pendingUser = await AsyncStorage.getItem('pending_user');
                   const userData = JSON.parse(pendingUser);
                   const response = await api.post(`/api/verify-code/`, { email: userData.email, code: pinIngresado });
                   const result = response.data;
                   if (response.status !== 200) {
-                    Alert.alert('PIN incorrecto', result.error || 'El PIN ingresado no es válido.');
+                    setPinError(true);
+                    setConfirmingPin(false);
                     return;
                   }
-                  // Si el PIN es correcto, ahora crea el usuario realmente
                   const createResponse = await api.post(`/api/finalize-register/`, userData);
-
                   const createResult = createResponse.data;
-
                   if (createResponse.status < 200 || createResponse.status >= 300) {
                     Alert.alert('Error', createResult.error || 'No se pudo crear el usuario.');
+                    setConfirmingPin(false);
                     return;
                   }
-                  // Solo aquí guardar los tokens y datos del usuario
-                  
                   await AsyncStorage.setItem('accessToken', createResult.access);
                   await AsyncStorage.setItem('refreshToken', createResult.refresh);
                   await AsyncStorage.setItem('userName', createResult.user.username);
-                  
                   setVerificado(true);
                   setCargando(false);
                 } catch (err) {
                   Alert.alert('Error', err.message || 'No se pudo verificar el PIN.');
+                  setConfirmingPin(false);
                 }
               }}
             >
-              <Text style={styles.registerBtnText}>Confirmar PIN</Text>
-            </TouchableOpacity>
+              {confirmingPin ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.registerBtnText}>Confirmar PIN</Text>
+              )}
+            </TouchableOpacity>}
           </View>
         ) : verificado ? (
           <View style={styles.loadingContainer}>
@@ -825,6 +915,47 @@ const styles = StyleSheet.create({
   shadowRadius: 8,
   elevation: 8,
   },
+  pinInlineError: {
+    color: '#ef4444',
+    fontSize: 13,
+    marginTop: 12,
+    textAlign: 'center',
+    fontWeight: 'bold'
+  },
+  // --- PIN Error (alineado con FormularioScreen) ---
+  pinErrorWrapper: {
+    width: '100%',
+    backgroundColor: '#1e293b',
+    borderRadius: 18,
+    padding: 28,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 9,
+    borderWidth: 1,
+    borderColor: '#334155'
+  },
+  pinErrorIconCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(239,68,68,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  pinErrorIcon: { fontSize: 34, color: '#ef4444', fontWeight: 'bold' },
+  pinErrorTitle: { fontSize: 22, fontWeight: 'bold', color: '#ef4444', marginBottom: 8, textAlign: 'center' },
+  pinErrorSubtitle: { fontSize: 15, color: '#cbd5e1', textAlign: 'center', lineHeight: 20, marginBottom: 22 },
+  pinErrorButtonsRow: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', gap: 12 },
+  pinErrorBtnPrimary: { flex:1, backgroundColor: '#3b82f6', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor:'#000', shadowOpacity:0.25, shadowOffset:{width:0,height:2}, shadowRadius:4, elevation:4 },
+  pinErrorBtnPrimaryText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  pinErrorBtnSecondary: { flex:1, backgroundColor: '#6366f1', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor:'#000', shadowOpacity:0.2, shadowOffset:{width:0,height:2}, shadowRadius:4, elevation:4 },
+  pinErrorBtnSecondaryText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
+  pinErrorMenuLink: { marginTop: 20 },
+  pinErrorMenuLinkText: { color: '#94a3b8', fontSize: 14, textDecorationLine: 'underline' },
   /* ---- Region custom selector styles (added) ---- */
   regionSelector: {
     backgroundColor: '#1e293b',

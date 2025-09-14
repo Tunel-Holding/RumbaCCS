@@ -9,13 +9,24 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
 import HamburgerMenu from '../components/HamburgerMenu';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api'; // ✅ Tu instancia centralizada
 
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreenUser() {
+  const [hasEmpresa, setHasEmpresa] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const empresaId = await AsyncStorage.getItem('empresaId');
+        setHasEmpresa(!!(empresaId && empresaId !== ''));
+      } catch (e) {
+        setHasEmpresa(false);
+      }
+    })();
+  }, []);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const route = useRoute();
@@ -479,7 +490,7 @@ console.log('🖼️ URL de imagen del evento:', eventos);
                             navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
                           }}
                         >
-                          <Text style={styles.verDetallesText}>Guardar</Text>
+                          <Text style={styles.verDetallesText}>{hasEmpresa ? 'Ver detalles' : 'Guardar'}</Text>
                         </TouchableOpacity>
                     </View>
                   </View>
