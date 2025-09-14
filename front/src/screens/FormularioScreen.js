@@ -41,13 +41,6 @@ export default function FormularioScreen({ navigation, route }) {
   const pinReady = pinDigits.every(d => d !== '');
   const pinRefs = useRef([]);
   const PIN_LENGTH = 6;
-
-
-  
-  // Simulación de PIN correcto (cambiar por valor de backend cuando esté listo)
-  const PIN_CORRECTO_SIMULADO = '123456';
-
-
   
   const [pinResendAvailable, setPinResendAvailable] = useState(false);
   // Inicia temporizador cuando comienza 'cargando'
@@ -138,6 +131,12 @@ const handleEnviar = async () => {
 
     const token = await AsyncStorage.getItem("accessToken");
 
+    const rifFormateado = /^\d{9}$/.test(rif)
+        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
+        : (rif ? `${rifPrefix}-${rif}` : '');
+
+    
+
     if (!token) {
       // 🚀 Caso 1: Registro directo como empresa
       let telefonoValido = telefono;
@@ -152,11 +151,7 @@ const handleEnviar = async () => {
           return;
         }
       }
-
-      // Formateo dinámico usando el prefijo seleccionado
-      const rifFormateado = /^\d{9}$/.test(rif)
-        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
-        : (rif ? `${rifPrefix}-${rif}` : '');
+      console.log("Rif",rifFormateado)
 
       const empresaData = {
         nombre,
@@ -190,9 +185,7 @@ const handleEnviar = async () => {
 
     } else {
       // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
-      const rifFormateado = /^\d{9}$/.test(rif)
-        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
-        : (rif ? `${rifPrefix}-${rif}` : '');
+      
       const res = await api.post('/api/empresas/', {
         rif: rifFormateado,
         lugar,
