@@ -234,20 +234,24 @@ export default function PerfilScreen({ navigation }) {
         <>
           <Text style={styles.enunciado}>{getEnunciado()}</Text>
           <View style={styles.instructionsColumn}>
-            <View style={[styles.infoBox, { backgroundColor: '#dbeafe' }]}> 
-              <View style={[styles.infoIconCircle, { backgroundColor: '#dbeafe' }] }>
-                <SvgXml xml={svgGuardados} width={32} height={32} />
+            <TouchableOpacity onPress={() => setSelectedSection('guardados')} activeOpacity={0.85}>
+              <View style={[styles.infoBox, { backgroundColor: '#dbeafe', maxWidth: 340, alignSelf: 'center' }]}> 
+                <View style={[styles.infoIconCircle, { backgroundColor: '#dbeafe' }] }>
+                  <SvgXml xml={svgGuardados} width={32} height={32} />
+                </View>
+                <Text style={[styles.infoTitle, { color: '#2563eb' }]}>Eventos guardados</Text>
+                <Text style={[styles.infoDesc, { color: '#2563eb' }]}>Este ícono representa los eventos que marcaste como favoritos para revisarlos más tarde fácilmente.</Text>
               </View>
-              <Text style={[styles.infoTitle, { color: '#2563eb' }]}>Eventos guardados</Text>
-              <Text style={[styles.infoDesc, { color: '#2563eb' }]}>Este ícono representa los eventos que marcaste como favoritos para revisarlos más tarde fácilmente.</Text>
-            </View>
-            <View style={[styles.infoBox, { backgroundColor: '#ede9fe' }]}> 
-              <View style={[styles.infoIconCircle, { backgroundColor: '#ede9fe' }] }>
-                <SvgXml xml={svgComentarios} width={32} height={32} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSelectedSection('comentarios')} activeOpacity={0.85}>
+              <View style={[styles.infoBox, { backgroundColor: '#ede9fe', maxWidth: 340, alignSelf: 'center' }]}> 
+                <View style={[styles.infoIconCircle, { backgroundColor: '#ede9fe' }] }>
+                  <SvgXml xml={svgComentarios} width={32} height={32} />
+                </View>
+                <Text style={[styles.infoTitle, { color: '#7c3aed' }]}>Comentarios publicados</Text>
+                <Text style={[styles.infoDesc, { color: '#7c3aed' }]}>Este ícono representa tus reseñas y opiniones públicas sobre los eventos que has experimentado.</Text>
               </View>
-              <Text style={[styles.infoTitle, { color: '#7c3aed' }]}>Comentarios publicados</Text>
-              <Text style={[styles.infoDesc, { color: '#7c3aed' }]}>Este ícono representa tus reseñas y opiniones públicas sobre los eventos que has experimentado.</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </>
       )}
