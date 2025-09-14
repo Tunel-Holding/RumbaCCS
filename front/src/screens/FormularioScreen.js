@@ -151,8 +151,7 @@ const handleEnviar = async () => {
           return;
         }
       }
-      console.log("Rif",rifFormateado)
-
+      
       const empresaData = {
         nombre,
         rif: rifFormateado,
@@ -230,6 +229,9 @@ const handleValidarPin = async () => {
   setCargando(false);
   return;
 }
+  const rifFormateado = /^\d{9}$/.test(rif)
+        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
+        : (rif ? `${rifPrefix}-${rif}` : '');
   try {
     setCargando(true);
     const res = await api.post('/api/validar-pin-empresa/', {
@@ -238,7 +240,7 @@ const handleValidarPin = async () => {
   password: "00000000",
   empresa: {
     nombre,
-    rif,
+    rif: rifFormateado,
     lugar,
     telefono,
     email_contacto: correo,
