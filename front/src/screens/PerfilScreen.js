@@ -134,15 +134,16 @@ export default function PerfilScreen({ navigation }) {
 
   // --- Estado para eventos guardados ---
   const [guardados, setGuardados] = useState([]);
+  const [loadingGuardados, setLoadingGuardados] = useState(false);
 
   // Función para cargar eventos guardados desde el backend
   const fetchGuardados = async () => {
+    setLoadingGuardados(true);
     try {
-      
       const response = await api.get('api/eventos-guardados/');
-
       setGuardados(response.data.map(e => ({
-        id: e.evento_obj.id,
+        id: e.id, // id del registro UsuarioEvento
+        eventoId: e.evento_obj.id, // id del evento original
         titulo: e.evento_obj.titulo,
         fecha: e.evento_obj.fecha_evento,
         lugar: e.evento_obj.ubicacion,
@@ -151,14 +152,9 @@ export default function PerfilScreen({ navigation }) {
       })));
     } catch (error) {
       console.log('Error al cargar eventos guardados:', error);
-      if (error.response) {
-        console.log('Error response:', error.response);
-      } else if (error.request) {
-        console.log('Error request:', error.request);
-      } else {
-        console.log('Error message:', error.message);
-      }
       setGuardados([]);
+    } finally {
+      setLoadingGuardados(false);
     }
   };
 
@@ -171,9 +167,15 @@ export default function PerfilScreen({ navigation }) {
   }, [selectedSection]);
 
   // --- Función para borrar evento guardado ---
-  const borrarGuardado = (id) => {
-    const nuevos = guardados.filter(e => e.id !== id);
-    setGuardados(nuevos);
+  const borrarGuardado = async (id) => {
+    // Elimina visualmente
+    setGuardados(prev => prev.filter(e => e.id !== id));
+    try {
+      await api.delete(`api/eventos-guardados/${id}/`); // id del registro UsuarioEvento
+      fetchGuardados();
+    } catch (error) {
+      console.log('Error al borrar evento guardado:', error);
+    }
   };
 
   return (
@@ -253,7 +255,9 @@ export default function PerfilScreen({ navigation }) {
       {selectedSection === 'guardados' && (
         <View style={[styles.sectionContent, { padding: 16, backgroundColor: 'transparent', margin: 0 }]}> 
           <Text style={styles.sectionTitle}>Eventos guardados</Text>
-          {guardados.length === 0 ? (
+          {loadingGuardados ? (
+            <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>Cargando...</Text>
+          ) : guardados.length === 0 ? (
             <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>
               <Text style={{ fontWeight: 'bold', color: '#d1d5db' }}>No</Text> se han encontrado más elementos
             </Text>
