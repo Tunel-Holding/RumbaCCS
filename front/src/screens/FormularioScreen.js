@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, TextInput, Animated, Alert, ScrollView, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput, Animated, Alert, ScrollView, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -41,13 +42,6 @@ export default function FormularioScreen({ navigation, route }) {
   const pinReady = pinDigits.every(d => d !== '');
   const pinRefs = useRef([]);
   const PIN_LENGTH = 6;
-
-
-  
-  // Simulación de PIN correcto (cambiar por valor de backend cuando esté listo)
-  const PIN_CORRECTO_SIMULADO = '123456';
-
-
   
   const [pinResendAvailable, setPinResendAvailable] = useState(false);
   // Inicia temporizador cuando comienza 'cargando'
@@ -138,6 +132,12 @@ const handleEnviar = async () => {
 
     const token = await AsyncStorage.getItem("accessToken");
 
+    const rifFormateado = /^\d{9}$/.test(rif)
+        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
+        : (rif ? `${rifPrefix}-${rif}` : '');
+
+    
+
     if (!token) {
       // 🚀 Caso 1: Registro directo como empresa
       let telefonoValido = telefono;
@@ -152,12 +152,7 @@ const handleEnviar = async () => {
           return;
         }
       }
-
-      // Formateo dinámico usando el prefijo seleccionado
-      const rifFormateado = /^\d{9}$/.test(rif)
-        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
-        : (rif ? `${rifPrefix}-${rif}` : '');
-
+      
       const empresaData = {
         nombre,
         rif: rifFormateado,
@@ -190,9 +185,7 @@ const handleEnviar = async () => {
 
     } else {
       // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
-      const rifFormateado = /^\d{9}$/.test(rif)
-        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
-        : (rif ? `${rifPrefix}-${rif}` : '');
+      
       const res = await api.post('/api/empresas/', {
         rif: rifFormateado,
         lugar,
@@ -237,6 +230,9 @@ const handleValidarPin = async () => {
   setCargando(false);
   return;
 }
+  const rifFormateado = /^\d{9}$/.test(rif)
+        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
+        : (rif ? `${rifPrefix}-${rif}` : '');
   try {
     setCargando(true);
     const res = await api.post('/api/validar-pin-empresa/', {
@@ -245,7 +241,7 @@ const handleValidarPin = async () => {
   password: "00000000",
   empresa: {
     nombre,
-    rif,
+    rif: rifFormateado,
     lugar,
     telefono,
     email_contacto: correo,

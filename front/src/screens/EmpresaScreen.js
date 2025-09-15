@@ -9,13 +9,13 @@ import {
   Dimensions,
   Animated,
   Modal,
-  SafeAreaView,
   ActivityIndicator,
   StatusBar,
   Alert,
   Linking,
   TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
