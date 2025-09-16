@@ -137,7 +137,7 @@ const handleEnviar = async () => {
         : (rif ? `${rifPrefix}-${rif}` : '');
 
     
-
+    console.log("Entrando a handleEnviar, token:", token);
     if (!token) {
       // 🚀 Caso 1: Registro directo como empresa
       let telefonoValido = telefono;
@@ -185,7 +185,7 @@ const handleEnviar = async () => {
 
     } else {
       // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
-      
+      console.log("Creando empresa para usuario existente, token:");
       const res = await api.post('/api/empresas/', {
         rif: rifFormateado,
         lugar,
@@ -197,6 +197,8 @@ const handleEnviar = async () => {
         email: correo,
         password: "00000000",
       });
+
+      console.log("Respuesta al crear empresa:", res);
       const data = res.data;
       if (!res.status || res.status >= 400) {
         console.error("Error backend:", data);

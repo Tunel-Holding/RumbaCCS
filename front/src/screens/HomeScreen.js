@@ -264,22 +264,86 @@ useEffect(() => {
     { title: 'API para desarrolladores' }
   ];
 
-  const fuente = filter === 'nearby' ? events /* placeholder: luego lista filtrada por distancia */ : events;
-  const filteredEvents = fuente.filter(e => {
-    const categorias = Array.isArray(e.type) ? e.type : [e.type];
-    const matchesFilter = filter === 'all' || filter === 'nearby' || categorias.includes(filter);
-    const rawQuery = search.trim();
-    if (!rawQuery) return matchesFilter; // sin búsqueda textual
+  // const fuente = filter === 'nearby' ? events /* placeholder: luego lista filtrada por distancia */ : events;
+  // const filteredEvents = fuente.filter(e => {
+  //   const categorias = Array.isArray(e.type) ? e.type : [e.type];
+  //   const matchesFilter = filter === 'all' || filter === 'nearby' || categorias.includes(filter);
+  //   const rawQuery = search.trim();
+  //   if (!rawQuery) return matchesFilter; // sin búsqueda textual
 
-    const qTokens = normalizeText(rawQuery).split(/\s+/).filter(Boolean);
-    if (!qTokens.length) return matchesFilter;
+  //   const qTokens = normalizeText(rawQuery).split(/\s+/).filter(Boolean);
+  //   if (!qTokens.length) return matchesFilter;
 
-    const fields = [e.title || '', e.location || '', categorias.join(' '), e.ownerName || ''];
+  //   const fields = [e.title || '', e.location || '', categorias.join(' '), e.ownerName || ''];
 
-    // Cada token debe hacer match aprox en algún campo
-    const allTokens = qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
-    return matchesFilter && allTokens;
-  });
+  //   // Cada token debe hacer match aprox en algún campo
+  //   const allTokens = qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
+  //   return matchesFilter && allTokens;
+  // });
+
+  // --- estados extra ---
+const [nearbyEvents, setNearbyEvents] = useState([]);
+
+const fuente = filter === "nearby" ? nearbyEvents : events || [];
+
+// --- filtro por categorías + búsqueda ---
+const filteredEvents = fuente.filter(e => {
+  const categorias = Array.isArray(e.type) ? e.type : [e.type];
+  const matchesFilter = filter === 'all' || filter === 'nearby' || categorias.includes(filter);
+  const rawQuery = search.trim();
+  if (!rawQuery) return matchesFilter;
+
+  const qTokens = normalizeText(rawQuery).split(/\s+/).filter(Boolean);
+  if (!qTokens.length) return matchesFilter;
+
+  const fields = [e.title || '', e.location || '', categorias.join(' '), e.ownerName || ''];
+
+  return matchesFilter && qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
+});
+
+// --- useEffect: cuando el user da permiso y activa el filtro "nearby"
+useEffect(() => {
+  if (filter === "nearby" && userLocation) {
+    api.get(`/api/eventos-publicos/nearby/?lat=${userLocation.latitude}&lng=${userLocation.longitude}&radius=5`)
+      .then(data => {
+        const eventos = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : []);
+
+        // Adaptar al formato de Home
+        const adaptados = eventos.map(ev => {
+          const categorias = Array.isArray(ev.categoria) ? ev.categoria : [ev.categoria];
+
+          return {
+            ...ev,
+            id: ev.id,
+            rawEmpresaId: ev.empresa,
+            title: ev.titulo,
+            date: ev.fecha_evento
+              ? new Date(ev.fecha_evento).toLocaleDateString()
+              : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+            time: ev.fecha_evento
+              ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : null,
+            location: ev.ubicacion || 'Ubicación no definida',
+            price: ev.precio === '0.00'
+              ? 'Entrada libre'
+              : `$${parseFloat(ev.precio).toLocaleString()}`,
+            type: categorias,
+            tag: categorias[0],
+            imagenes: ev.imagenes,
+            image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+            ownerName: companyNames[ev.empresa] || `Empresa #${ev.empresa}`,
+          };
+        });
+
+        setNearbyEvents(adaptados);
+
+      })
+      .catch(err => console.error("Error cargando eventos cercanos:", err));
+  }
+}, [filter, userLocation]);
+
+
+
   // Reiniciar página si cambian filtro o búsqueda
   useEffect(() => { setPage(0); }, [filter, search]);
   const totalPages = Math.ceil(filteredEvents.length / pageSize) || 1;
@@ -293,6 +357,7 @@ useEffect(() => {
   useEffect(() => {
     scrollRef.current?.scrollTo({ y: 0, animated: true });
   }, [filter, search]);
+
 
   if (loading) {
     return (

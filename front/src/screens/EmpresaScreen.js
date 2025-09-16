@@ -114,6 +114,7 @@ useEffect(() => {
         categoriaColor: ev.categoriaColor || "#4f46e5",
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
         imagenes: ev.imagenes,
+        ownerName: ev.ownerName || `Empresa #${empresaId}`,
       }));
 
       console.log("Status:", res.status);
@@ -501,7 +502,31 @@ console.log("imagenes del evento",eventos.imagenes)
                   </View>
                   <View style={styles.eventoFooter}>
                     <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                    <TouchableOpacity style={styles.verDetallesButton}><Text style={styles.verDetallesText}>Ver detalles</Text></TouchableOpacity>
+                    {/* <TouchableOpacity style={styles.verDetallesButton}>
+                      onPress={() => {
+                        // Si es empresa: navegar a la pantalla de detalles (BuyScreen / Reservar/Comprar)
+                        // Si es usuario: (futuro) lógica de guardar evento; por ahora reutilizamos navegación existente
+                        navigation.navigate('Reservar/Comprar', {
+                          idEvento: evento.id,
+                          idEmpresa: evento.ownerName?.startsWith('Empresa #') ? evento.ownerName.replace('Empresa #','') : undefined
+                        });
+                      }}
+                      <Text style={styles.verDetallesText}>Ver detalles</Text>
+                      </TouchableOpacity> */}
+                      <TouchableOpacity
+                        style={styles.verDetallesButton}
+                        onPress={() => {
+                          navigation.navigate('Reservar/Comprar', {
+                            idEvento: evento.id,
+                            idEmpresa: evento.ownerName?.startsWith('Empresa #')
+                              ? evento.ownerName.replace('Empresa #', '')
+                              : undefined
+                          });
+                        }}
+                      >
+                        <Text style={styles.verDetallesText}>Ver detalles</Text>
+                      </TouchableOpacity>
+
                   </View>
                 </View>
               </View>

@@ -378,7 +378,7 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         )
         qs = Evento2.objects.annotate(
             distance=RawSQL(haversine_sql, (lat_f, lng_f, lat_f))
-        ).filter(distance__lte=radius_km).order_by('distance')
+        ).filter(distance__lte=radius_km).order_by('distance') # más cercano primero ('distance', 'fecha_evento')
 
         page = self.paginate_queryset(qs)
         if page is not None:
