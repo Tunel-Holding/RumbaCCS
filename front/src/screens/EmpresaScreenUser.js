@@ -1,10 +1,12 @@
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { loginConFallback } from '../utils/auth';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image, StyleSheet,
-  Dimensions, Animated, Modal, SafeAreaView, ActivityIndicator,
-  StatusBar, Alert, Linking, TextInput
+  Dimensions, Animated, Modal, ActivityIndicator,
+  StatusBar, Alert, Linking, TextInput, Pressable
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
@@ -38,8 +40,7 @@ export default function EmpresaScreenUser() {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
 
-  // Animaciones
-  const menuAnim = useRef(new Animated.Value(0)).current;
+
 
   const [empresaData, setEmpresaData] = useState(null);
 
@@ -62,15 +63,18 @@ export default function EmpresaScreenUser() {
   fetchEmpresa();
 }, [empresaIdParam]);
   
+
+const [loginVisible, setLoginVisible] = useState(false);
+const [user, setUser] = useState('');
+const [pass, setPass] = useState('');
+
 const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
   try {
     const token = await AsyncStorage.getItem('accessToken');
     if (!token) {
-     Alert.alert('No estás logueado', 'Debes iniciar sesión para calificar');
-      navigation.navigate('HomeScreen');
-      return;
+      setLoginVisible(true);
+      return false;
     }
-
     const res = await api.post(`/api/empresas/${empresaId}/ratings/`, {
       empresa: empresaId,
       rating,
@@ -80,8 +84,29 @@ const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
     return res.data;
   } catch (e) {
     const msg = e.response?.data?.detail || e.message;
-  Alert.alert('Error', msg);
+    Alert.alert('Error', msg);
+    return false;
   }
+};
+
+const handleLogin = async () => {
+  const resultado = await loginConFallback(user, pass);
+  if (resultado.error) {
+    switch (resultado.tipo) {
+      case 'validacion':
+        Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+        break;
+      case 'error':
+        Alert.alert('Error inesperado', resultado.error);
+        break;
+      case 'credenciales':
+        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+        break;
+    }
+    return;
+  }
+  setLoginVisible(false);
+  Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
 };
 
   const empresaData1 = {
@@ -105,8 +130,6 @@ useEffect(() => {
       }
 
       const res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
-
-      console.log("Data:",res.data)
 
       const eventosTransformados = res.data.map(ev => {
         // Separar fecha y hora si viene en formato ISO
@@ -331,17 +354,16 @@ useEffect(() => {
             
             <TouchableOpacity
               style={[styles.ratingSubmitButton, rating === 0 && styles.ratingSubmitButtonDisabled]}
-              onPress={() => {
-                
+              onPress={async () => {
                 if (rating > 0) {
-                  console.log("Empresa id: ", empresaIdParam)
-                  const valor = enviarCalificacion({ empresaId: empresaIdParam, rating, comentario: comment });
-                  
-                  Alert.alert('¡Gracias!', 'Tu calificación ha sido enviada.');
-                  
-                  setModalVisible({ ...modalVisible, rating: false });
-                  setRating(0);
-                  setComment('');
+                  const result = await enviarCalificacion({ empresaId: empresaIdParam, rating, comentario: comment });
+                  if (result !== false) {
+                    Alert.alert('¡Gracias!', 'Tu calificación ha sido enviada.');
+                    setModalVisible({ ...modalVisible, rating: false });
+                    setRating(0);
+                    setComment('');
+                  }
+                  // Si no hay token, el modal de login se muestra automáticamente
                 }
               }}
               disabled={rating === 0}
@@ -350,6 +372,61 @@ useEffect(() => {
                 Enviar
               </Text>
             </TouchableOpacity>
+  {/* Modal de Login */}
+<Modal
+        visible={loginVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLoginVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Pressable style={styles.modalClose} onPress={() => setLoginVisible(false)}>
+              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
+            </Pressable>
+            <Text style={styles.loginTitle}>Iniciar sesión</Text>
+
+            <TextInput
+              style={styles.loginInput}
+              placeholder="Correo electrónico"
+              placeholderTextColor="#888"
+              keyboardType="email-address"
+              value={user}
+              onChangeText={setUser}
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+
+            <TextInput
+              style={styles.loginInput}
+              placeholder="Contraseña"
+              placeholderTextColor="#888"
+              secureTextEntry
+              value={pass}
+              onChangeText={setPass}
+              autoCapitalize="none"
+              autoComplete="password"
+            />
+
+            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin}>
+              <Text style={styles.loginBtnText}>Ingresar</Text>
+            </TouchableOpacity>
+
+            <View style={styles.loginLinks}>
+              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
+              <Text style={styles.loginLink}>|</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setLoginVisible(false);
+                  navigation.navigate('AccountTypeScreen');
+                }}
+              >
+                <Text style={styles.loginLink}>Regístrate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
           </View>
         </View>
       </View>
@@ -890,4 +967,12 @@ const styles = StyleSheet.create({
   ratingSubmitTextDisabled: {
     color: '#9ca3af',
   },
+   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
+  modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
+  loginTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+  loginInput: { backgroundColor: '#fff', borderRadius: 8, padding: 10, width: '100%', marginBottom: 12 },
+  loginBtnModal: { backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 },
+  loginLinks: { flexDirection: 'row', marginTop: 12 },
+  loginLink: { color: '#0ea5e9', marginHorizontal: 6 },
 });

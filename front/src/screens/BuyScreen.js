@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { View, Text, Alert, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, SafeAreaView, Modal, TextInput, Pressable, StatusBar } from 'react-native';
+import { View, Text, Alert, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { loginConFallback } from '../utils/auth';

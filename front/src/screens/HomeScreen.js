@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { loginConFallback } from '../utils/auth';
 
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
+
+import * as Location from 'expo-location';
 
 const { width } = Dimensions.get('window');
 
@@ -82,20 +85,20 @@ const handleLogin = async () => {
   const [userLocation, setUserLocation] = useState(null); // { latitude, longitude }
   const [locationStatus, setLocationStatus] = useState('idle'); // idle | requesting | granted | denied
 
-  // Función placeholder para cuando se integre backend / permisos reales
-  const solicitarUbicacion = () => {
-    // Aquí en el futuro se pedirá el permiso real y se actualizará userLocation
-    // Por ahora solo alternamos estados para feedback visual.
-    if (locationStatus === 'idle') {
-      setLocationStatus('requesting');
-      // Simulación ligera de espera
-      setTimeout(() => {
-        // No establecemos userLocation a propósito para seguir mostrando el mensaje
-        setLocationStatus('denied');
-      }, 700);
-    } else if (locationStatus === 'denied') {
-      setLocationStatus('idle');
+  // Función real para solicitar permisos y ubicación usando expo-location
+  const solicitarUbicacion = async () => {
+    setLocationStatus('requesting');
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      setLocationStatus('denied');
+      return;
     }
+    let location = await Location.getCurrentPositionAsync({});
+    setUserLocation({
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    });
+    setLocationStatus('granted');
   };
 
   // ---- Normalización y búsqueda difusa (fuzzy) ----
@@ -293,18 +296,18 @@ useEffect(() => {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+      <View style={[styles.container, { backgroundColor: '#0f172a', flex: 1 }]}> 
         <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#00ff00" /> 
           <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top, paddingBottom: 0 }}>
+    <View style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top, paddingBottom: 0 }}>
       <ScrollView
         ref={scrollRef}
         style={styles.container}
@@ -397,7 +400,7 @@ useEffect(() => {
               </Text>
             </TouchableOpacity>
             {locationStatus === 'denied' && (
-              <Text style={[styles.permissionText, { marginTop: 8, fontSize: 12, opacity: 0.8 }]}>Permiso denegado (simulado). Intenta nuevamente.</Text>
+              <Text style={[styles.permissionText, { marginTop: 8, fontSize: 12, opacity: 0.8 }]}>Permiso denegado. Intenta nuevamente.</Text>
             )}
           </View>
         )}
@@ -510,8 +513,6 @@ useEffect(() => {
         </View>
       </ScrollView>
 
-      // ...existing code...
-
       {/* Modal de Login */}
       <Modal
         visible={loginVisible}
@@ -567,7 +568,7 @@ useEffect(() => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

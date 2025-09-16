@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { Modal } from 'react-native';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, SafeAreaView, Image, Platform, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Dimensions, Image, Platform, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, ActivityIndicator, Animated } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
