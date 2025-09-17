@@ -38,7 +38,7 @@ export default function HomeScreen() {
       setIsLogged(!!token);
     };
     checkSession();
-  }, [loginVisible]); // Se ejecuta cada vez que el modal cambia
+  }, [loginVisible, isLogged]); // Se ejecuta cada vez que el modal cambia o cuando cambia el estado de login
 
   //Funcion de logout
   const handleLogout = async () => {
@@ -534,15 +534,22 @@ useEffect(() => {
                     <TouchableOpacity
                       style={styles.reserveBtn}
                       onPress={() => {
-                        // Si es empresa: navegar a la pantalla de detalles (BuyScreen / Reservar/Comprar)
-                        // Si es usuario: (futuro) lógica de guardar evento; por ahora reutilizamos navegación existente
-                        navigation.navigate('Reservar/Comprar', {
-                          idEvento: event.id,
-                          idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined
-                        });
+                        if (hasEmpresa) {
+                          // Si es empresa: navegar a la pantalla de detalles (BuyScreen)
+                          navigation.navigate('Reservar/Comprar', {
+                            idEvento: event.id,
+                            idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined
+                          });
+                        } else {
+                          // Si es usuario: navegar a BuyScreen para ver detalles y poder guardar
+                          navigation.navigate('Reservar/Comprar', {
+                            idEvento: event.id,
+                            idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined
+                          });
+                        }
                       }}
                     >
-                      <Text style={styles.reserveText}>{hasEmpresa ? 'Ver detalles' : 'Guardar'}</Text>
+                      <Text style={styles.reserveText}>{hasEmpresa ? 'Ver detalles' : 'Ver detalles'}</Text>
                     </TouchableOpacity>
                   </View>
                 ))
