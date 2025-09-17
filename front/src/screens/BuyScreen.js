@@ -101,7 +101,10 @@ export default function BuyScreen() {
     (async () => {
       try {
         const empresaId = await AsyncStorage.getItem('empresaId');
-        setHasEmpresa(!!(empresaId && empresaId !== ''));
+        console.log('🔍 BuyScreen - empresaId detectado:', empresaId);
+        const isEmpresa = !!(empresaId && empresaId !== '');
+        console.log('🔍 BuyScreen - hasEmpresa será:', isEmpresa);
+        setHasEmpresa(isEmpresa);
         setOwnEmpresaId(empresaId || null);
       } catch (e) {
         console.warn('No se pudo leer empresaId', e);
@@ -665,8 +668,8 @@ if (loading) {
         )}
 
       <View style={styles.buttonContainer}>
-        {/* Ocultar botón Guardar si el espectador es una empresa */}
-        {!hasEmpresa && isSaved !== null && (
+        {/* Mostrar botón Guardar para todos los usuarios logueados */}
+        {isLogged && isSaved !== null && (
           <TouchableOpacity
             style={[styles.reserveButton, isSaved ? styles.reserveButtonSaved : null]}
             onPress={handleSave}
