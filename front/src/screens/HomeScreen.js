@@ -197,7 +197,7 @@ useEffect(() => {
         try {
           const resp = await api.get(`/api/public/empresas/bulk/`, {
             params: { ids: idsPendientes.join(',') },
-            timeout: 10000 // 10 segundos
+            timeout: 25000 // 20 segundos
           });
 
           const empresas = resp.data; // ← debería ser un array de { id, nombre }
