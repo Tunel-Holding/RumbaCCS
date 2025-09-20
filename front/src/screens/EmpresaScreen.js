@@ -21,6 +21,7 @@ import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
 import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from "expo-image-picker";
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
@@ -59,6 +60,7 @@ export default function EmpresaScreen() {
       const response = await api.get(`/api/empresas/${empresaId}/`);
       
       setEmpresaData(response.data);
+      console.log("Datos de empresa:", response.data);
    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
@@ -80,6 +82,48 @@ export default function EmpresaScreen() {
     seguidores: empresaData?.seguidores || 0,
     eventosPublicados: empresaData?.eventosPublicados || 0,
   }
+
+
+
+const handleUploadFoto = async (empresaId) => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    quality: 0.8,
+  });
+
+  if (result.canceled) return;
+
+  const file = {
+    uri: result.assets[0].uri,
+    name: "profile.jpg",
+    type: "image/jpeg",
+  };
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  console.log("Subiendo foto para empresaId:", empresaId);
+
+  try {
+    const response = await api.post(
+      `/api/empresas/${empresaId}/upload-foto/`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    
+    console.log("Foto subida:", response.data.foto_perfil);
+    setEmpresaData(prev => ({ ...prev, foto_perfil: response.data.foto_perfil }));
+    return true; // Devuelve true en caso de éxito
+    
+  } catch (error) {
+    console.error("Error subiendo foto:", error.response?.data || error.message);
+    return false
+  }
+};
 
 
   const [eventos, setEventos] = useState([]);
@@ -287,15 +331,29 @@ useEffect(() => {
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
       <View style={styles.perfilContent}>
+
         {/* Foto de perfil */}
         <View style={styles.fotoContainer}>
           <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={() => setProfilePicModal(true)}
+            onPress={async () => { // <-- Convertir a async
+              const success = await handleUploadFoto(empresaData?.id); // <-- Esperar el resultado
+              if (!success) {
+                Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
+              }
+              // No es necesario navegar, la imagen se actualiza sola con setEmpresaData
+            }}
             activeOpacity={0.7}
           >
+            {empresaData?.foto_perfil ? (
+            <Image
+              source={{ uri: empresaData.foto_perfil }}
+              style={{ width: 100, height: 100, borderRadius: 50 }}
+            />
+          ) : (
             <Text style={styles.fotoIcon}>👤</Text>
-          </TouchableOpacity>
+          )}
+        </TouchableOpacity>
         </View>
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>

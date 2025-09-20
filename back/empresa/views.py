@@ -50,6 +50,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models.expressions import RawSQL
 from rest_framework.parsers import MultiPartParser, FormParser
 from .supabase_client import supabase, upload_image_to_supabase
+from .services import upload_empresa_profile_picture, delete_empresa_profile_picture
 from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny
@@ -209,6 +210,25 @@ class EmpresaViewSet(ModelViewSet):
     #     if self.action in ['create', 'update', 'partial_update', 'destroy', 'seguir', 'dejar_de_seguir']:
     #         return [IsAuthenticated()]
     #     return [AllowAny()]
+    
+    @action(detail=True, methods=["post"], url_path="upload-foto")
+    def upload_foto(self, request, pk=None):
+        empresa = self.get_object()
+        file = request.data.get("file")
+
+        if not file:
+            return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Si ya tiene foto, eliminarla primero
+        if empresa.foto_perfil:
+            delete_empresa_profile_picture(empresa.foto_perfil)
+
+        # Subir nueva
+        public_url = upload_empresa_profile_picture(file, empresa.id)
+        empresa.foto_perfil = public_url
+        empresa.save()
+
+        return Response({"foto_perfil": public_url}, status=status.HTTP_200_OK)
     
     def get_queryset(self):
         # Devuelve todas las empresas (para que un usuario pueda seguir cualquier empresa)

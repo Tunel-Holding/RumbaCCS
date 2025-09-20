@@ -98,6 +98,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "activo",
             "avg_rating",
             "rating_count",
+            "foto_perfil",
         ]
         read_only_fields = [
             "id",

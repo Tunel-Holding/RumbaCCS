@@ -443,7 +443,14 @@ useEffect(() => {
             onPress={() => console.log('Ver perfil de empresa')}
             activeOpacity={0.7}
           >
-            <Text style={styles.fotoIcon}>👤</Text>
+          {empresaData?.foto_perfil ? (
+          <Image
+            source={{ uri: empresaData.foto_perfil }}
+            style={{ width: 100, height: 100, borderRadius: 50 }}
+          />
+        ) : (
+          <Text style={styles.fotoIcon}>👤</Text>
+        )}
           </TouchableOpacity>
         </View>
         {/* Datos de empresa */}
