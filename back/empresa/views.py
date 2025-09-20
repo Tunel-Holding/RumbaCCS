@@ -330,7 +330,7 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser]
 
     def create(self, request, *args, **kwargs):
-        evento_id = kwargs.get('evento_pk')  # si usas router anidado
+        evento_id = kwargs.get('evento_pk')
         file = request.data.get("file")
         if not file:
             return Response({"error": "No se subió archivo"}, status=400)
@@ -341,12 +341,11 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
             return Response({"error": "Evento no encontrado"}, status=404)
 
         try:
-            url = upload_image_to_supabase(file)
-            evento.imagenes.create(url=url)
+            empresa_id = evento.empresa_id  # suponiendo que tu evento tiene FK a Empresa
+            path, url = upload_image_to_supabase(file, empresa_id, evento_id)
+            evento.imagenes.create(path=path, url=url)
             return Response({"url": url}, status=201)
         except Exception as e:
-            import traceback
-            traceback.print_exc()  # imprime stack completo en consola
             return Response({"error": str(e)}, status=500)
 
 
