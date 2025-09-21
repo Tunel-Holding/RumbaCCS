@@ -124,30 +124,6 @@ const seguir = async () => {
   }
 };
 
-const handleLogin = async () => {
-  setLoginError('');
-  setLoginLoading(true);
-  const resultado = await loginConFallback(user, pass);
-  setLoginLoading(false);
-  if (resultado.error) {
-    switch (resultado.tipo) {
-      case 'validacion':
-        setLoginError('Por favor ingresa email y contraseña');
-        break;
-      case 'error':
-        setLoginError('Error inesperado: ' + resultado.error);
-        break;
-      case 'credenciales':
-        setLoginError('Usuario o contraseña incorrectos');
-        break;
-    }
-    return;
-  }
-  setLoginVisible(false);
-  setLoginError('');
-  // Login exitoso, no mostrar alerta
-};
-
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',

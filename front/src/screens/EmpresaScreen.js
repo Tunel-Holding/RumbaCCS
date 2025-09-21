@@ -22,8 +22,6 @@ import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
 import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from "expo-image-picker";
-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
 import { loginConFallback } from '../utils/auth';
@@ -160,6 +158,7 @@ useEffect(() => {
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
         imagenes: ev.imagenes,
         ownerName: ev.ownerName || `Empresa #${empresaId}`,
+        empresaId: ev.empresaId || empresaId,
       }));
 
       console.log("Status:", res.status);
@@ -584,8 +583,9 @@ console.log("imagenes del evento",eventos.imagenes)
                             { text: 'Cancelar', style: 'cancel' },
                             { text: 'Eliminar', style: 'destructive', onPress: async () => {
                                 try {
-                                  await api.delete(`/api/eventos/${evento.id}/`);
+                                  await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
                                   setEventos(prev => prev.filter(ev => ev.id !== evento.id));
+                                  Alert.alert('Éxito', 'El evento ha sido eliminado');
                                 } catch (e) {
                                   Alert.alert('Error', 'No se pudo eliminar el evento');
                                 }
