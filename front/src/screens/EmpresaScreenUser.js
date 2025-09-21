@@ -443,9 +443,9 @@ useEffect(() => {
             onPress={() => console.log('Ver perfil de empresa')}
             activeOpacity={0.7}
           >
-          {empresaData?.foto_perfil ? (
+          {empresaData?.logo ? (
           <Image
-            source={{ uri: empresaData.foto_perfil }}
+            source={{ uri: empresaData.logo }}
             style={{ width: 100, height: 100, borderRadius: 50 }}
           />
         ) : (
