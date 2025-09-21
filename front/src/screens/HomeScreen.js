@@ -546,7 +546,7 @@ useEffect(() => {
                   <Image
                     // Muestra el logo de la empresa si es una cuenta de empresa y tiene logo, si no, un avatar genérico.
                     source={{ uri: (isEmpresaAccount && empresaData?.logo) ? empresaData.logo : 'https://randomuser.me/api/portraits/men/32.jpg' }}
-                    style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
+                    style={{ width: 32, height: 32, borderRadius: 100, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}
                   />
                 </TouchableOpacity>
               )}

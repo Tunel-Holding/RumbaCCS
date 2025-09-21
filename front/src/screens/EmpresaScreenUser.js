@@ -446,7 +446,7 @@ useEffect(() => {
           {empresaData?.logo ? (
           <Image
             source={{ uri: empresaData.logo }}
-            style={{ width: 100, height: 100, borderRadius: 50 }}
+            style={{ width: '100%', height: '100%', borderRadius: 100 }}
           />
         ) : (
           <Text style={styles.fotoIcon}>👤</Text>
@@ -522,7 +522,6 @@ useEffect(() => {
       </View>
     );
   };
-console.log('🖼️ URL de imagen del evento:', eventos);
 
   const renderEventos = () => (
     <View style={styles.eventosContainer}>

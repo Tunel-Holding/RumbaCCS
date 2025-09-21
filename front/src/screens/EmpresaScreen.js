@@ -348,7 +348,7 @@ useEffect(() => {
             {empresaData?.logo ? (
             <Image
               source={{ uri: empresaData.logo }}
-              style={{ width: 100, height: 100, borderRadius: 50 }}
+              style={{ width: '100%', height: '100%', borderRadius: 100 }}
             />
           ) : (
             <Text style={styles.fotoIcon}>👤</Text>
