@@ -309,4 +309,4 @@ class UsuarioEventoSerializer(serializers.ModelSerializer):
 class EmpresaBulkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
-        fields = ['id', 'nombre']
+        fields = ['id', 'nombre', 'logo']

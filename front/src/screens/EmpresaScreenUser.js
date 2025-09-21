@@ -90,6 +90,26 @@ const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
     return false;
   }
 };
+
+const handleLogin = async () => {
+  const resultado = await loginConFallback(user, pass);
+  if (resultado.error) {
+    switch (resultado.tipo) {
+      case 'validacion':
+        Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+        break;
+      case 'error':
+        Alert.alert('Error inesperado', resultado.error);
+        break;
+      case 'credenciales':
+        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+        break;
+    }
+    return;
+  }
+  setLoginVisible(false);
+  Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
+};
 const seguir = async () => {
   try {
     const token = await AsyncStorage.getItem('accessToken');
@@ -468,7 +488,14 @@ useEffect(() => {
             onPress={() => console.log('Ver perfil de empresa')}
             activeOpacity={0.7}
           >
-            <Text style={styles.fotoIcon}>👤</Text>
+          {empresaData?.logo ? (
+          <Image
+            source={{ uri: empresaData.logo }}
+            style={{ width: '100%', height: '100%', borderRadius: 100 }}
+          />
+        ) : (
+          <Text style={styles.fotoIcon}>👤</Text>
+        )}
           </TouchableOpacity>
         </View>
         {/* Datos de empresa */}
@@ -541,7 +568,7 @@ useEffect(() => {
       </View>
     );
   };
-
+console.log('🖼️ URL de imagen del evento:', eventos);
 
   const renderEventos = () => (
     <View style={styles.eventosContainer}>

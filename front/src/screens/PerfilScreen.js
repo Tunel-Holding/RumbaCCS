@@ -63,6 +63,19 @@ export default function PerfilScreen({ navigation }) {
   };
 }, [navigation]);
 
+// RN: envío simple a tu endpoint DRF
+// const uploadAvatar = async (uri, name, type, token) => {
+//   const formData = new FormData();
+//   formData.append('file', { uri, name, type });
+
+//   const res = await api.post(`/api/usuarios/upload_avatar/`, formData, {
+//     headers: {
+//       'Authorization': `Bearer ${token}`, // o 'Token <token>' dependiendo de tu auth en DRF
+//       'Content-Type': 'multipart/form-data',
+//     },
+//   });
+//   return res.data;
+// };
 
  const handleLogout = async () => {
   await Promise.all([

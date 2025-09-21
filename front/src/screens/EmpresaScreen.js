@@ -22,6 +22,7 @@ import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
 import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from "expo-image-picker";
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
@@ -60,6 +61,7 @@ export default function EmpresaScreen() {
       const response = await api.get(`/api/empresas/${empresaId}/`);
       
       setEmpresaData(response.data);
+      console.log("Datos de empresa:", response.data);
    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
@@ -81,6 +83,48 @@ export default function EmpresaScreen() {
     seguidores: empresaData?.seguidores || 0,
     eventosPublicados: empresaData?.eventosPublicados || 0,
   }
+
+
+
+const handleUploadFoto = async (empresaId) => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    quality: 0.8,
+  });
+
+  if (result.canceled) return;
+
+  const file = {
+    uri: result.assets[0].uri,
+    name: "profile.jpg",
+    type: "image/jpeg",
+  };
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  console.log("Subiendo foto para empresaId:", empresaId);
+
+  try {
+    const response = await api.post(
+      `/api/empresas/${empresaId}/upload-foto/`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+
+    console.log("Logo subido:", response.data.logo);
+    setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
+    return true; // Devuelve true en caso de éxito
+    
+  } catch (error) {
+    console.error("Error subiendo logo:", error.response?.data || error.message);
+    return false
+  }
+};
 
 
   const [eventos, setEventos] = useState([]);
@@ -293,15 +337,29 @@ useEffect(() => {
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
       <View style={styles.perfilContent}>
+
         {/* Foto de perfil */}
         <View style={styles.fotoContainer}>
           <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={() => setProfilePicModal(true)}
+            onPress={async () => { // <-- Convertir a async
+              const success = await handleUploadFoto(empresaData?.id); // <-- Esperar el resultado
+              if (!success) {
+                Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
+              }
+              // No es necesario navegar, la imagen se actualiza sola con setEmpresaData
+            }}
             activeOpacity={0.7}
           >
+            {empresaData?.logo ? (
+            <Image
+              source={{ uri: empresaData.logo }}
+              style={{ width: '100%', height: '100%', borderRadius: 100 }}
+            />
+          ) : (
             <Text style={styles.fotoIcon}>👤</Text>
-          </TouchableOpacity>
+          )}
+        </TouchableOpacity>
         </View>
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>
@@ -539,6 +597,20 @@ console.log("imagenes del evento",eventos.imagenes)
                     >
                       <Text style={styles.verDetallesText}>Borrar</Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.verDetallesButton}
+                        onPress={() => {
+                          navigation.navigate('Reservar/Comprar', {
+                            idEvento: evento.id,
+                            idEmpresa: evento.ownerName?.startsWith('Empresa #')
+                              ? evento.ownerName.replace('Empresa #', '')
+                              : undefined
+                          });
+                        }}
+                      >
+                        <Text style={styles.verDetallesText}>Ver detalles</Text>
+                      </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -574,29 +646,7 @@ console.log("imagenes del evento",eventos.imagenes)
         <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
           <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:300 }}>
             <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Cambiar foto de perfil</Text>
-            <TouchableOpacity
-              style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }}
-              onPress={async () => {
-                // Solicitar permisos y abrir galería
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== 'granted') {
-                  Alert.alert('Permiso requerido', 'Se necesita permiso para acceder a la galería.');
-                  return;
-                }
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                  allowsEditing: true,
-                  aspect: [1, 1],
-                  quality: 0.7,
-                });
-                if (!result.canceled && result.assets && result.assets.length > 0) {
-                  // Aquí puedes manejar la imagen seleccionada: result.assets[0].uri
-                  console.log('Imagen seleccionada:', result.assets[0].uri);
-                  setProfilePicModal(false);
-                  // TODO: subir imagen o actualizar estado
-                }
-              }}
-            >
+            <TouchableOpacity style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }} onPress={() => {/* lógica de selección */}}>
               <Text style={{ color:'#fff', textAlign:'center' }}>Seleccionar imagen</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
@@ -605,6 +655,7 @@ console.log("imagenes del evento",eventos.imagenes)
           </View>
         </View>
       </Modal>
+      
       {/* Modal de Login */}
       <Modal
         visible={loginVisible}

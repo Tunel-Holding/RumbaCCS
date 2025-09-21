@@ -7,6 +7,8 @@ from django.utils import timezone
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.auth.hashers import make_password, check_password
 import uuid
+from django.conf import settings
+
 
 Usuario = get_user_model()
 
@@ -21,6 +23,9 @@ class Empresa(models.Model):
     )
 
     password = models.CharField(max_length=128, default="00000000", help_text="Contraseña para login de la empresa")
+    avatar_path = models.CharField(max_length=512, blank=True, null=True)
+    avatar_url = models.URLField(blank=True, null=True)
+    logo = models.URLField(blank=True, null=True,default='')  # solo guardamos URL
 
     def set_password(self, raw_password):
         self.password = make_password(raw_password)
@@ -79,8 +84,6 @@ class Empresa(models.Model):
         validators=[URLValidator(message="Debe ser una URL válida.")]
     )
 
-    logo = models.ImageField(upload_to="logos_empresas/", blank=True, null=True)
-
     seguidores = models.ManyToManyField(
         Usuario,
         related_name="empresas_que_sigue",
@@ -96,7 +99,14 @@ class Empresa(models.Model):
         verbose_name_plural = "Empresas"
         ordering = ["nombre"]
         
-
+    # def delete(self, *args, **kwargs):
+    #     if self.avatar_path:
+    #         try:
+    #             supabase.storage.from_(settings.SUPABASE_BUCKET).remove([self.avatar_path])
+    #         except Exception:
+    #             pass
+    #     super().delete(*args, **kwargs)
+        
     def __str__(self):
         return self.nombre
 
@@ -246,8 +256,9 @@ class Evento2(models.Model):
         return f"{self.titulo} – {self.empresa.nombre}"
 
 class EventoImagen(models.Model):
-    evento = models.ForeignKey(Evento2,on_delete=models.CASCADE, related_name="imagenes")
-    url = models.URLField()
+    evento = models.ForeignKey("Evento2", on_delete=models.CASCADE, related_name="imagenes")
+    path = models.CharField(max_length=255,default="")  # ej: eventos/23/uuid.jpg
+    url = models.URLField()  # URL pública o firmada
     creada_en = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):

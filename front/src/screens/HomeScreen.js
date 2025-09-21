@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import React, { useState, useRef, useEffect, useCallback } from 'react'; // <-- useCallback es buena práctica con useFocusEffect
+import { useNavigation, useFocusEffect } from '@react-navigation/native'; // <-- Importa useFocusEffect
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { loginConFallback } from '../utils/auth';
@@ -63,38 +63,75 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
+  const [empresaData, setEmpresaData] = useState(null);
+  const [isEmpresaAccount, setIsEmpresaAccount] = useState(false); // <-- NUEVO ESTADO
 
-  useEffect(() => {
-    const checkSession = async () => {
-      const token = await AsyncStorage.getItem('accessToken');
-      const empresaId = await AsyncStorage.getItem('empresaId');
-      setHasEmpresa(!!(empresaId && empresaId !== ''));
-      setOwnEmpresaId(empresaId || null);
-      if (token) {
-        setIsLogged(true);
+  // --- FUNCIÓN PARA RECARGAR DATOS DE LA EMPRESA ---
+  const refreshEmpresaData = useCallback(async () => {
+    const token = await AsyncStorage.getItem('accessToken');
+    const empresaId = await AsyncStorage.getItem('empresaId');
+    
+    // Actualizamos los estados base
+    setHasEmpresa(!!empresaId);
+    setOwnEmpresaId(empresaId);
+
+    if (token && empresaId) {
+      try {
+        console.log(`Refrescando datos para empresaId: ${empresaId}`);
+        const response = await api.get(`/api/public/empresas/${empresaId}/`);
+        setEmpresaData(response.data);
+      } catch (error) {
+        console.error("Error refrescando datos de la empresa:", error);
+        setEmpresaData(null); // Limpiamos si hay error
       }
-      setIsLogged(!!token);
-    };
-    checkSession();
-  }, [loginVisible, isLogged]); // Se ejecuta cada vez que el modal cambia o cuando cambia el estado de login
+    } else {
+      setEmpresaData(null); // Limpiamos si no hay ID o token
+    }
+  }, []);
+
+  // --- EFECTO PARA RECARGAR DATOS CUANDO LA PANTALLA ESTÁ EN FOCO ---
+  useFocusEffect(
+    useCallback(() => {
+      const checkLoginAndRefresh = async () => {
+        const token = await AsyncStorage.getItem('accessToken');
+        const isEmpresaAcc = await AsyncStorage.getItem('isEmpresaAccount'); // Leemos el valor guardado
+        
+        setIsLogged(!!token); // Primero, actualiza el estado de login
+        setIsEmpresaAccount(isEmpresaAcc === 'true'); // Actualizamos el estado de tipo de cuenta
+
+        if (token) {
+          console.log("HomeScreen en foco y logueado, actualizando datos...");
+          await refreshEmpresaData(); // Luego, refresca los datos de la empresa
+        } else {
+          // Si no hay token, limpia los datos de la empresa
+          setEmpresaData(null);
+          setHasEmpresa(false);
+          setOwnEmpresaId(null);
+          setIsEmpresaAccount(false); // Aseguramos limpiar este estado también
+        }
+      };
+      checkLoginAndRefresh();
+    }, [refreshEmpresaData])
+  );
+
+  // ELIMINAMOS LOS OTROS useEffect que llamaban a checkSession.
+  // useFocusEffect ahora es la única fuente de verdad para los datos de sesión.
 
   //Funcion de logout
   const handleLogout = async () => {
-    await AsyncStorage.removeItem('accessToken');
-    await AsyncStorage.removeItem('refreshToken');
-    await AsyncStorage.removeItem('userEmail');
-    await AsyncStorage.removeItem('userName');
+    // ... (tus otros AsyncStorage.removeItem)
     await AsyncStorage.removeItem('empresaId');
-    await AsyncStorage.clear();
+    await AsyncStorage.removeItem('isEmpresaAccount'); // Limpiamos el tipo de cuenta
+    await AsyncStorage.clear(); // Opcional: clear() ya limpia todo
     setIsLogged(false);
-  // Sesión cerrada, no mostrar alerta
+    setIsEmpresaAccount(false); // Limpiamos el estado
+    Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
 
 const handleLogin = async () => {
   setLoginError('');
   setLoginLoading(true);
   const resultado = await loginConFallback(user, pass);
-  setLoginLoading(false);
   if (resultado.error) {
     switch (resultado.tipo) {
       case 'validacion':
@@ -109,17 +146,45 @@ const handleLogin = async () => {
     }
     return;
   }
+  console.log("Login exitoso, datos recibidos:", resultado.data);
+
+  // --- LÓGICA DE DIFERENCIACIÓN DE CUENTAS ---
+  // Si el login fue exitoso y trajo el objeto 'empresa', es una cuenta de empresa.
+  if (resultado.data?.empresa) {
+    console.log("Es una cuenta de Empresa:", resultado.data.empresa);
+    setEmpresaData(resultado.data.empresa);
+    setHasEmpresa(true); // Una cuenta de empresa, por definición, tiene empresa.
+    setIsEmpresaAccount(true); // Marcamos que es una cuenta de tipo empresa.
+    await AsyncStorage.setItem('isEmpresaAccount', 'true');
+  } else {
+    // Si no trae el objeto 'empresa', es una cuenta de usuario.
+    console.log("Es una cuenta de Usuario.");
+    setIsEmpresaAccount(false); // No es una cuenta de tipo empresa.
+    
+    // Verificamos si este usuario tiene una empresa vinculada.
+    if (resultado.data?.empresa_id) {
+      console.log("Usuario con empresa vinculada (ID):", resultado.data.empresa_id);
+      setHasEmpresa(true);
+    } else {
+      console.log("Usuario sin empresa vinculada.");
+      setHasEmpresa(false);
+    }
+    // En ambos casos de usuario, no tenemos los datos completos de la empresa aún.
+    setEmpresaData(null);
+    await AsyncStorage.setItem('isEmpresaAccount', 'false');
+  }
+
   setIsLogged(true);
   setLoginVisible(false);
-  setLoginError('');
-  navigation.navigate('HomeScreen');
+  Alert.alert('Login correcto', `Bienvenido/a`);
+  // No es necesario navegar, el estado se actualizará y la UI cambiará sola.
 };
 
 
 
   const [events, setEventos] = useState([]);
-  // Cache local de nombres de empresas para evitar múltiples llamadas.
-  const [companyNames, setCompanyNames] = useState({}); // { empresaId: nombre }
+  // Cache local de datos de empresas para evitar múltiples llamadas.
+  const [companyCache, setCompanyCache] = useState({}); // { empresaId: { nombre, logo } }
   const pageSize = 10;
   const [page, setPage] = useState(0); // página actual 0-index
   // Estados de ubicación (placeholder, sin llamadas nativas todavía)
@@ -221,16 +286,18 @@ useEffect(() => {
           tag: categorias[0],
           imagenes: ev.imagenes,
           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-          ownerName: companyNames[ev.empresa] || `Empresa #${ev.empresa}`,
+          // Usamos el caché si ya existe, si no, un placeholder
+          ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
+          ownerLogo: companyCache[ev.empresa]?.logo || null,
         };
       });
 
       setEventos(eventosTransformados);
 
-      // ---- Resolver nombres de empresa usando el endpoint bulk ----
+      // ---- Resolver datos de empresa usando el endpoint bulk ----
       const idsPendientes = [...new Set(
         eventosTransformados
-          .filter(ev => ev.rawEmpresaId && !companyNames[ev.rawEmpresaId])
+          .filter(ev => ev.rawEmpresaId && !companyCache[ev.rawEmpresaId])
           .map(ev => ev.rawEmpresaId)
       )];
 
@@ -238,32 +305,41 @@ useEffect(() => {
         try {
           const resp = await api.get(`/api/public/empresas/bulk/`, {
             params: { ids: idsPendientes.join(',') },
-            timeout: 25000 // 20 segundos
+            timeout: 25000
           });
 
-          const empresas = resp.data; // ← debería ser un array de { id, nombre }
-          const nuevos = {};
+          const empresas = resp.data; // ← array de { id, nombre, logo }
+          const nuevosDatosEmpresa = {};
           empresas.forEach(emp => {
-            nuevos[emp.id] = emp.nombre;
+            // Guardamos el objeto completo con nombre y logo
+            nuevosDatosEmpresa[emp.id] = {
+              nombre: emp.nombre,
+              logo: emp.logo
+            };
           });
 
           // fallback por si alguna empresa no existe en la respuesta
           idsPendientes.forEach(id => {
-            if (!nuevos[id]) {
-              nuevos[id] = `Empresa #${id}`;
+            if (!nuevosDatosEmpresa[id]) {
+              nuevosDatosEmpresa[id] = { nombre: `Empresa #${id}`, logo: null };
             }
           });
 
-          setCompanyNames(prev => ({ ...prev, ...nuevos }));
+          // Actualizamos el caché y el estado de los eventos con los nuevos datos
+          setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
           setEventos(prev =>
             prev.map(ev =>
-              ev.rawEmpresaId && nuevos[ev.rawEmpresaId]
-                ? { ...ev, ownerName: nuevos[ev.rawEmpresaId] }
+              ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
+                ? {
+                    ...ev,
+                    ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre,
+                    ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo,
+                  }
                 : ev
             )
           );
         } catch (err) {
-          console.error('Error resolviendo nombres de empresa en bulk:', err);
+          console.error('Error resolviendo datos de empresa en bulk:', err);
         }
       }
     } catch (error) {
@@ -344,43 +420,88 @@ const filteredEvents = fuente.filter(e => {
 
 // --- useEffect: cuando el user da permiso y activa el filtro "nearby"
 useEffect(() => {
-  if (filter === "nearby" && userLocation) {
-    api.get(`/api/eventos-publicos/nearby/?lat=${userLocation.latitude}&lng=${userLocation.longitude}&radius=5`)
-      .then(data => {
-        const eventos = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : []);
+  // Convertimos la lógica a async/await para manejar mejor las llamadas en cadena
+  const fetchNearbyEvents = async () => {
+    if (filter !== "nearby" || !userLocation) {
+      return; // No hacer nada si el filtro no es 'nearby' o no hay ubicación
+    }
 
-        // Adaptar al formato de Home
-        const adaptados = eventos.map(ev => {
-          const categorias = Array.isArray(ev.categoria) ? ev.categoria : [ev.categoria];
+    try {
+      const res = await api.get(`/api/eventos-publicos/nearby/?lat=${userLocation.latitude}&lng=${userLocation.longitude}&radius=5`);
+      const eventos = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
 
-          return {
-            ...ev,
-            id: ev.id,
-            rawEmpresaId: ev.empresa,
-            title: ev.titulo,
-            date: ev.fecha_evento
-              ? new Date(ev.fecha_evento).toLocaleDateString()
-              : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-            time: ev.fecha_evento
-              ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              : null,
-            location: ev.ubicacion || 'Ubicación no definida',
-            price: ev.precio === '0.00'
-              ? 'Entrada libre'
-              : `$${parseFloat(ev.precio).toLocaleString()}`,
-            type: categorias,
-            tag: categorias[0],
-            imagenes: ev.imagenes,
-            image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-            ownerName: companyNames[ev.empresa] || `Empresa #${ev.empresa}`,
+      // 1. Adaptar al formato de Home, usando el caché si ya existe
+      const adaptados = eventos.map(ev => {
+        const categorias = Array.isArray(ev.categoria) ? ev.categoria : [ev.categoria];
+        return {
+          ...ev,
+          id: ev.id,
+          rawEmpresaId: ev.empresa,
+          title: ev.titulo,
+          date: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleDateString()
+            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+          time: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : null,
+          location: ev.ubicacion || 'Ubicación no definida',
+          price: ev.precio === '0.00'
+            ? 'Entrada libre'
+            : `$${parseFloat(ev.precio).toLocaleString()}`,
+          type: categorias,
+          tag: categorias[0],
+          imagenes: ev.imagenes,
+          image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+          // Usamos el caché existente para una carga inicial rápida
+          ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
+          ownerLogo: companyCache[ev.empresa]?.logo || null,
+        };
+      });
+
+      setNearbyEvents(adaptados); // Mostramos los eventos inmediatamente
+
+      // 2. Buscar IDs de empresas que no estén en el caché
+      const idsPendientes = [...new Set(
+        adaptados
+          .filter(ev => ev.rawEmpresaId && !companyCache[ev.rawEmpresaId])
+          .map(ev => ev.rawEmpresaId)
+      )];
+
+      // 3. Si hay IDs pendientes, hacer la llamada bulk
+      if (idsPendientes.length > 0) {
+        const resp = await api.get(`/api/public/empresas/bulk/`, {
+          params: { ids: idsPendientes.join(',') },
+        });
+
+        const empresas = resp.data; // array de { id, nombre, logo }
+        const nuevosDatosEmpresa = {};
+        empresas.forEach(emp => {
+          nuevosDatosEmpresa[emp.id] = {
+            nombre: emp.nombre,
+            logo: emp.logo // <-- Usando 'logo' como especificaste
           };
         });
 
-        setNearbyEvents(adaptados);
+        // 4. Actualizar el caché y el estado de los eventos cercanos
+        setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
+        setNearbyEvents(prev =>
+          prev.map(ev =>
+            ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
+              ? {
+                  ...ev,
+                  ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre,
+                  ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo,
+                }
+              : ev
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Error cargando o procesando eventos cercanos:", err);
+    }
+  };
 
-      })
-      .catch(err => console.error("Error cargando eventos cercanos:", err));
-  }
+  fetchNearbyEvents();
 }, [filter, userLocation]);
 
 
@@ -443,11 +564,29 @@ useEffect(() => {
                   <Text style={styles.loginBtnText}>Iniciar sesión</Text>
                 </TouchableOpacity>
               )}
+              {/* {empresaData?.logo ? (
+                        <Image
+                          source={{ uri: empresaData.logo }}
+                          style={{ width: 100, height: 100, borderRadius: 50 }}
+                        />
+                      ) : (
+                        <Text style={styles.fotoIcon}>👤</Text>
+                      )} */}
               {isLogged && (
-                <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
+                <TouchableOpacity 
+                  // Redirige a 'Empresa' si es una cuenta de empresa, si no, a 'Perfil'.
+                  onPress={() => {
+                    if (isEmpresaAccount) {
+                      navigation.navigate('Empresa');
+                    } else {
+                      navigation.navigate('Perfil');
+                    }
+                  }}
+                >
                   <Image
-                    source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-                    style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
+                    // Muestra el logo de la empresa si es una cuenta de empresa y tiene logo, si no, un avatar genérico.
+                    source={{ uri: (isEmpresaAccount && empresaData?.logo) ? empresaData.logo : 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                    style={{ width: 32, height: 32, borderRadius: 100, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}
                   />
                 </TouchableOpacity>
               )}
@@ -521,9 +660,20 @@ useEffect(() => {
                 pageEvents.map(event => (
                   <View key={event.id} style={styles.eventCard}>
                     <View style={styles.ownerRow}>
-                      <View style={styles.ownerAvatar}>
-                        <Text style={styles.ownerAvatarText}>{(event.ownerName||'?').charAt(0).toUpperCase()}</Text>
-                      </View>
+                      {/* --- MODIFICACIÓN AQUÍ --- */}
+                      {event.ownerLogo ? (
+                        // Si hay un logo, muestra la imagen
+                        <Image
+                          source={{ uri: event.ownerLogo }}
+                          style={styles.ownerAvatar} // Reutilizamos el estilo para que sea circular
+                        />
+                      ) : (
+                        // Si no hay logo, muestra el avatar con la inicial (fallback)
+                        <View style={styles.ownerAvatar}>
+                          <Text style={styles.ownerAvatarText}>{(event.ownerName||'?').charAt(0).toUpperCase()}</Text>
+                        </View>
+                      )}
+                      {/* --- FIN DE LA MODIFICACIÓN --- */}
                       <View style={{ flex:1 }}>
                         <TouchableOpacity
                           activeOpacity={0.7}

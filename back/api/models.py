@@ -2,6 +2,8 @@ from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseU
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
+from django.db import models
 
 from django.contrib.auth.models import BaseUserManager
 
@@ -73,6 +75,9 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     birthday = models.DateField(null=True, blank=True)
     region = models.CharField(max_length=20, choices=ESTADO_CHOICES)
     gender = models.CharField(max_length=9, choices=GENERO_CHOICES)
+    
+    avatar_path = models.CharField(max_length=512, blank=True, null=True)
+    avatar_url = models.URLField(blank=True, null=True)
 
     # Campos de control recomendados
     is_active = models.BooleanField(default=True)
@@ -82,9 +87,17 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
+    
+    # def delete(self, *args, **kwargs):
+    #     if self.avatar_path:
+    #         try:
+    #             supabase.storage.from_(settings.SUPABASE_BUCKET).remove([self.avatar_path])
+    #         except Exception:
+    #             pass
+    #     super().delete(*args, **kwargs)
 
-    def __str__(self):
-        return self.username
+    # def __str__(self):
+    #     return self.username
 
 
 class EmailVerification(models.Model):

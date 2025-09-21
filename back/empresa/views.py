@@ -50,6 +50,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models.expressions import RawSQL
 from rest_framework.parsers import MultiPartParser, FormParser
 from .supabase_client import supabase, upload_image_to_supabase
+from .services import upload_empresa_profile_picture, delete_empresa_profile_picture
 from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny
@@ -210,6 +211,25 @@ class EmpresaViewSet(ModelViewSet):
     #         return [IsAuthenticated()]
     #     return [AllowAny()]
     
+    @action(detail=True, methods=["post"], url_path="upload-foto")
+    def upload_foto(self, request, pk=None):
+        empresa = self.get_object()
+        file = request.data.get("file")
+
+        if not file:
+            return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Si ya tiene logo, eliminarlo primero
+        if empresa.logo:
+            delete_empresa_profile_picture(empresa.logo)
+
+        # Subir nueva
+        public_url = upload_empresa_profile_picture(file, empresa.id)
+        empresa.logo = public_url
+        empresa.save()
+
+        return Response({"logo": public_url}, status=status.HTTP_200_OK)
+    
     def get_queryset(self):
         # Devuelve todas las empresas (para que un usuario pueda seguir cualquier empresa)
         return Empresa.objects.all()
@@ -330,7 +350,7 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
     parser_classes = [MultiPartParser, FormParser]
 
     def create(self, request, *args, **kwargs):
-        evento_id = kwargs.get('evento_pk')  # si usas router anidado
+        evento_id = kwargs.get('evento_pk')
         file = request.data.get("file")
         if not file:
             return Response({"error": "No se subió archivo"}, status=400)
@@ -341,12 +361,11 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
             return Response({"error": "Evento no encontrado"}, status=404)
 
         try:
-            url = upload_image_to_supabase(file)
-            evento.imagenes.create(url=url)
+            empresa_id = evento.empresa_id  # suponiendo que tu evento tiene FK a Empresa
+            path, url = upload_image_to_supabase(file, empresa_id, evento_id)
+            evento.imagenes.create(path=path, url=url)
             return Response({"url": url}, status=201)
         except Exception as e:
-            import traceback
-            traceback.print_exc()  # imprime stack completo en consola
             return Response({"error": str(e)}, status=500)
 
 
@@ -378,7 +397,7 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         )
         qs = Evento2.objects.annotate(
             distance=RawSQL(haversine_sql, (lat_f, lng_f, lat_f))
-        ).filter(distance__lte=radius_km).order_by('distance')
+        ).filter(distance__lte=radius_km).order_by('distance') # más cercano primero ('distance', 'fecha_evento')
 
         page = self.paginate_queryset(qs)
         if page is not None:
