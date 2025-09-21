@@ -25,6 +25,8 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
+  const [onlyEmpresa, setOnlyEmpresa] = useState(false);
+  const [empresaData, setEmpresaData] = useState(null);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -34,6 +36,15 @@ export default function HomeScreen() {
       setOwnEmpresaId(empresaId || null);
       if (token) {
         setIsLogged(true);
+
+        if (onlyEmpresa && empresaId) {
+          try {
+            const response = await api.get(`/api/public/empresas/${empresaId}/`);
+            setEmpresaData(response.data);
+          } catch (error) {
+            console.error("Error fetching empresa data:", error);
+          }
+        }
       }
       setIsLogged(!!token);
     };
@@ -67,6 +78,12 @@ const handleLogin = async () => {
         break;
     }
     return;
+  }
+  
+  if (resultado.tipo === 'empresa') {
+    console.log("Empresa data:", resultado.data.empresa);
+    setEmpresaData(resultado.data.empresa);
+    setOnlyEmpresa(true)
   }
   setIsLogged(true);
   setLoginVisible(false);
@@ -181,6 +198,7 @@ useEffect(() => {
           imagenes: ev.imagenes,
           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
           ownerName: companyNames[ev.empresa] || `Empresa #${ev.empresa}`,
+          ownerLogo: null, // placeholder para logo si se desea
         };
       });
 
@@ -402,10 +420,18 @@ useEffect(() => {
                   <Text style={styles.loginBtnText}>Iniciar sesión</Text>
                 </TouchableOpacity>
               )}
+              {/* {empresaData?.foto_perfil ? (
+                        <Image
+                          source={{ uri: empresaData.foto_perfil }}
+                          style={{ width: 100, height: 100, borderRadius: 50 }}
+                        />
+                      ) : (
+                        <Text style={styles.fotoIcon}>👤</Text>
+                      )} */}
               {isLogged && (
-                <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
+                <TouchableOpacity onPress={() => {empresaData ? navigation.navigate('Empresa') : navigation.navigate('Perfil')}}>
                   <Image
-                    source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                    source={{ uri: empresaData?.logo || 'https://randomuser.me/api/portraits/men/32.jpg' }}
                     style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
                   />
                 </TouchableOpacity>

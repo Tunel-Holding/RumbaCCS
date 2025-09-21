@@ -98,7 +98,6 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "activo",
             "avg_rating",
             "rating_count",
-            "foto_perfil",
         ]
         read_only_fields = [
             "id",
@@ -310,4 +309,4 @@ class UsuarioEventoSerializer(serializers.ModelSerializer):
 class EmpresaBulkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
-        fields = ['id', 'nombre']
+        fields = ['id', 'nombre', 'logo']

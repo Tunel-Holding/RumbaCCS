@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 def upload_empresa_profile_picture(file, empresa_id):
     bucket = "empresas"  # asegúrate de tener creado este bucket en Supabase
     ext = file.name.split(".")[-1]
-    filename = f"empresa_{empresa_id}/fotoperfil/profile_{uuid.uuid4()}.{ext}"
+    filename = f"empresa_{empresa_id}/logo/profile_{uuid.uuid4()}.{ext}"
 
     file_bytes = file.read()
     supabase.storage.from_(bucket).upload(filename, file_bytes)

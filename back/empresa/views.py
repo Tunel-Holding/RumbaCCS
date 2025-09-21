@@ -219,16 +219,16 @@ class EmpresaViewSet(ModelViewSet):
         if not file:
             return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Si ya tiene foto, eliminarla primero
-        if empresa.foto_perfil:
-            delete_empresa_profile_picture(empresa.foto_perfil)
+        # Si ya tiene logo, eliminarlo primero
+        if empresa.logo:
+            delete_empresa_profile_picture(empresa.logo)
 
         # Subir nueva
         public_url = upload_empresa_profile_picture(file, empresa.id)
-        empresa.foto_perfil = public_url
+        empresa.logo = public_url
         empresa.save()
 
-        return Response({"foto_perfil": public_url}, status=status.HTTP_200_OK)
+        return Response({"logo": public_url}, status=status.HTTP_200_OK)
     
     def get_queryset(self):
         # Devuelve todas las empresas (para que un usuario pueda seguir cualquier empresa)

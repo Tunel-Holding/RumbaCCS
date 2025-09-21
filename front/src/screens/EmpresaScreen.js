@@ -114,13 +114,13 @@ const handleUploadFoto = async (empresaId) => {
         },
       }
     );
-    
-    console.log("Foto subida:", response.data.foto_perfil);
-    setEmpresaData(prev => ({ ...prev, foto_perfil: response.data.foto_perfil }));
+
+    console.log("Logo subido:", response.data.logo);
+    setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
     return true; // Devuelve true en caso de éxito
     
   } catch (error) {
-    console.error("Error subiendo foto:", error.response?.data || error.message);
+    console.error("Error subiendo logo:", error.response?.data || error.message);
     return false
   }
 };
@@ -345,9 +345,9 @@ useEffect(() => {
             }}
             activeOpacity={0.7}
           >
-            {empresaData?.foto_perfil ? (
+            {empresaData?.logo ? (
             <Image
-              source={{ uri: empresaData.foto_perfil }}
+              source={{ uri: empresaData.logo }}
               style={{ width: 100, height: 100, borderRadius: 50 }}
             />
           ) : (

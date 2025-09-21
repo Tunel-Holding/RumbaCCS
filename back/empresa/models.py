@@ -25,7 +25,7 @@ class Empresa(models.Model):
     password = models.CharField(max_length=128, default="00000000", help_text="Contraseña para login de la empresa")
     avatar_path = models.CharField(max_length=512, blank=True, null=True)
     avatar_url = models.URLField(blank=True, null=True)
-    foto_perfil = models.URLField(blank=True, null=True,default='')  # solo guardamos URL
+    logo = models.URLField(blank=True, null=True,default='')  # solo guardamos URL
 
     def set_password(self, raw_password):
         self.password = make_password(raw_password)
@@ -83,8 +83,6 @@ class Empresa(models.Model):
         blank=True, null=True,
         validators=[URLValidator(message="Debe ser una URL válida.")]
     )
-
-    logo = models.ImageField(upload_to="logos_empresas/", blank=True, null=True)
 
     seguidores = models.ManyToManyField(
         Usuario,
