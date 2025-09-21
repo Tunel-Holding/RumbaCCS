@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   Alert,
   Modal,
@@ -16,6 +15,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -897,11 +897,19 @@ useEffect(() => {
                 onPress={handlePickImages} // ahora solo selecciona imágenes localmente
               >
                 {(formData.imagenesLocales?.length || formData.imagenesTemp?.length) > 0 ? (
-                  <ScrollView horizontal>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    snapToInterval={132} // 120 width + 12 margin
+                    decelerationRate="fast"
+                    showsHorizontalScrollIndicator
+                    style={{ minHeight: 120, maxHeight: 140, paddingVertical: 8 }}
+                    contentContainerStyle={{ alignItems: 'center' }}
+                  >
                     {/* mostrar primero las locales (no subidas) y luego las subidas */}
                     {formData.imagenesLocales?.map((uri, index) => (
-                      <View key={`local-${index}`} style={styles.imagePreviewContainer}>
-                        <Image source={{ uri }} style={styles.imagePreview} resizeMode="cover" />
+                      <View key={`local-${index}`} style={[styles.imagePreviewContainer, { width: 120, height: 120, marginRight: 12 }]}> 
+                        <Image source={{ uri }} style={{ width: '100%', height: '100%', borderRadius: 12 }} resizeMode="cover" />
                         <TouchableOpacity
                           style={styles.removeImageButton}
                           onPress={() =>
@@ -915,10 +923,9 @@ useEffect(() => {
                         </TouchableOpacity>
                       </View>
                     ))}
-
                     {formData.imagenesTemp?.map((url, index) => (
-                      <View key={`uploaded-${index}`} style={styles.imagePreviewContainer}>
-                        <Image source={{ uri: url }} style={styles.imagePreview} resizeMode="cover" />
+                      <View key={`uploaded-${index}`} style={[styles.imagePreviewContainer, { width: 120, height: 120, marginRight: 12 }]}> 
+                        <Image source={{ uri: url }} style={{ width: '100%', height: '100%', borderRadius: 12 }} resizeMode="cover" />
                         <TouchableOpacity
                           style={styles.removeImageButton}
                           onPress={() =>

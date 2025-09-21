@@ -9,12 +9,14 @@ import {
   Dimensions,
   Animated,
   Modal,
-  SafeAreaView,
   ActivityIndicator,
   StatusBar,
   Alert,
   Linking,
+  TextInput,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
@@ -23,6 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
+import { loginConFallback } from '../utils/auth';
 
 const { width } = Dimensions.get('window');
 
@@ -112,6 +115,7 @@ useEffect(() => {
         categoriaColor: ev.categoriaColor || "#4f46e5",
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
         imagenes: ev.imagenes,
+        ownerName: ev.ownerName || `Empresa #${empresaId}`,
       }));
 
       console.log("Status:", res.status);
@@ -162,6 +166,37 @@ useEffect(() => {
     setIsFollowing(!isFollowing);
   };
 
+  // Estado y lógica para login modal
+  const [loginVisible, setLoginVisible] = useState(false);
+  const [user, setUser] = useState('');
+  const [pass, setPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  const handleLogin = async () => {
+    setLoginError('');
+    setLoginLoading(true);
+    const resultado = await loginConFallback(user, pass);
+    setLoginLoading(false);
+    if (resultado.error) {
+      switch (resultado.tipo) {
+        case 'validacion':
+          setLoginError('Por favor ingresa email y contraseña');
+          break;
+        case 'error':
+          setLoginError('Error inesperado: ' + resultado.error);
+          break;
+        case 'credenciales':
+          setLoginError('Usuario o contraseña incorrectos');
+          break;
+      }
+      return;
+    }
+    setLoginVisible(false);
+    setLoginError('');
+    navigation.navigate('HomeScreen');
+  };
+
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContainer}>
@@ -170,31 +205,26 @@ useEffect(() => {
           <Text style={styles.logoText}>R U M B A</Text>
           <Text style={styles.logoSubtext}>CCS</Text>
         </View>
-
-                 {/* Menú hamburguesa */}
-         <EmpresaMenu
-           visible={mobileMenuVisible}
-           setVisible={setMobileMenuVisible}
-           onMenuItemPress={item => {
-             setMobileMenuVisible(false);
-             if (item === 'agregar_evento') {
-               // Navegar a la pantalla de agregar evento
-               navigation.navigate('Add');
-             }
-             //else if (item === 'administrar_ganancias') {
-               // Aquí puedes agregar la lógica para administrar ganancias
-               //console.log('Administrar ganancias');
-             //}
-                           else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
-              else if (item === 'inicio') navigation.navigate('HomeScreen');
-              else if (item === 'register') navigation.navigate('Perfil');
-           }}
-         />
+        {/* Menú hamburguesa */}
+        <EmpresaMenu
+          visible={mobileMenuVisible}
+          setVisible={setMobileMenuVisible}
+          onMenuItemPress={item => {
+            setMobileMenuVisible(false);
+            if (item === 'agregar_evento') {
+              navigation.navigate('Add');
+            } else if (item === 'notifications') {
+              setModalVisible({ ...modalVisible, notifications: true });
+            } else if (item === 'inicio') {
+              navigation.navigate('HomeScreen');
+            } else if (item === 'register') {
+              setLoginVisible(true);
+            }
+          }}
+        />
       </View>
     </View>
   );
-
-
 
   const renderNotificationsModal = () => (
     <Modal visible={modalVisible.notifications} transparent animationType="slide">
@@ -258,6 +288,8 @@ useEffect(() => {
     </Modal>
   );
 
+  const [profilePicModal, setProfilePicModal] = useState(false);
+
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
       <View style={styles.perfilContent}>
@@ -265,7 +297,7 @@ useEffect(() => {
         <View style={styles.fotoContainer}>
           <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={() => console.log('Editar perfil de empresa')}
+            onPress={() => setProfilePicModal(true)}
             activeOpacity={0.7}
           >
             <Text style={styles.fotoIcon}>👤</Text>
@@ -425,7 +457,7 @@ console.log("imagenes del evento",eventos.imagenes)
         <View style={styles.eventosHeader}>
           <View style={{ flex:1 }}>
             <Text style={styles.eventosTitle}>Eventos publicados</Text>
-            <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
+            <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{eventos.length}</Text></Text>
           </View>
           <TouchableOpacity
             style={styles.agregarButton}
@@ -476,7 +508,37 @@ console.log("imagenes del evento",eventos.imagenes)
                   </View>
                   <View style={styles.eventoFooter}>
                     <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                    <TouchableOpacity style={styles.verDetallesButton}><Text style={styles.verDetallesText}>Ver detalles</Text></TouchableOpacity>
+                    {/*
+                      Para que este botón funcione debes:
+                      1. Tener el backend corriendo y accesible desde la app (revisa la URL base en api.js).
+                      2. El endpoint DELETE /api/eventos/{evento.id}/ debe existir y aceptar la petición.
+                      3. Si tu API requiere autenticación, asegúrate de enviar el token correcto en los headers.
+                      4. El evento debe existir en la base de datos.
+                    */}
+                    <TouchableOpacity
+                      style={[styles.verDetallesButton, { backgroundColor: '#ef4444', marginRight: 8 }]}
+                      onPress={async () => {
+                        // Confirmar antes de borrar
+                        Alert.alert(
+                          'Eliminar evento',
+                          '¿Estás seguro de que deseas eliminar este evento?',
+                          [
+                            { text: 'Cancelar', style: 'cancel' },
+                            { text: 'Eliminar', style: 'destructive', onPress: async () => {
+                                try {
+                                  await api.delete(`/api/eventos/${evento.id}/`);
+                                  setEventos(prev => prev.filter(ev => ev.id !== evento.id));
+                                } catch (e) {
+                                  Alert.alert('Error', 'No se pudo eliminar el evento');
+                                }
+                              }
+                            }
+                          ]
+                        );
+                      }}
+                    >
+                      <Text style={styles.verDetallesText}>Borrar</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -501,10 +563,107 @@ console.log("imagenes del evento",eventos.imagenes)
 
   return (
 
-  <SafeAreaView style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-      
-             {renderHeader()}
+  <SafeAreaView style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}> 
+      {/* Modal de cambiar foto de perfil */}
+      <Modal
+        visible={profilePicModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setProfilePicModal(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:300 }}>
+            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Cambiar foto de perfil</Text>
+            <TouchableOpacity
+              style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }}
+              onPress={async () => {
+                // Solicitar permisos y abrir galería
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== 'granted') {
+                  Alert.alert('Permiso requerido', 'Se necesita permiso para acceder a la galería.');
+                  return;
+                }
+                const result = await ImagePicker.launchImageLibraryAsync({
+                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                  allowsEditing: true,
+                  aspect: [1, 1],
+                  quality: 0.7,
+                });
+                if (!result.canceled && result.assets && result.assets.length > 0) {
+                  // Aquí puedes manejar la imagen seleccionada: result.assets[0].uri
+                  console.log('Imagen seleccionada:', result.assets[0].uri);
+                  setProfilePicModal(false);
+                  // TODO: subir imagen o actualizar estado
+                }
+              }}
+            >
+              <Text style={{ color:'#fff', textAlign:'center' }}>Seleccionar imagen</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
+              <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      {/* Modal de Login */}
+      <Modal
+        visible={loginVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setLoginVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <TouchableOpacity style={styles.modalClose} onPress={() => setLoginVisible(false)}>
+              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
+            </TouchableOpacity>
+            <Text style={styles.loginTitle}>Iniciar sesión</Text>
+            <TextInput
+              style={styles.loginInput}
+              placeholder="Correo electrónico"
+              placeholderTextColor="#888"
+              keyboardType="email-address"
+              value={user}
+              onChangeText={setUser}
+              autoCapitalize="none"
+              autoComplete="email"
+            />
+            <TextInput
+              style={styles.loginInput}
+              placeholder="Contraseña"
+              placeholderTextColor="#888"
+              secureTextEntry
+              value={pass}
+              onChangeText={setPass}
+              autoCapitalize="none"
+              autoComplete="password"
+            />
+            {loginError ? (
+              <Text style={{ color: '#ef4444', marginBottom: 8, textAlign: 'center', fontWeight: 'bold' }}>{loginError}</Text>
+            ) : null}
+            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin} disabled={loginLoading}>
+              {loginLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.loginBtnText}>Ingresar</Text>
+              )}
+            </TouchableOpacity>
+            <View style={styles.loginLinks}>
+              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
+              <Text style={styles.loginLink}>|</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setLoginVisible(false);
+                  navigation.navigate('RegisterScreen');
+                }}
+              >
+                <Text style={styles.loginLink}>Regístrate</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      {renderHeader()}
        {renderNotificationsModal()}
       
   <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
@@ -757,4 +916,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  // Estilos para el modal (agrega al final del objeto styles):
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
+  modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
+  loginTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
+  loginInput: { backgroundColor: '#fff', borderRadius: 8, padding: 10, width: '100%', marginBottom: 12 },
+  loginBtnModal: { backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 },
+  loginLinks: { flexDirection: 'row', marginTop: 12 },
+  loginLink: { color: '#0ea5e9', marginHorizontal: 6 },
+  loginBtnText: { color: '#fff', fontWeight: 'bold' },
 });

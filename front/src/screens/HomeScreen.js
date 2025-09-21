@@ -1,44 +1,82 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
-import { Animated } from 'react-native';
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, SafeAreaView, Dimensions, Alert, StatusBar,ActivityIndicator} from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { loginConFallback } from '../utils/auth';
-import PersonIcon from '../components/PersonIcon';
+
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import api from '../services/api'; // Asegúrate de que la ruta sea correcta
-import { get } from 'react-native/Libraries/TurboModule/TurboModuleRegistry';
+import api from '../services/api';
+
+import * as Location from 'expo-location';
 
 const { width } = Dimensions.get('window');
 
+/*
+Ejemplo de función para obtener eventos paginados, filtrados y con búsqueda desde el backend
+Puedes usarla cuando el backend soporte estos parámetros:
+
+const fetchEventos = async ({
+  page = 0,
+  pageSize = 10,
+  search = '',
+  categoria = '',
+  fecha = '',
+} = {}) => {
+  try {
+    const params = {
+      limit: pageSize,
+      offset: page * pageSize,
+    };
+    if (search) params.search = search;
+    if (categoria) params.categoria = categoria;
+    if (fecha) params.fecha = fecha;
+
+    const res = await api.get('/api/eventos-publicos/', { params });
+    // Si el backend usa DRF, los datos estarán en res.data.results y el total en res.data.count
+    const eventos = res.data.results || res.data;
+    const total = res.data.count || eventos.length;
+
+    return { eventos, total };
+  } catch (error) {
+    console.error('Error al obtener eventos:', error);
+    return { eventos: [], total: 0 };
+  }
+};
+
+
+const { eventos, total } = await fetchEventos({ page: 1, search: 'concierto', categoria: 'Festival' });
+*/
+
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const scrollRef = useRef(null);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [loginVisible, setLoginVisible] = useState(false);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-260)).current;
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [empresaNames, setEmpresaNames] = useState({}); // cache de id->nombre
   const [hasEmpresa, setHasEmpresa] = useState(false);
-
-
+  const [ownEmpresaId, setOwnEmpresaId] = useState(null);
 
   useEffect(() => {
     const checkSession = async () => {
-  const token = await AsyncStorage.getItem('accessToken');
-  const empresaId = await AsyncStorage.getItem('empresaId');
-  setHasEmpresa(!!(empresaId && empresaId !== ''));
-      if(token) {
+      const token = await AsyncStorage.getItem('accessToken');
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      setHasEmpresa(!!(empresaId && empresaId !== ''));
+      setOwnEmpresaId(empresaId || null);
+      if (token) {
         setIsLogged(true);
       }
       setIsLogged(!!token);
     };
     checkSession();
-  }, [loginVisible]); // Se ejecuta cada vez que el modal cambia
+  }, [loginVisible, isLogged]); // Se ejecuta cada vez que el modal cambia o cuando cambia el estado de login
 
   //Funcion de logout
   const handleLogout = async () => {
@@ -49,30 +87,31 @@ export default function HomeScreen() {
     await AsyncStorage.removeItem('empresaId');
     await AsyncStorage.clear();
     setIsLogged(false);
-    Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
+  // Sesión cerrada, no mostrar alerta
   };
 
 const handleLogin = async () => {
+  setLoginError('');
+  setLoginLoading(true);
   const resultado = await loginConFallback(user, pass);
-
+  setLoginLoading(false);
   if (resultado.error) {
     switch (resultado.tipo) {
       case 'validacion':
-        Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+        setLoginError('Por favor ingresa email y contraseña');
         break;
       case 'error':
-        Alert.alert('Error inesperado', resultado.error);
+        setLoginError('Error inesperado: ' + resultado.error);
         break;
       case 'credenciales':
-        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+        setLoginError('Usuario o contraseña incorrectos');
         break;
     }
     return;
   }
-
   setIsLogged(true);
   setLoginVisible(false);
-  Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
+  setLoginError('');
   navigation.navigate('HomeScreen');
 };
 
@@ -87,20 +126,20 @@ const handleLogin = async () => {
   const [userLocation, setUserLocation] = useState(null); // { latitude, longitude }
   const [locationStatus, setLocationStatus] = useState('idle'); // idle | requesting | granted | denied
 
-  // Función placeholder para cuando se integre backend / permisos reales
-  const solicitarUbicacion = () => {
-    // Aquí en el futuro se pedirá el permiso real y se actualizará userLocation
-    // Por ahora solo alternamos estados para feedback visual.
-    if (locationStatus === 'idle') {
-      setLocationStatus('requesting');
-      // Simulación ligera de espera
-      setTimeout(() => {
-        // No establecemos userLocation a propósito para seguir mostrando el mensaje
-        setLocationStatus('denied');
-      }, 700);
-    } else if (locationStatus === 'denied') {
-      setLocationStatus('idle');
+  // Función real para solicitar permisos y ubicación usando expo-location
+  const solicitarUbicacion = async () => {
+    setLocationStatus('requesting');
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      setLocationStatus('denied');
+      return;
     }
+    let location = await Location.getCurrentPositionAsync({});
+    setUserLocation({
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    });
+    setLocationStatus('granted');
   };
 
   // ---- Normalización y búsqueda difusa (fuzzy) ----
@@ -182,7 +221,7 @@ useEffect(() => {
           tag: categorias[0],
           imagenes: ev.imagenes,
           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-          ownerName: ev.empresa ? `Empresa #${ev.empresa}` : 'Organizador',
+          ownerName: companyNames[ev.empresa] || `Empresa #${ev.empresa}`,
         };
       });
 
@@ -199,7 +238,7 @@ useEffect(() => {
         try {
           const resp = await api.get(`/api/public/empresas/bulk/`, {
             params: { ids: idsPendientes.join(',') },
-            timeout: 10000 // 10 segundos
+            timeout: 25000 // 20 segundos
           });
 
           const empresas = resp.data; // ← debería ser un array de { id, nombre }
@@ -266,52 +305,119 @@ useEffect(() => {
     { title: 'API para desarrolladores' }
   ];
 
-  const fuente = filter === 'nearby' ? events /* placeholder: luego lista filtrada por distancia */ : events;
-  const filteredEvents = fuente.filter(e => {
-    const categorias = Array.isArray(e.type) ? e.type : [e.type];
-    const matchesFilter = filter === 'all' || filter === 'nearby' || categorias.includes(filter);
-    const rawQuery = search.trim();
-    if (!rawQuery) return matchesFilter; // sin búsqueda textual
+  // const fuente = filter === 'nearby' ? events /* placeholder: luego lista filtrada por distancia */ : events;
+  // const filteredEvents = fuente.filter(e => {
+  //   const categorias = Array.isArray(e.type) ? e.type : [e.type];
+  //   const matchesFilter = filter === 'all' || filter === 'nearby' || categorias.includes(filter);
+  //   const rawQuery = search.trim();
+  //   if (!rawQuery) return matchesFilter; // sin búsqueda textual
 
-    const qTokens = normalizeText(rawQuery).split(/\s+/).filter(Boolean);
-    if (!qTokens.length) return matchesFilter;
+  //   const qTokens = normalizeText(rawQuery).split(/\s+/).filter(Boolean);
+  //   if (!qTokens.length) return matchesFilter;
 
-    const fields = [e.title || '', e.location || '', categorias.join(' '), e.ownerName || ''];
+  //   const fields = [e.title || '', e.location || '', categorias.join(' '), e.ownerName || ''];
 
-    // Cada token debe hacer match aprox en algún campo
-    const allTokens = qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
-    return matchesFilter && allTokens;
-  });
+  //   // Cada token debe hacer match aprox en algún campo
+  //   const allTokens = qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
+  //   return matchesFilter && allTokens;
+  // });
+
+  // --- estados extra ---
+const [nearbyEvents, setNearbyEvents] = useState([]);
+
+const fuente = filter === "nearby" ? nearbyEvents : events || [];
+
+// --- filtro por categorías + búsqueda ---
+const filteredEvents = fuente.filter(e => {
+  const categorias = Array.isArray(e.type) ? e.type : [e.type];
+  const matchesFilter = filter === 'all' || filter === 'nearby' || categorias.includes(filter);
+  const rawQuery = search.trim();
+  if (!rawQuery) return matchesFilter;
+
+  const qTokens = normalizeText(rawQuery).split(/\s+/).filter(Boolean);
+  if (!qTokens.length) return matchesFilter;
+
+  const fields = [e.title || '', e.location || '', categorias.join(' '), e.ownerName || ''];
+
+  return matchesFilter && qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
+});
+
+// --- useEffect: cuando el user da permiso y activa el filtro "nearby"
+useEffect(() => {
+  if (filter === "nearby" && userLocation) {
+    api.get(`/api/eventos-publicos/nearby/?lat=${userLocation.latitude}&lng=${userLocation.longitude}&radius=5`)
+      .then(data => {
+        const eventos = Array.isArray(data.data) ? data.data : (data.data ? [data.data] : []);
+
+        // Adaptar al formato de Home
+        const adaptados = eventos.map(ev => {
+          const categorias = Array.isArray(ev.categoria) ? ev.categoria : [ev.categoria];
+
+          return {
+            ...ev,
+            id: ev.id,
+            rawEmpresaId: ev.empresa,
+            title: ev.titulo,
+            date: ev.fecha_evento
+              ? new Date(ev.fecha_evento).toLocaleDateString()
+              : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+            time: ev.fecha_evento
+              ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              : null,
+            location: ev.ubicacion || 'Ubicación no definida',
+            price: ev.precio === '0.00'
+              ? 'Entrada libre'
+              : `$${parseFloat(ev.precio).toLocaleString()}`,
+            type: categorias,
+            tag: categorias[0],
+            imagenes: ev.imagenes,
+            image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+            ownerName: companyNames[ev.empresa] || `Empresa #${ev.empresa}`,
+          };
+        });
+
+        setNearbyEvents(adaptados);
+
+      })
+      .catch(err => console.error("Error cargando eventos cercanos:", err));
+  }
+}, [filter, userLocation]);
+
+
+
   // Reiniciar página si cambian filtro o búsqueda
   useEffect(() => { setPage(0); }, [filter, search]);
   const totalPages = Math.ceil(filteredEvents.length / pageSize) || 1;
   const pageEvents = filteredEvents.slice(page * pageSize, (page + 1) * pageSize);
   const canPrev = page > 0;
   const canNext = page < totalPages - 1;
-  const goPrev = () => { if (canPrev) setPage(p => p - 1); };
-  const goNext = () => { if (canNext) setPage(p => p + 1); };
+  const goPrev = () => { if (canPrev) { setPage(p => p - 1); scrollRef.current?.scrollTo({ y: 0, animated: true }); } };
+  const goNext = () => { if (canNext) { setPage(p => p + 1); scrollRef.current?.scrollTo({ y: 0, animated: true }); } };
+
+  // Cuando cambia filtro o búsqueda, reinicia página y sube arriba
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  }, [filter, search]);
+
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+      <View style={[styles.container, { backgroundColor: '#0f172a', flex: 1 }]}> 
         <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#00ff00" /> 
           <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a' }}>
-      {/* Top dark padding */}
-      <View style={styles.fixedTopPad} />
-      {/* Bottom dark padding */}
-      <View style={styles.fixedBottomPad} />
+    <View style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top, paddingBottom: 0 }}>
       <ScrollView
+        ref={scrollRef}
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: 48, paddingTop: 48 }}
+        contentContainerStyle={{ paddingBottom: 32 + insets.bottom, paddingTop: 32 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Header unificado */}
@@ -377,23 +483,6 @@ useEffect(() => {
           ))}
         </ScrollView>
 
-        {/* Botón para ir a tu panel de Empresa
-        <TouchableOpacity
-          style={{
-            backgroundColor: '#0ea5e9',
-            paddingVertical: 12,
-            paddingHorizontal: 18,
-            borderRadius: 10,
-            alignItems: 'center',
-            marginVertical: 16,
-            flexDirection: 'row',
-            justifyContent: 'center'
-          }}
-          onPress={() => navigation.navigate('Empresa')}
-        >
-          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ir a mi empresa</Text>
-        </TouchableOpacity> */}
-
         {/* Eventos */}
         <Text style={styles.sectionTitle}>
           {filter === 'all' && 'Próximos eventos'}
@@ -417,7 +506,7 @@ useEffect(() => {
               </Text>
             </TouchableOpacity>
             {locationStatus === 'denied' && (
-              <Text style={[styles.permissionText, { marginTop: 8, fontSize: 12, opacity: 0.8 }]}>Permiso denegado (simulado). Intenta nuevamente.</Text>
+              <Text style={[styles.permissionText, { marginTop: 8, fontSize: 12, opacity: 0.8 }]}>Permiso denegado. Intenta nuevamente.</Text>
             )}
           </View>
         )}
@@ -436,7 +525,27 @@ useEffect(() => {
                         <Text style={styles.ownerAvatarText}>{(event.ownerName||'?').charAt(0).toUpperCase()}</Text>
                       </View>
                       <View style={{ flex:1 }}>
-                        <Text style={styles.ownerName}>{event.ownerName}</Text>
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          onPress={() => {
+                            // Preferimos el id real si está disponible
+                            let empresaIdTarget = event.rawEmpresaId || null;
+                            if (!empresaIdTarget && event.ownerName?.startsWith('Empresa #')) {
+                              empresaIdTarget = event.ownerName.replace('Empresa #','');
+                            }
+                            if (!empresaIdTarget) return; // No es una empresa identificable
+
+                            if (ownEmpresaId && String(empresaIdTarget) === String(ownEmpresaId)) {
+                              // Es la propia empresa logueada
+                              navigation.navigate('Empresa');
+                            } else {
+                              // Cualquier otro usuario (sea empresa o usuario normal) ve el perfil público
+                              navigation.navigate('EmpresaScreenUser', { empresaId: empresaIdTarget });
+                            }
+                          }}
+                        >
+                          <Text style={[styles.ownerName, (event.rawEmpresaId || (event.ownerName?.startsWith('Empresa #'))) && { textDecorationLine: 'underline' }]}>{event.ownerName}</Text>
+                        </TouchableOpacity>
                         <Text style={styles.ownerLabel}>Organizador</Text>
                       </View>
                       {event.tag && (
@@ -463,8 +572,25 @@ useEffect(() => {
                       <Text style={styles.eventoInfoText}>📍 {event.location}</Text>
                     </View>
                     <Text style={styles.eventPrice}>{event.price}</Text>
-                    <TouchableOpacity style={styles.reserveBtn} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: event.id, idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined })}>
-                      <Text style={styles.reserveText}>Guardar</Text>
+                    <TouchableOpacity
+                      style={styles.reserveBtn}
+                      onPress={() => {
+                        if (hasEmpresa) {
+                          // Si es empresa: navegar a la pantalla de detalles (BuyScreen)
+                          navigation.navigate('Reservar/Comprar', {
+                            idEvento: event.id,
+                            idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined
+                          });
+                        } else {
+                          // Si es usuario: navegar a BuyScreen para ver detalles y poder guardar
+                          navigation.navigate('Reservar/Comprar', {
+                            idEvento: event.id,
+                            idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined
+                          });
+                        }
+                      }}
+                    >
+                      <Text style={styles.reserveText}>{hasEmpresa ? 'Ver detalles' : 'Ver detalles'}</Text>
                     </TouchableOpacity>
                   </View>
                 ))
@@ -488,7 +614,7 @@ useEffect(() => {
         {/* Testimonios eliminados */}
 
         {/* Footer */}
-        <View style={styles.footer}>
+  <View style={styles.footer}>
           <Text style={styles.footerTitle}>RumbaCCS</Text>
           <Text style={styles.footerDesc}>Tu plataforma de confianza para reservas de eventos y experiencias memorables.</Text>
           <View style={styles.footerLinks}>
@@ -499,59 +625,6 @@ useEffect(() => {
           <Text style={styles.footerCopyright}>© 2025 RumbaCCS. Todos los derechos reservados.</Text>
         </View>
       </ScrollView>
-
-      {/* Menú lateral animado */}
-      {/* Menú de pantalla completa */}
-      <Modal
-        visible={menuVisible}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setMenuVisible(false)}
-      >
-        <Pressable style={styles.fullMenuOverlay} onPress={() => setMenuVisible(false)}>
-          <View style={styles.fullMenuContent}>
-            <TouchableOpacity style={styles.fullMenuCloseBtn} onPress={() => setMenuVisible(false)}>
-              <Text style={styles.fullMenuCloseText}>×</Text>
-            </TouchableOpacity>
-            <View style={styles.fullMenuOptions}>
-              <Text style={styles.fullMenuOption}>Inicio</Text>
-              <Text style={styles.fullMenuOption}>Eventos</Text>
-              <Text style={styles.fullMenuOption}>Acerca de</Text>
-              {!isLogged && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setMenuVisible(false);
-                    setTimeout(() => setLoginVisible(true), 250);
-                  }}
-                >
-                  <Text style={styles.fullMenuOption}>Iniciar sesión</Text>
-                </TouchableOpacity>
-              )}
-              {isLogged && hasEmpresa && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setMenuVisible(false);
-                    navigation.navigate('Empresa');
-                  }}
-                >
-                  <Text style={styles.fullMenuOption}>Perfil empresa</Text>
-                </TouchableOpacity>
-              )}
-              {isLogged && !hasEmpresa && (
-                <TouchableOpacity
-                  onPress={() => {
-                    setMenuVisible(false);
-                    navigation.navigate('FormularioScreen');
-                  }}
-                >
-                  <Text style={styles.fullMenuOption}>Formulario de empresa</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <Text style={styles.fullMenuFooter}>© 2025 RumbaCCS</Text>
-          </View>
-        </Pressable>
-      </Modal>
 
       {/* Modal de Login */}
       <Modal
@@ -589,8 +662,16 @@ useEffect(() => {
               autoComplete="password"
             />
 
-            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin}>
-              <Text style={styles.loginBtnText}>Ingresar</Text>
+
+            {loginError ? (
+              <Text style={{ color: '#ef4444', marginBottom: 8, textAlign: 'center', fontWeight: 'bold' }}>{loginError}</Text>
+            ) : null}
+            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin} disabled={loginLoading}>
+              {loginLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.loginBtnText}>Ingresar</Text>
+              )}
             </TouchableOpacity>
 
             <View style={styles.loginLinks}>
@@ -608,7 +689,7 @@ useEffect(() => {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -616,45 +697,13 @@ const CARD_WIDTH = width < 600 ? width - 32 : (width - 48) / 2;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f172a', paddingHorizontal: 8 },
-  fixedTopPad: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 40,
-    backgroundColor: '#0f172a',
-    zIndex: 10,
-  },
-  fixedBottomPad: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 40,
-    backgroundColor: '#0f172a',
-    zIndex: 10,
-  },
+  // fixedBottomPad eliminado: ahora usamos padding dinámico con insets.bottom
   header: { backgroundColor: '#0f172a', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', marginBottom: 12 },
   headerContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   logoContainer: { flexDirection: 'row', alignItems: 'flex-end' },
   logoText: { fontSize: 24, fontWeight: 'bold', color: '#ffffff' },
   logoSubtext: { fontSize: 16, fontWeight: '600', color: '#db2777', marginLeft: 4 },
   headerRight: { flexDirection: 'row', alignItems: 'center' },
-  menuBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 4,
-  },
-  burgerLine: {
-    width: 24,
-    height: 3,
-    backgroundColor: '#fff',
-    marginVertical: 2,
-    borderRadius: 2,
-  },
-  logo: { width: 40, height: 40, borderRadius: 20 },
   loginBtn: { backgroundColor: '#0ea5e9', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
   loginBtnText: { color: '#fff', fontWeight: 'bold' },
   heroSection: { height: width < 600 ? 180 : 260, marginBottom: 16, borderRadius: 16, overflow: 'hidden', position: 'relative' },
@@ -676,10 +725,7 @@ const styles = StyleSheet.create({
   ownerLabel: { color:'#94a3b8', fontSize:11, marginTop:2 },
   ownerChip: { backgroundColor:'#0ea5e9', paddingHorizontal:10, paddingVertical:4, borderRadius:16 },
   ownerChipText: { color:'#fff', fontSize:12, fontWeight:'600' },
-  profileIconWrapper: { marginLeft:12, width:32, height:32, borderRadius:16, borderWidth:2, borderColor:'#0ea5e9', justifyContent:'center', alignItems:'center', backgroundColor:'#1e293b' },
   eventImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 8 },
-  eventTag: { position: 'absolute', top: 12, right: 12, backgroundColor: '#6366f1', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 2 },
-  eventTagText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
   eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
   eventInfo: { color: '#fff', marginBottom: 4 },
   eventPrice: { color: '#bef264', fontWeight: 'bold', marginBottom: 8 },
@@ -694,10 +740,6 @@ const styles = StyleSheet.create({
   pageArrowDisabled: { backgroundColor:'#1e293b' },
   pageArrowText: { color:'#fff', fontSize:18, fontWeight:'700' },
   pageIndicator: { color:'#fff', fontSize:14, fontWeight:'600' },
-  testimonialCard: { backgroundColor: '#0369a1', borderRadius: 12, padding: 16, marginRight: 16, alignItems: 'center', width: width < 600 ? width * 0.7 : 320 },
-  testimonialImage: { width: 48, height: 48, borderRadius: 24, marginBottom: 8 },
-  testimonialName: { color: '#fff', fontWeight: 'bold', marginBottom: 4 },
-  testimonialText: { color: '#fff', textAlign: 'center' },
   footer: { backgroundColor: '#1e293b', borderRadius: 16, padding: 20, marginTop: 24, alignItems: 'center', marginBottom: 32 },
   footerTitle: { fontSize: 18, fontWeight: 'bold', color: '#0ea5e9', marginBottom: 8 },
   footerDesc: { color: '#cbd5e1', textAlign: 'center', marginBottom: 12 },
@@ -712,68 +754,6 @@ const styles = StyleSheet.create({
   loginBtnModal: { backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 },
   loginLinks: { flexDirection: 'row', marginTop: 12 },
   loginLink: { color: '#0ea5e9', marginHorizontal: 6 },
-  menuOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    zIndex: 100,
-  },
-  fullMenuOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(30,41,59,0.92)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  fullMenuContent: {
-    flex: 1,
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  fullMenuCloseBtn: {
-    position: 'absolute',
-    top: 48,
-    right: 32,
-    zIndex: 2,
-  },
-  fullMenuCloseText: {
-    color: '#fff',
-    fontSize: 44,
-    fontWeight: 'bold',
-  },
-  fullMenuOptions: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: '100%',
-  },
-  fullMenuOption: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginVertical: 10,
-    textAlign: 'center',
-    width: '80%',
-    backgroundColor: 'transparent',
-    borderRadius: 0,
-    paddingVertical: 8,
-    paddingHorizontal: 0,
-  },
-  fullMenuFooter: {
-    color: '#cbd5e1',
-    fontSize: 15,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  eventoInfo: {
-    marginBottom: 4,
-  },
-  eventoInfoText: {
-    color: '#ffffff',
-    fontSize: 14,
-  },
+  eventoInfo: { marginBottom: 4 },
+  eventoInfoText: { color: '#ffffff', fontSize: 14 },
 });

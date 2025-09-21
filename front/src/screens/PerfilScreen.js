@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarModal from '../components/CalendarModal';
@@ -24,6 +25,7 @@ export default function PerfilScreen({ navigation }) {
   const [userName, setUserName] = useState('');
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
+  const [profilePicModal, setProfilePicModal] = useState(false);
 
   useEffect(() => {
     
@@ -134,31 +136,33 @@ export default function PerfilScreen({ navigation }) {
 
   // --- Estado para eventos guardados ---
   const [guardados, setGuardados] = useState([]);
+  const [loadingGuardados, setLoadingGuardados] = useState(false);
 
   // Función para cargar eventos guardados desde el backend
   const fetchGuardados = async () => {
+    setLoadingGuardados(true);
     try {
-      
       const response = await api.get('api/eventos-guardados/');
-
       setGuardados(response.data.map(e => ({
-        id: e.evento_obj.id,
+        id: e.id, // id del registro UsuarioEvento
+        eventoId: e.evento_obj.id, // id del evento original
         titulo: e.evento_obj.titulo,
         fecha: e.evento_obj.fecha_evento,
-        lugar: e.evento_obj.ubicacion,
+        date: e.evento_obj.fecha_evento
+          ? new Date(e.evento_obj.fecha_evento).toLocaleDateString()
+          : (e.evento_obj.creado_en ? new Date(e.evento_obj.creado_en).toLocaleDateString() : 'Fecha no definida'),
+        time: e.evento_obj.fecha_evento
+          ? new Date(e.evento_obj.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : null,
+        ubicacion: e.evento_obj.ubicacion,
         precio: e.evento_obj.precio,
-        imagen: e.evento_obj.imagenes?.[0]?.url,
+        imagen: e.evento_obj.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
       })));
     } catch (error) {
       console.log('Error al cargar eventos guardados:', error);
-      if (error.response) {
-        console.log('Error response:', error.response);
-      } else if (error.request) {
-        console.log('Error request:', error.request);
-      } else {
-        console.log('Error message:', error.message);
-      }
       setGuardados([]);
+    } finally {
+      setLoadingGuardados(false);
     }
   };
 
@@ -170,10 +174,25 @@ export default function PerfilScreen({ navigation }) {
     }
   }, [selectedSection]);
 
+  // Llama a fetchGuardados cuando el usuario regresa a la pantalla de guardados
+  useFocusEffect(
+    React.useCallback(() => {
+      if (selectedSection === 'guardados') {
+        fetchGuardados();
+      }
+    }, [selectedSection])
+  );
+
   // --- Función para borrar evento guardado ---
-  const borrarGuardado = (id) => {
-    const nuevos = guardados.filter(e => e.id !== id);
-    setGuardados(nuevos);
+  const borrarGuardado = async (id) => {
+    // Elimina visualmente
+    setGuardados(prev => prev.filter(e => e.id !== id));
+    try {
+      await api.delete(`api/eventos-guardados/${id}/`); // id del registro UsuarioEvento
+      fetchGuardados();
+    } catch (error) {
+      console.log('Error al borrar evento guardado:', error);
+    }
   };
 
   return (
@@ -210,7 +229,7 @@ export default function PerfilScreen({ navigation }) {
 
       {/* Perfil principal móvil */}
       <View style={styles.profileContainer}>
-        <TouchableOpacity onPress={() => {/* lógica de edición de perfil aquí, por ejemplo: alert('Editar perfil') */}} activeOpacity={0.7}>
+        <TouchableOpacity onPress={() => setProfilePicModal(true)} activeOpacity={0.7}>
           <Image
             source={{ uri: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png' }}
             style={styles.profileImage}
@@ -218,7 +237,7 @@ export default function PerfilScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={styles.userName}>{userName ? userName : 'Usuario'}</Text>
         {/* Botón cerrar sesión si hay usuario logueado */}
-  {isLogged ? (
+  {userName ? (
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
             <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
           </TouchableOpacity>
@@ -232,20 +251,24 @@ export default function PerfilScreen({ navigation }) {
         <>
           <Text style={styles.enunciado}>{getEnunciado()}</Text>
           <View style={styles.instructionsColumn}>
-            <View style={[styles.infoBox, { backgroundColor: '#dbeafe' }]}> 
-              <View style={[styles.infoIconCircle, { backgroundColor: '#dbeafe' }] }>
-                <SvgXml xml={svgGuardados} width={32} height={32} />
+            <TouchableOpacity onPress={() => setSelectedSection('guardados')} activeOpacity={0.85}>
+              <View style={[styles.infoBox, { backgroundColor: '#dbeafe', maxWidth: 340, alignSelf: 'center' }]}> 
+                <View style={[styles.infoIconCircle, { backgroundColor: '#dbeafe' }] }>
+                  <SvgXml xml={svgGuardados} width={32} height={32} />
+                </View>
+                <Text style={[styles.infoTitle, { color: '#2563eb' }]}>Eventos guardados</Text>
+                <Text style={[styles.infoDesc, { color: '#2563eb' }]}>Este ícono representa los eventos que marcaste como favoritos para revisarlos más tarde fácilmente.</Text>
               </View>
-              <Text style={[styles.infoTitle, { color: '#2563eb' }]}>Eventos guardados</Text>
-              <Text style={[styles.infoDesc, { color: '#2563eb' }]}>Este ícono representa los eventos que marcaste como favoritos para revisarlos más tarde fácilmente.</Text>
-            </View>
-            <View style={[styles.infoBox, { backgroundColor: '#ede9fe' }]}> 
-              <View style={[styles.infoIconCircle, { backgroundColor: '#ede9fe' }] }>
-                <SvgXml xml={svgComentarios} width={32} height={32} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSelectedSection('comentarios')} activeOpacity={0.85}>
+              <View style={[styles.infoBox, { backgroundColor: '#ede9fe', maxWidth: 340, alignSelf: 'center' }]}> 
+                <View style={[styles.infoIconCircle, { backgroundColor: '#ede9fe' }] }>
+                  <SvgXml xml={svgComentarios} width={32} height={32} />
+                </View>
+                <Text style={[styles.infoTitle, { color: '#7c3aed' }]}>Comentarios publicados</Text>
+                <Text style={[styles.infoDesc, { color: '#7c3aed' }]}>Este ícono representa tus reseñas y opiniones públicas sobre los eventos que has experimentado.</Text>
               </View>
-              <Text style={[styles.infoTitle, { color: '#7c3aed' }]}>Comentarios publicados</Text>
-              <Text style={[styles.infoDesc, { color: '#7c3aed' }]}>Este ícono representa tus reseñas y opiniones públicas sobre los eventos que has experimentado.</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </>
       )}
@@ -253,7 +276,9 @@ export default function PerfilScreen({ navigation }) {
       {selectedSection === 'guardados' && (
         <View style={[styles.sectionContent, { padding: 16, backgroundColor: 'transparent', margin: 0 }]}> 
           <Text style={styles.sectionTitle}>Eventos guardados</Text>
-          {guardados.length === 0 ? (
+          {loadingGuardados ? (
+            <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>Cargando...</Text>
+          ) : guardados.length === 0 ? (
             <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>
               <Text style={{ fontWeight: 'bold', color: '#d1d5db' }}>No</Text> se han encontrado más elementos
             </Text>
@@ -267,13 +292,22 @@ export default function PerfilScreen({ navigation }) {
                   />
                 </View>
                 <View style={{ padding: 16 }}>
-                  <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 22, marginBottom: 8 }}>{evento.titulo}</Text>
-                  <Text style={{ color: '#fff', fontSize: 18, marginBottom: 4 }}>{evento.fecha}</Text>
-                  <Text style={{ color: '#fff', fontSize: 18, marginBottom: 16 }}>{evento.lugar}</Text>
+                  <Text style={styles.eventTitle}>{evento.titulo}</Text>
+
+                  {evento.time && evento.time !== 'Hora no definida' && (
+                    <View style={styles.eventoInfo}>
+                      <Text style={styles.eventoInfoText}>📅 {evento.date}  ⏰ {evento.time}</Text>
+                    </View>
+                  )}
+                  <View style={styles.eventInfo}>
+                    <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
+                  </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                    <Text style={{ color: '#bbf7d0', fontWeight: 'bold', fontSize: 18 }}>{evento.precio}</Text>
-                    <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                      <TouchableOpacity style={{ backgroundColor: '#ef4444', paddingVertical: 8, borderRadius: 10, paddingHorizontal: 14 }} onPress={() => borrarGuardado(evento.id)}>
+                    <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+                      <TouchableOpacity style={{ backgroundColor: '#2563eb', paddingVertical: 8, borderRadius: 10, paddingHorizontal: 18, marginRight: 8 }} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: evento.eventoId })}>
+                        <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ver detalles</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ backgroundColor: '#ef4444', paddingVertical: 8, borderRadius: 10, paddingHorizontal: 18 }} onPress={() => borrarGuardado(evento.id)}>
                         <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' fill='none' viewBox='0 0 24 24' stroke-width='2' stroke='#fff'><path stroke-linecap='round' stroke-linejoin='round' d='m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0' /></svg>`} width={22} height={22} />
                       </TouchableOpacity>
                     </View>
@@ -328,7 +362,6 @@ export default function PerfilScreen({ navigation }) {
           </View>
         </Animated.View>
       </Modal>
-      </ScrollView>
       <CalendarModal
         visible={modalVisible.calendar}
         onClose={() => setModalVisible({ ...modalVisible, calendar: false })}
@@ -392,7 +425,28 @@ export default function PerfilScreen({ navigation }) {
           </View>
         </Animated.View>
       </Modal>
-      </View>
+
+      {/* Modal para cambiar foto de perfil */}
+      <Modal
+        visible={profilePicModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setProfilePicModal(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:300 }}>
+            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Cambiar foto de perfil</Text>
+            <TouchableOpacity style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }} onPress={() => {/* lógica de selección */}}>
+              <Text style={{ color:'#fff', textAlign:'center' }}>Seleccionar imagen</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
+              <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -529,4 +583,8 @@ const styles = StyleSheet.create({
     elevation: 4,
     backgroundColor: '#c7d2fe', // Un poco más oscuro para el efecto
   },
+  eventoInfoText: { color: '#ffffff', fontSize: 14 },
+  eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
+  eventInfo: { color: '#fff', marginBottom: 4 },
+  eventPrice: { color: '#bef264', fontWeight: 'bold', marginBottom: 8 },
 });

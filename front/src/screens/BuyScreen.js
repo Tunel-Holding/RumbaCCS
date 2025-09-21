@@ -1,21 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import {
-  View,
-  Text,
-  Alert,
-  StyleSheet,
-  Image,
-  ScrollView,
-  Dimensions,
-  TouchableOpacity,
-  ActivityIndicator,
-  SafeAreaView,
-  Modal,
-  TextInput,
-  Pressable,
-  StatusBar,
-  Platform,
-} from 'react-native';
+import { View, Text, Alert, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { loginConFallback } from '../utils/auth';
 import api from '../services/api'; 
@@ -51,7 +37,7 @@ let companyEventsInit = [];
 const { width } = Dimensions.get('window');
 
 export default function BuyScreen() {
-  const topPadding = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
+  const insets = useSafeAreaInsets();
   const [activeIndex, setActiveIndex] = useState(0);
   const [companyEvents, setCompanyEvents] = useState([]); // eventos de la misma empresa
   const [companyEventsLoading, setCompanyEventsLoading] = useState(false);
@@ -61,10 +47,14 @@ export default function BuyScreen() {
   const [loginVisible, setLoginVisible] = useState(false);
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
   const [empresaData, setEmpresaData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isLogged, setIsLogged] = useState(false);
   const [eventoS,setEventoS] = useState(false); //Valida que los datos del evento fueron guardados
+  const [hasEmpresa, setHasEmpresa] = useState(false); // True si el usuario logueado es una empresa (tiene empresaId)
+  const [ownEmpresaId, setOwnEmpresaId] = useState(null);
 
 
 
@@ -108,19 +98,40 @@ export default function BuyScreen() {
     checkSession();
   }, [loginVisible, isLogged]); // Se ejecuta también cuando cambia isLogged
 
+  // Detectar si el usuario actual es una empresa (posee empresaId en storage)
+  useEffect(() => {
+    (async () => {
+      try {
+        const empresaId = await AsyncStorage.getItem('empresaId');
+        console.log('🔍 BuyScreen - empresaId detectado:', empresaId);
+        const isEmpresa = !!(empresaId && empresaId !== '');
+        console.log('🔍 BuyScreen - hasEmpresa será:', isEmpresa);
+        setHasEmpresa(isEmpresa);
+        setOwnEmpresaId(empresaId || null);
+      } catch (e) {
+        console.warn('No se pudo leer empresaId', e);
+        setHasEmpresa(false);
+        setOwnEmpresaId(null);
+      }
+    })();
+  }, [isLogged]);
+
  const handleLogin = async () => {
+  setLoginError('');
+  setLoginLoading(true);
   const resultado = await loginConFallback(user, pass);
+  setLoginLoading(false);
 
   if (resultado.error) {
     switch (resultado.tipo) {
       case 'validacion':
-        Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+        setLoginError('Por favor ingresa email y contraseña');
         break;
       case 'error':
-        Alert.alert('Error inesperado', resultado.error);
+        setLoginError('Error inesperado: ' + resultado.error);
         break;
       case 'credenciales':
-        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+        setLoginError('Usuario o contraseña incorrectos');
         break;
     }
     return;
@@ -128,7 +139,7 @@ export default function BuyScreen() {
 
   setIsLogged(true);
   setLoginVisible(false);
-  Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
+  setLoginError('');
 };
 
   const handleLogout = async () => {
@@ -384,40 +395,39 @@ export default function BuyScreen() {
     fetchRelated();
     return () => { cancelado = true; };
   }, [evento]);
-  // ...existing code...
- 
-  // Header de HomeScreen.js
+  // Header unificado igual que HomeScreen
   const Header = () => (
-    <View style={styles.header}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-        <Text style={styles.headerTitle}>Rumba<Text style={{ color: '#ec4899' }}>CCS</Text></Text>
-      </View>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-
-      {/* Logo y foto de perfil si está autenticado, botón de iniciar sesión si no */}
-      {isLogged ? (
-        <>
-          <TouchableOpacity
-            style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
-            onPress={handleLogout}
-          >
-            <Text style={styles.loginBtnText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-            <Image
-              source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-              style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
-            />
-          </TouchableOpacity>
-        </>
-      ) : (
-        <TouchableOpacity
-          style={styles.loginBtn}
-          onPress={() => setLoginVisible(true)}
-        >
-          <Text style={styles.loginBtnText}>Iniciar sesión</Text>
-        </TouchableOpacity>
-      )}
+    <View style={styles.headerHome}> 
+      <View style={styles.headerContainerHome}>
+        <View style={styles.logoContainerHome}>
+          <Text style={styles.logoTextHome}>R U M B A</Text>
+          <Text style={styles.logoSubtextHome}>CCS</Text>
+        </View>
+        <View style={styles.headerRightHome}>
+          {isLogged ? (
+            <TouchableOpacity
+              style={[styles.loginBtnHome, { backgroundColor: '#ef4444' }]}
+              onPress={handleLogout}
+            >
+              <Text style={styles.loginBtnTextHome}>Cerrar sesión</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.loginBtnHome}
+              onPress={() => setLoginVisible(true)}
+            >
+              <Text style={styles.loginBtnTextHome}>Iniciar sesión</Text>
+            </TouchableOpacity>
+          )}
+          {isLogged && (
+            <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
+              <Image
+                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
+                style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -448,16 +458,16 @@ if (loading) {
 }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: topPadding }]}> 
+    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}> 
       <Header />
       {/* Barra de volver debajo del header */}
-      <View style={styles.backBar}>
+      <View style={[styles.backBar, { marginTop: 4 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>
           <Text style={styles.backBarIcon}>‹</Text>
           <Text style={styles.backBarText}>Volver</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+  <ScrollView style={[styles.container, { paddingTop: 12, paddingBottom: 0 }]} contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
         {/* Carrusel de Evento Principal Mejorado */}
         <Text style={styles.sectionTitle}>Evento Principal</Text>
   <View style={[styles.carouselEnhancedWrapper, styles.fullBleed]}>
@@ -553,7 +563,13 @@ if (loading) {
           {eventDetails.empresa && (
             <View style={styles.detailRow}>
               <Text style={styles.label}>Empresa: </Text>
-              <TouchableOpacity onPress={() => navigation.navigate('EmpresaScreenUser', { empresaId: eventDetails.empresaId })}>
+              <TouchableOpacity onPress={() => {
+                if (ownEmpresaId && eventDetails.empresaId && String(ownEmpresaId) === String(eventDetails.empresaId)) {
+                  navigation.navigate('Empresa');
+                } else {
+                  navigation.navigate('EmpresaScreenUser', { empresaId: eventDetails.empresaId });
+                }
+              }}>
                 <Text style={[styles.detail, { color: COLORS.primary, textDecorationLine: 'underline' }]}>
                   {eventDetails.empresa}
                 </Text>
@@ -657,9 +673,9 @@ if (loading) {
         )}
 
       <View style={styles.buttonContainer}>
-        {/* Log para depuración en cada render */}
-        {isSaved !== null && (
-          <TouchableOpacity 
+        {/* Mostrar botón Guardar para todos los usuarios logueados */}
+        {isLogged && isSaved !== null && (
+          <TouchableOpacity
             style={[styles.reserveButton, isSaved ? styles.reserveButtonSaved : null]}
             onPress={handleSave}
             activeOpacity={0.8}
@@ -708,11 +724,19 @@ if (loading) {
               autoCapitalize="none"
               autoComplete="password"
             />
+            {loginError ? (
+              <Text style={{ color: '#ef4444', marginBottom: 8, textAlign: 'center', fontWeight: 'bold' }}>{loginError}</Text>
+            ) : null}
             <TouchableOpacity
               style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 }}
-              onPress={handleLogin}    
+              onPress={handleLogin}
+              disabled={loginLoading}
             >
-              <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ingresar</Text>
+              {loginLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ingresar</Text>
+              )}
             </TouchableOpacity>
             <View style={{ flexDirection: 'row', marginTop: 12 }}>
               <Text style={{ color: '#0ea5e9', marginHorizontal: 6 }}>¿Olvidaste tu contraseña?</Text>
@@ -806,12 +830,16 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: '#0f172a',
   },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 8 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginLeft: 8, flex: 1 },
-  loginBtn: { backgroundColor: '#0ea5e9', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
-  loginBtnText: { color: '#fff', fontWeight: 'bold' },
+  headerHome: { backgroundColor: '#0f172a', paddingHorizontal: 22, paddingTop: 24, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', marginBottom: 12 },
+  headerContainerHome: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  logoContainerHome: { flexDirection: 'row', alignItems: 'flex-end' },
+  logoTextHome: { fontSize: 24, fontWeight: 'bold', color: '#ffffff' },
+  logoSubtextHome: { fontSize: 16, fontWeight: '600', color: '#db2777', marginLeft: 4 },
+  headerRightHome: { flexDirection: 'row', alignItems: 'center' },
+  loginBtnHome: { backgroundColor: '#0ea5e9', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
+  loginBtnTextHome: { color: '#fff', fontWeight: 'bold' },
   backBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -835,8 +863,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 18,
     paddingTop: 18,
-    paddingBottom: 8,
-    backgroundColor: COLORS.background,
+    paddingBottom: 32,
+    backgroundColor: '#0f172a',
   },
   carouselWrapper: {
     alignItems: 'center',
