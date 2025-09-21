@@ -370,10 +370,18 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
 
 
 class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Evento2.objects.all().order_by('-id')  # orden por id
+    # queryset = Evento2.objects.all().order_by('-id')  # orden por id
     serializer_class = EventoSerializer
     permission_classes = [AllowAny]  # público, no requiere token
     
+    def get_queryset(self):
+        """
+        Sobrescribimos este método para devolver solo eventos cuya fecha
+        aún no ha pasado (eventos futuros o del día de hoy).
+        Los ordenamos por fecha de evento ascendente para mostrar los más próximos primero.
+        """
+        return Evento2.objects.filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
+        
     @action(detail=False, methods=['get'])
     def nearby(self, request):
         lat = request.query_params.get('lat')
@@ -397,7 +405,7 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         )
         qs = Evento2.objects.annotate(
             distance=RawSQL(haversine_sql, (lat_f, lng_f, lat_f))
-        ).filter(distance__lte=radius_km).order_by('distance') # más cercano primero ('distance', 'fecha_evento')
+        ).filter(distance__lte=radius_km,fecha_evento__gte=timezone.now()).order_by('distance', 'fecha_evento') # más cercano primero ('distance', 'fecha_evento')
 
         page = self.paginate_queryset(qs)
         if page is not None:
