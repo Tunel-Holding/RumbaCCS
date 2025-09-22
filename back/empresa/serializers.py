@@ -111,10 +111,16 @@ class EmpresaSerializer(serializers.ModelSerializer):
         return obj.seguidores.count()
 
     def get_is_siguiendo(self, obj):
-        user = self.context["request"].user
-        if user.is_authenticated:
-            return obj.seguidores.filter(id=user.id).exists()
-        return False
+        auth_entity = self.context["request"].user
+        if not auth_entity or not auth_entity.is_authenticated:
+            return False
+
+        if getattr(auth_entity, "kind", None) != "usuario":
+            return False  # solo usuarios pueden seguir empresas
+
+        usuario = auth_entity.obj
+        return obj.seguidores.filter(id=usuario.id).exists()
+
 
     def get_avg_rating(self, obj):
         agg = obj.ratings.aggregate(avg=Avg('rating'))

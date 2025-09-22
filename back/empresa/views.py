@@ -257,20 +257,68 @@ class EmpresaViewSet(ModelViewSet):
             serializer.save(usuario=real_obj)
 
 
-
     # Acción para seguir una empresa
     @action(detail=True, methods=['post'])
     def seguir(self, request, pk=None):
         empresa = self.get_object()
-        empresa.seguidores.add(request.user)
-        return Response({"status": f"Ahora sigues a {empresa.nombre}"}, status=status.HTTP_200_OK)
+        auth_entity = request.user
+
+        # 👇 primero chequeamos que el auth_entity sea correcto
+        if not auth_entity or not getattr(auth_entity, "is_authenticated", False):
+            return Response(
+                {"detail": "Debes iniciar sesión para seguir empresas."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if getattr(auth_entity, "kind", None) != "usuario":
+            return Response(
+                {"detail": "Solo los usuarios pueden seguir empresas."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 👇 si pasamos los filtros, recién aquí definimos usuario
+        usuario = auth_entity.obj  
+
+        if empresa.seguidores.filter(id=usuario.id).exists():
+            return Response({"detail": "Ya sigues a esta empresa."}, status=400)
+
+        empresa.seguidores.add(usuario)
+        return Response(
+            {"status": f"Ahora sigues a {empresa.nombre}"},
+            status=status.HTTP_200_OK
+        )
+
 
     # Acción para dejar de seguir una empresa
     @action(detail=True, methods=['post'])
     def dejar_de_seguir(self, request, pk=None):
         empresa = self.get_object()
-        empresa.seguidores.remove(request.user)
-        return Response({"status": f"Has dejado de seguir a {empresa.nombre}"}, status=status.HTTP_200_OK)
+        auth_entity = request.user
+
+        if not auth_entity or not getattr(auth_entity, "is_authenticated", False):
+            return Response(
+                {"detail": "Debes iniciar sesión para dejar de seguir empresas."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if getattr(auth_entity, "kind", None) != "usuario":
+            return Response(
+                {"detail": "Solo los usuarios pueden dejar de seguir empresas."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        usuario = auth_entity.obj  
+
+        if not empresa.seguidores.filter(id=usuario.id).exists():
+            return Response({"detail": "No sigues a esta empresa."}, status=400)
+
+        empresa.seguidores.remove(usuario)
+        return Response(
+            {"status": f"Has dejado de seguir a {empresa.nombre}"},
+            status=status.HTTP_200_OK
+        )
+
+
 
 # -----------------------------
 # Endpoint de detalle de empresa
