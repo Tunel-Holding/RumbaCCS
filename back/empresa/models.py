@@ -78,30 +78,7 @@ class Empresa(models.Model):
     )
 
     email = models.EmailField(unique=True, default="")  # para login de la empresa
-
-    # Elimina el campo JSONField, ahora se usará la tabla EmpresaRedSocial
-class EmpresaRedSocial(models.Model):
-    RED_CHOICES = [
-        ('instagram', 'Instagram'),
-        ('facebook', 'Facebook'),
-        ('tiktok', 'TikTok'),
-        ('x', 'X (Twitter)'),
-        ('youtube', 'YouTube'),
-        ('whatsapp', 'WhatsApp'),
-    ]
-    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='redes')
-    tipo = models.CharField(max_length=20, choices=RED_CHOICES)
-    url = models.URLField(max_length=512)
-    creado_en = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        verbose_name = "Red social de empresa"
-        verbose_name_plural = "Redes sociales de empresa"
-        unique_together = ('empresa', 'tipo')
-
-    def __str__(self):
-        return f"{self.empresa.nombre} - {self.get_tipo_display()}: {self.url}"
-
+    
     seguidores = models.ManyToManyField(
         Usuario,
         related_name="empresas_que_sigue",
@@ -115,6 +92,7 @@ class EmpresaRedSocial(models.Model):
     class Meta:
         verbose_name = "Empresa"
         verbose_name_plural = "Empresas"
+        ordering = ["nombre"]
         
     # def delete(self, *args, **kwargs):
     #     if self.avatar_path:
@@ -143,6 +121,30 @@ class EmpresaRedSocial(models.Model):
     def eventos_publicados(self):
         # si ya tienes un modelo Evento con ForeignKey a Empresa:
         return self.eventos.count() if hasattr(self, "eventos") else 0
+
+    # Elimina el campo JSONField, ahora se usará la tabla EmpresaRedSocial
+class EmpresaRedSocial(models.Model):
+    RED_CHOICES = [
+        ('instagram', 'Instagram'),
+        ('facebook', 'Facebook'),
+        ('tiktok', 'TikTok'),
+        ('x', 'X (Twitter)'),
+        ('youtube', 'YouTube'),
+        ('whatsapp', 'WhatsApp'),
+    ]
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='redes')
+    tipo = models.CharField(max_length=20, choices=RED_CHOICES)
+    url = models.URLField(max_length=512)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Red social de empresa"
+        verbose_name_plural = "Redes sociales de empresa"
+        unique_together = ('empresa', 'tipo')
+
+    def __str__(self):
+        return f"{self.empresa.nombre} - {self.get_tipo_display()}: {self.url}"
+
 
 
 class Evento2(models.Model):

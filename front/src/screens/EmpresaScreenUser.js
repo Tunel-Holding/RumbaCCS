@@ -111,17 +111,15 @@ const handleLogin = async () => {
   Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
 };
 const seguir = async () => {
-  try {
-    const token = await AsyncStorage.getItem('accessToken');
-    if (!token) {
-      setLoginVisible(true);     
-    } else {
-      toggleFollow();
+    try {
+      const res = await api.post(`/api/empresas/${empresaIdParam}/seguir/`);
+      
+      if (res.status === 200) {
+        setIsFollowing(true);
+      }
+    } catch (error) {
+      console.error("Error al seguir a la empresa:", error);
     }
-  } catch (error) {
-    console.error("Error al seguir a la empresa:", error);
-    return false;
-  }
 };
 
   const empresaData1 = {

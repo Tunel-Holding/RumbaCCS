@@ -284,20 +284,68 @@ class EmpresaViewSet(ModelViewSet):
                 EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
 
 
-
     # Acción para seguir una empresa
     @action(detail=True, methods=['post'])
     def seguir(self, request, pk=None):
         empresa = self.get_object()
-        empresa.seguidores.add(request.user)
-        return Response({"status": f"Ahora sigues a {empresa.nombre}"}, status=status.HTTP_200_OK)
+        auth_entity = request.user
+
+        # 👇 primero chequeamos que el auth_entity sea correcto
+        if not auth_entity or not getattr(auth_entity, "is_authenticated", False):
+            return Response(
+                {"detail": "Debes iniciar sesión para seguir empresas."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if getattr(auth_entity, "kind", None) != "usuario":
+            return Response(
+                {"detail": "Solo los usuarios pueden seguir empresas."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # 👇 si pasamos los filtros, recién aquí definimos usuario
+        usuario = auth_entity.obj  
+
+        if empresa.seguidores.filter(id=usuario.id).exists():
+            return Response({"detail": "Ya sigues a esta empresa."}, status=400)
+
+        empresa.seguidores.add(usuario)
+        return Response(
+            {"status": f"Ahora sigues a {empresa.nombre}"},
+            status=status.HTTP_200_OK
+        )
+
 
     # Acción para dejar de seguir una empresa
     @action(detail=True, methods=['post'])
     def dejar_de_seguir(self, request, pk=None):
         empresa = self.get_object()
-        empresa.seguidores.remove(request.user)
-        return Response({"status": f"Has dejado de seguir a {empresa.nombre}"}, status=status.HTTP_200_OK)
+        auth_entity = request.user
+
+        if not auth_entity or not getattr(auth_entity, "is_authenticated", False):
+            return Response(
+                {"detail": "Debes iniciar sesión para dejar de seguir empresas."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if getattr(auth_entity, "kind", None) != "usuario":
+            return Response(
+                {"detail": "Solo los usuarios pueden dejar de seguir empresas."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        usuario = auth_entity.obj  
+
+        if not empresa.seguidores.filter(id=usuario.id).exists():
+            return Response({"detail": "No sigues a esta empresa."}, status=400)
+
+        empresa.seguidores.remove(usuario)
+        return Response(
+            {"status": f"Has dejado de seguir a {empresa.nombre}"},
+            status=status.HTTP_200_OK
+        )
+
+
 
 # -----------------------------
 # Endpoint de detalle de empresa
@@ -397,10 +445,18 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
 
 
 class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Evento2.objects.all().order_by('-id')  # orden por id
+    # queryset = Evento2.objects.all().order_by('-id')  # orden por id
     serializer_class = EventoSerializer
     permission_classes = [AllowAny]  # público, no requiere token
     
+    def get_queryset(self):
+        """
+        Sobrescribimos este método para devolver solo eventos cuya fecha
+        aún no ha pasado (eventos futuros o del día de hoy).
+        Los ordenamos por fecha de evento ascendente para mostrar los más próximos primero.
+        """
+        return Evento2.objects.filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
+        
     @action(detail=False, methods=['get'])
     def nearby(self, request):
         lat = request.query_params.get('lat')
@@ -424,7 +480,7 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         )
         qs = Evento2.objects.annotate(
             distance=RawSQL(haversine_sql, (lat_f, lng_f, lat_f))
-        ).filter(distance__lte=radius_km).order_by('distance') # más cercano primero ('distance', 'fecha_evento')
+        ).filter(distance__lte=radius_km,fecha_evento__gte=timezone.now()).order_by('distance', 'fecha_evento') # más cercano primero ('distance', 'fecha_evento')
 
         page = self.paginate_queryset(qs)
         if page is not None:
