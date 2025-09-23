@@ -78,8 +78,8 @@ export default function EmpresaScreen() {
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
-    seguidores: empresaData?.seguidores || 0,
-    eventosPublicados: empresaData?.eventosPublicados || 0,
+    seguidores: empresaData?.total_seguidores || 0,
+    eventosPublicados: empresaData?.total_eventos || 0,
   }
 
 

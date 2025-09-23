@@ -290,24 +290,27 @@ class EmpresaViewSet(ModelViewSet):
         empresa = self.get_object()
         auth_entity = request.user
 
-        # 👇 primero chequeamos que el auth_entity sea correcto
         if not auth_entity or not getattr(auth_entity, "is_authenticated", False):
             return Response(
                 {"detail": "Debes iniciar sesión para seguir empresas."},
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
-        if getattr(auth_entity, "kind", None) != "usuario":
+        usuario = None
+        if getattr(auth_entity, "kind", None) == "usuario":
+            usuario = auth_entity.obj
+        elif getattr(auth_entity, "kind", None) == "empresa":
+            # 👇 empresa ligada a un usuario
+            usuario = getattr(auth_entity.obj, "usuario", None)
+
+        if not usuario:
             return Response(
                 {"detail": "Solo los usuarios pueden seguir empresas."},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # 👇 si pasamos los filtros, recién aquí definimos usuario
-        usuario = auth_entity.obj  
-
         if empresa.seguidores.filter(id=usuario.id).exists():
-            return Response({"detail": "Ya sigues a esta empresa."}, status=400)
+            return Response({"detail": "Ya sigues a esta empresa."}, status=405)
 
         empresa.seguidores.add(usuario)
         return Response(
@@ -328,13 +331,17 @@ class EmpresaViewSet(ModelViewSet):
                 status=status.HTTP_401_UNAUTHORIZED
             )
 
-        if getattr(auth_entity, "kind", None) != "usuario":
+        usuario = None
+        if getattr(auth_entity, "kind", None) == "usuario":
+            usuario = auth_entity.obj
+        elif getattr(auth_entity, "kind", None) == "empresa":
+            usuario = getattr(auth_entity.obj, "usuario", None)
+
+        if not usuario:
             return Response(
                 {"detail": "Solo los usuarios pueden dejar de seguir empresas."},
                 status=status.HTTP_403_FORBIDDEN
             )
-
-        usuario = auth_entity.obj  
 
         if not empresa.seguidores.filter(id=usuario.id).exists():
             return Response({"detail": "No sigues a esta empresa."}, status=400)
@@ -344,7 +351,6 @@ class EmpresaViewSet(ModelViewSet):
             {"status": f"Has dejado de seguir a {empresa.nombre}"},
             status=status.HTTP_200_OK
         )
-
 
 
 # -----------------------------

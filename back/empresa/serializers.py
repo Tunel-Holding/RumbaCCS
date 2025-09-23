@@ -82,6 +82,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
     rating_count = serializers.SerializerMethodField(read_only=True)
     eventos = EventoSerializer(many=True, read_only=True)
     redes_sociales = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+    total_eventos = serializers.SerializerMethodField()
 
     class Meta:
         model = Empresa
@@ -104,6 +106,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "activo",
             "avg_rating",
             "rating_count",
+            "total_eventos",
+            "is_following",
         ]
         read_only_fields = [
             "id",
@@ -113,9 +117,25 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "activo"
         ]
 
+    def get_is_following(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+
+        if getattr(user, "kind", None) != "usuario":
+            return False
+
+        usuario = user.obj
+        return obj.seguidores.filter(id=usuario.id).exists()
+    
     def get_total_seguidores(self, obj):
         return obj.seguidores.count()
 
+    def get_total_eventos(self, obj):
+        return obj.eventos.count()
+    
     def get_is_siguiendo(self, obj):
         auth_entity = self.context["request"].user
         if not auth_entity or not auth_entity.is_authenticated:
@@ -220,9 +240,12 @@ class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
         
         
 class EmpresaPublicSerializer(serializers.ModelSerializer):
+    is_following = serializers.SerializerMethodField()
+    total_seguidores = serializers.SerializerMethodField()
+    total_eventos = serializers.SerializerMethodField()
+
     class Meta:
         model = Empresa
-        # 🔓 Solo los campos visibles públicamente
         fields = [
             "id",
             "nombre",
@@ -232,8 +255,36 @@ class EmpresaPublicSerializer(serializers.ModelSerializer):
             "lugar",
             "telefono",
             "email_contacto",
+            "is_following",
+            "total_seguidores",
+            "total_eventos",
         ]
-        
+
+    def get_is_following(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+
+        # Caso AuthEntity (tienes .kind y .obj)
+        if getattr(user, "kind", None) == "usuario" and hasattr(user, "obj"):
+            usuario = user.obj
+            return obj.seguidores.filter(id=usuario.id).exists()
+
+        # Caso que sea directamente un Usuario (por si acaso)
+        from .models import Usuario
+        try:
+            if isinstance(user, Usuario):
+                return obj.seguidores.filter(id=user.id).exists()
+        except Exception:
+            pass
+
+        return False
+    def get_total_seguidores(self, obj):
+        return obj.seguidores.count()
+    def get_total_eventos(self, obj):
+        return obj.eventos.count()
 
 class EventoPublicSerializer(serializers.ModelSerializer):
     imagenes = EventoImagenSerializer(many=True, read_only=True)

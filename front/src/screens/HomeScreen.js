@@ -128,58 +128,109 @@ export default function HomeScreen() {
     Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
 
+// const handleLogin = async () => {
+//   setLoginError('');
+//   setLoginLoading(true);
+//   const resultado = await loginConFallback(user, pass);
+//   if (resultado.error) {
+//     switch (resultado.tipo) {
+//       case 'validacion':
+//         setLoginError('Por favor ingresa email y contraseña');
+//         break;
+//       case 'error':
+//         setLoginError('Error inesperado: ' + resultado.error);
+//         break;
+//       case 'credenciales':
+//         setLoginError('Usuario o contraseña incorrectos');
+//         break;
+//     }
+//     return;
+//   }
+//   console.log("Login exitoso, datos recibidos:", resultado.data);
+
+//   // --- LÓGICA DE DIFERENCIACIÓN DE CUENTAS ---
+//   // Si el login fue exitoso y trajo el objeto 'empresa', es una cuenta de empresa.
+//   if (resultado.data?.empresa) {
+//     console.log("Es una cuenta de Empresa:", resultado.data.empresa);
+//     setEmpresaData(resultado.data.empresa);
+//     setHasEmpresa(true); // Una cuenta de empresa, por definición, tiene empresa.
+//     setIsEmpresaAccount(true); // Marcamos que es una cuenta de tipo empresa.
+//     await AsyncStorage.setItem('isEmpresaAccount', 'true');
+//   } else {
+//     // Si no trae el objeto 'empresa', es una cuenta de usuario.
+//     console.log("Es una cuenta de Usuario.");
+//     setIsEmpresaAccount(false); // No es una cuenta de tipo empresa.
+    
+//     // Verificamos si este usuario tiene una empresa vinculada.
+//     if (resultado.data?.empresa_id) {
+//       console.log("Usuario con empresa vinculada (ID):", resultado.data.empresa_id);
+//       setHasEmpresa(true);
+//     } else {
+//       console.log("Usuario sin empresa vinculada.");
+//       setHasEmpresa(false);
+//     }
+//     // En ambos casos de usuario, no tenemos los datos completos de la empresa aún.
+//     setEmpresaData(null);
+//     await AsyncStorage.setItem('isEmpresaAccount', 'false');
+//   }
+
+//   setIsLogged(true);
+//   setLoginVisible(false);
+//   Alert.alert('Login correcto', `Bienvenido/a`);
+//   // No es necesario navegar, el estado se actualizará y la UI cambiará sola.
+// };
+
 const handleLogin = async () => {
   setLoginError('');
   setLoginLoading(true);
-  const resultado = await loginConFallback(user, pass);
-  if (resultado.error) {
-    switch (resultado.tipo) {
-      case 'validacion':
-        setLoginError('Por favor ingresa email y contraseña');
-        break;
-      case 'error':
-        setLoginError('Error inesperado: ' + resultado.error);
-        break;
-      case 'credenciales':
-        setLoginError('Usuario o contraseña incorrectos');
-        break;
+  try {
+    const resultado = await loginConFallback(user, pass);
+    if (resultado.error) {
+      switch (resultado.tipo) {
+        case 'validacion':
+          setLoginError('Por favor ingresa email y contraseña');
+          break;
+        case 'error':
+          setLoginError('Error inesperado: ' + resultado.error);
+          break;
+        case 'credenciales':
+          setLoginError('Usuario o contraseña incorrectos');
+          break;
+      }
+      return; // Salimos de la función si hay un error
     }
-    return;
-  }
-  console.log("Login exitoso, datos recibidos:", resultado.data);
+    console.log("Login exitoso, datos recibidos:", resultado.data);
 
-  // --- LÓGICA DE DIFERENCIACIÓN DE CUENTAS ---
-  // Si el login fue exitoso y trajo el objeto 'empresa', es una cuenta de empresa.
-  if (resultado.data?.empresa) {
-    console.log("Es una cuenta de Empresa:", resultado.data.empresa);
-    setEmpresaData(resultado.data.empresa);
-    setHasEmpresa(true); // Una cuenta de empresa, por definición, tiene empresa.
-    setIsEmpresaAccount(true); // Marcamos que es una cuenta de tipo empresa.
-    await AsyncStorage.setItem('isEmpresaAccount', 'true');
-  } else {
-    // Si no trae el objeto 'empresa', es una cuenta de usuario.
-    console.log("Es una cuenta de Usuario.");
-    setIsEmpresaAccount(false); // No es una cuenta de tipo empresa.
-    
-    // Verificamos si este usuario tiene una empresa vinculada.
-    if (resultado.data?.empresa_id) {
-      console.log("Usuario con empresa vinculada (ID):", resultado.data.empresa_id);
+    // --- LÓGICA DE DIFERENCIACIÓN DE CUENTAS ---
+    // (Tu lógica existente se mantiene aquí)
+    if (resultado.data?.empresa) {
+      console.log("Es una cuenta de Empresa:", resultado.data.empresa);
+      setEmpresaData(resultado.data.empresa);
       setHasEmpresa(true);
+      setIsEmpresaAccount(true);
+      await AsyncStorage.setItem('isEmpresaAccount', 'true');
     } else {
-      console.log("Usuario sin empresa vinculada.");
-      setHasEmpresa(false);
+      console.log("Es una cuenta de Usuario.");
+      setIsEmpresaAccount(false);
+      if (resultado.data?.empresa_id) {
+        console.log("Usuario con empresa vinculada (ID):", resultado.data.empresa_id);
+        setHasEmpresa(true);
+      } else {
+        console.log("Usuario sin empresa vinculada.");
+        setHasEmpresa(false);
+      }
+      setEmpresaData(null);
+      await AsyncStorage.setItem('isEmpresaAccount', 'false');
     }
-    // En ambos casos de usuario, no tenemos los datos completos de la empresa aún.
-    setEmpresaData(null);
-    await AsyncStorage.setItem('isEmpresaAccount', 'false');
+
+    setIsLogged(true);
+    setLoginVisible(false);
+    Alert.alert('Login correcto', `Bienvenido/a`);
+  } finally {
+    // Este bloque se ejecuta SIEMPRE, tanto si hay éxito como si hay error.
+    setLoginLoading(false);
   }
-
-  setIsLogged(true);
-  setLoginVisible(false);
-  Alert.alert('Login correcto', `Bienvenido/a`);
-  // No es necesario navegar, el estado se actualizará y la UI cambiará sola.
 };
-
 
 
   const [events, setEventos] = useState([]);
