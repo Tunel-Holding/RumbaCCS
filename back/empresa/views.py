@@ -110,12 +110,13 @@ class EmpresaValidarPinView(generics.CreateAPIView):
         pin = request.data.get('pin')
         empresa_data = request.data.get('empresa', {})
         empresa_fields = [
-            'nombre', 'rif', 'descripcion', 'lugar', 'telefono', 'email_contacto', 'redes_sociales', 'logo',
+            'nombre', 'rif', 'descripcion', 'lugar', 'telefono', 'email_contacto', 'logo',
         ]
+        redes_sociales = empresa_data.get('redes_sociales', [])
         empresa_data = {k: v for k, v in empresa_data.items() if k in empresa_fields}
         empresa_data['email'] = email
 
-        print(f"[VALIDAR PIN] email={email}, pin={pin}, empresa_data={empresa_data}")
+        print(f"[VALIDAR PIN] email={email}, pin={pin}, empresa_data={empresa_data}, redes_sociales={redes_sociales}")
 
         # Validar pin
         try:
@@ -137,6 +138,18 @@ class EmpresaValidarPinView(generics.CreateAPIView):
             password=make_password(password),
             **empresa_data
         )
+        # Guardar redes sociales
+        from .models import EmpresaRedSocial
+        for red in redes_sociales:
+            # Espera que cada elemento sea un dict: {'tipo': ..., 'url': ...}
+            if isinstance(red, dict):
+                tipo = red.get('tipo', 'instagram')
+                url = red.get('url', '')
+            else:
+                tipo = 'instagram'
+                url = red
+            if url:
+                EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
 
         print(f"[VALIDAR PIN] Empresa creada correctamente para email={email}")
 
@@ -249,12 +262,26 @@ class EmpresaViewSet(ModelViewSet):
         if getattr(real_obj, "empresa", None):
             raise ValidationError({"non_field_errors": ["Este usuario ya tiene una empresa asociada."]})
 
-        # Guardar empresa
+        # Guardar empresa y redes sociales
         password = serializer.validated_data.pop("password", None)
+        redes = self.request.data.get('redes_sociales', [])
+        empresa = None
         if password:
-            serializer.save(usuario=real_obj, password=make_password(password))
+            empresa = serializer.save(usuario=real_obj, password=make_password(password))
         else:
-            serializer.save(usuario=real_obj)
+            empresa = serializer.save(usuario=real_obj)
+        # Guardar redes sociales
+        from .models import EmpresaRedSocial
+        for red in redes:
+            # Espera que cada elemento sea un dict: {'tipo': ..., 'url': ...}
+            if isinstance(red, dict):
+                tipo = red.get('tipo', 'instagram')
+                url = red.get('url', '')
+            else:
+                tipo = 'instagram'
+                url = red
+            if url:
+                EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
 
 
 

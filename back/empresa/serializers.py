@@ -1,4 +1,4 @@
-from .models import Empresa, Evento2, Rating, EmpresaEvento, EventoImagen, UsuarioEvento
+from .models import Empresa, Evento2, Rating, EmpresaEvento, EventoImagen, UsuarioEvento, EmpresaRedSocial
 # Serializer para eventos guardados por usuario
 
 from rest_framework import serializers
@@ -67,24 +67,30 @@ class EventoSerializer(serializers.ModelSerializer):
             print(f'{field} -> valor: {value!r}, tipo: {type(value)}')
         return super().validate(attrs)
     
+
+# Nuevo serializer para redes sociales
+class EmpresaRedSocialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmpresaRedSocial
+        fields = ['url']
+
 class EmpresaSerializer(serializers.ModelSerializer):
-    
     total_seguidores = serializers.SerializerMethodField()
     is_siguiendo = serializers.SerializerMethodField()
     password = serializers.CharField(write_only=True, required=True)
     avg_rating = serializers.SerializerMethodField(read_only=True)
     rating_count = serializers.SerializerMethodField(read_only=True)
-    
     eventos = EventoSerializer(many=True, read_only=True)
+    redes_sociales = serializers.SerializerMethodField()
 
     class Meta:
         model = Empresa
         fields = [
             "id",
             "nombre",
-            "rif",               # Nuevo campo requerido y único
+            "rif",
             "descripcion",
-            "lugar",             # Sustituye a 'direccion'
+            "lugar",
             "telefono",
             "email_contacto",
             "email",
@@ -124,6 +130,9 @@ class EmpresaSerializer(serializers.ModelSerializer):
     def get_rating_count(self, obj):
         agg = obj.ratings.aggregate(count=Count('id'))
         return agg.get('count') or 0
+
+    def get_redes_sociales(self, obj):
+        return [r.url for r in obj.redes.all()]
     
     # def validate(self, attrs):
     #     user = self.context["request"].user
@@ -137,6 +146,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
     
 
 class EmpresaRegistroSerializer(serializers.ModelSerializer):
+    redes_sociales = serializers.ListField(child=serializers.URLField(), write_only=True, required=False)
     # Campos para crear el usuario
     # email = serializers.EmailField(write_only=True)
     # password = serializers.CharField(write_only=True)
@@ -160,15 +170,13 @@ class EmpresaRegistroSerializer(serializers.ModelSerializer):
             "logo",
             "email",      
             "password",   
-            # "phone",      # para user
-            # "birthday",   # para user
-            # "region",     # para user
-            # "gender"      # para user
         ]
 
     def create(self, validated_data):
+        redes = validated_data.pop('redes_sociales', [])
         empresa = Empresa.objects.create(**validated_data)
-
+        for url in redes:
+            EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo='instagram') # Puedes adaptar el tipo según el frontend
         return empresa
 
 class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):

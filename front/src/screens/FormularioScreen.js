@@ -153,6 +153,15 @@ const handleEnviar = async () => {
         }
       }
       
+      // Construir array de redes sociales con los seleccionados y sus links
+      const redesSocialesArr = [];
+      if (usaRedes === 'si') {
+        Object.keys(socialChecks).forEach(key => {
+          if (socialChecks[key] && socialLinks[key].trim()) {
+            redesSocialesArr.push({ tipo: key, url: socialLinks[key].trim() });
+          }
+        });
+      }
       const empresaData = {
         nombre,
         rif: rifFormateado,
@@ -160,7 +169,7 @@ const handleEnviar = async () => {
         lugar,
         telefono: telefonoValido,
         email_contacto: correo,
-        redes_sociales: redes || "",
+        redes_sociales: redesSocialesArr,
         email: correo,
         password: "00000000",
       };
@@ -186,6 +195,15 @@ const handleEnviar = async () => {
     } else {
       // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
       console.log("Creando empresa para usuario existente, token:");
+      // Construir array de redes sociales con los seleccionados y sus links
+      const redesSocialesArr2 = [];
+      if (usaRedes === 'si') {
+        Object.keys(socialChecks).forEach(key => {
+          if (socialChecks[key] && socialLinks[key].trim()) {
+            redesSocialesArr2.push({ tipo: key, url: socialLinks[key].trim() });
+          }
+        });
+      }
       const res = await api.post('/api/empresas/', {
         rif: rifFormateado,
         lugar,
@@ -193,7 +211,7 @@ const handleEnviar = async () => {
         nombre,
         descripcion: descripcion || "",
         email_contacto: correo,
-        redes_sociales: redes || "",
+        redes_sociales: redesSocialesArr2,
         email: correo,
         password: "00000000",
       });
@@ -237,20 +255,29 @@ const handleValidarPin = async () => {
         : (rif ? `${rifPrefix}-${rif}` : '');
   try {
     setCargando(true);
+    // Construir array de redes sociales con los seleccionados y sus links
+    const redesSocialesArr = [];
+    if (usaRedes === 'si') {
+      Object.keys(socialChecks).forEach(key => {
+        if (socialChecks[key] && socialLinks[key].trim()) {
+          redesSocialesArr.push({ tipo: key, url: socialLinks[key].trim() });
+        }
+      });
+    }
     const res = await api.post('/api/validar-pin-empresa/', {
-  email: correo,
-  pin: pinIngresado,
-  password: "00000000",
-  empresa: {
-    nombre,
-    rif: rifFormateado,
-    lugar,
-    telefono,
-    email_contacto: correo,
-    redes_sociales: redes || "",
-    descripcion,
-  }
-});
+      email: correo,
+      pin: pinIngresado,
+      password: "00000000",
+      empresa: {
+        nombre,
+        rif: rifFormateado,
+        lugar,
+        telefono,
+        email_contacto: correo,
+        redes_sociales: redesSocialesArr,
+        descripcion,
+      }
+    });
 
 const data = res.data;
 
