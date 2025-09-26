@@ -140,7 +140,9 @@ useEffect(() => {
 
       const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
 
-      const eventosTransformados = res.data.map(ev => ({
+      const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
+
+      const eventosTransformados = resultadosRaw.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento

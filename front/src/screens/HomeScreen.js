@@ -60,11 +60,26 @@ export default function HomeScreen() {
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loadingline, setLoadingline] = useState(false); // <-- Nuevo estado para loading inline
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
   const [empresaData, setEmpresaData] = useState(null);
   const [isEmpresaAccount, setIsEmpresaAccount] = useState(false); // <-- NUEVO ESTADO
+  const [hasMore, setHasMore] = useState(true);      // CAMBIO: controla si hay más páginas en backend
+  const [nextPage, setNextPage] = useState(null);
+  const [prevPage, setPrevPage] = useState(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10; // Consistente con el backend
+
+  let searchTimeout;
+  
+useEffect(() => {
+  if (filter === "nearby" && !userLocation) return; // espera ubicación
+  fetchEventos(1, false);
+}, [filter, userLocation, search]);
+
 
   // --- FUNCIÓN PARA RECARGAR DATOS DE LA EMPRESA ---
   const refreshEmpresaData = useCallback(async () => {
@@ -236,7 +251,6 @@ const handleLogin = async () => {
   const [events, setEventos] = useState([]);
   // Cache local de datos de empresas para evitar múltiples llamadas.
   const [companyCache, setCompanyCache] = useState({}); // { empresaId: { nombre, logo } }
-  const pageSize = 10;
   const [page, setPage] = useState(0); // página actual 0-index
   // Estados de ubicación (placeholder, sin llamadas nativas todavía)
   const [userLocation, setUserLocation] = useState(null); // { latitude, longitude }
@@ -307,101 +321,23 @@ const handleLogin = async () => {
     return false;
   };
 
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+const searchCancelToken = useRef(null);
+
+// 🔹 Debounce: solo actualizar debouncedSearch 600ms después de que el usuario deje de escribir
 useEffect(() => {
-  const fetchEventos = async () => {
-    try {
-      const res = await api.get('/api/eventos-publicos/');
-      const data = res.data;
+  const handler = setTimeout(() => {
+    setDebouncedSearch(search.trim());
+  }, 600);
 
-      // Transformamos eventos
-      const eventosTransformados = data.map(ev => {
-        const categorias = Array.isArray(ev.categoria)
-          ? ev.categoria
-          : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+  return () => clearTimeout(handler);
+}, [search]);
 
-        return {
-          id: ev.id,
-          rawEmpresaId: ev.empresa,
-          title: ev.titulo,
-          date: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleDateString()
-            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-          time: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : null,
-          location: ev.ubicacion || 'Ubicación no definida',
-          price: ev.precio === '0.00'
-            ? 'Entrada libre'
-            : `$${parseFloat(ev.precio).toLocaleString()}`,
-          type: categorias,
-          tag: categorias[0],
-          imagenes: ev.imagenes,
-          image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-          // Usamos el caché si ya existe, si no, un placeholder
-          ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
-          ownerLogo: companyCache[ev.empresa]?.logo || null,
-        };
-      });
+// 🔹 Fetch de eventos solo cuando cambia debouncedSearch o filter
+useEffect(() => {
+  fetchEventos(1, false);
+}, [debouncedSearch, filter]);
 
-      setEventos(eventosTransformados);
-
-      // ---- Resolver datos de empresa usando el endpoint bulk ----
-      const idsPendientes = [...new Set(
-        eventosTransformados
-          .filter(ev => ev.rawEmpresaId && !companyCache[ev.rawEmpresaId])
-          .map(ev => ev.rawEmpresaId)
-      )];
-
-      if (idsPendientes.length) {
-        try {
-          const resp = await api.get(`/api/public/empresas/bulk/`, {
-            params: { ids: idsPendientes.join(',') },
-            timeout: 25000
-          });
-
-          const empresas = resp.data; // ← array de { id, nombre, logo }
-          const nuevosDatosEmpresa = {};
-          empresas.forEach(emp => {
-            // Guardamos el objeto completo con nombre y logo
-            nuevosDatosEmpresa[emp.id] = {
-              nombre: emp.nombre,
-              logo: emp.logo
-            };
-          });
-
-          // fallback por si alguna empresa no existe en la respuesta
-          idsPendientes.forEach(id => {
-            if (!nuevosDatosEmpresa[id]) {
-              nuevosDatosEmpresa[id] = { nombre: `Empresa #${id}`, logo: null };
-            }
-          });
-
-          // Actualizamos el caché y el estado de los eventos con los nuevos datos
-          setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
-          setEventos(prev =>
-            prev.map(ev =>
-              ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
-                ? {
-                    ...ev,
-                    ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre,
-                    ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo,
-                  }
-                : ev
-            )
-          );
-        } catch (err) {
-          console.error('Error resolviendo datos de empresa en bulk:', err);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching eventos públicos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchEventos();
-}, []);
 
   // Filtros disponibles
   const filters = [
@@ -423,6 +359,249 @@ useEffect(() => {
     { key: 'Música', label: 'Música' },
     { key: 'Teatro', label: 'Teatro' },
   ];
+
+const fetchEventos = async (pageNumber = 1, append = false) => {
+  setLoadingline(true);
+
+  if (!append) scrollRef.current?.scrollTo({ y: 0, animated: true });
+
+  // Cancelar request anterior si existe
+  if (searchCancelToken.current) {
+    searchCancelToken.current.cancel("Nueva búsqueda, cancelando anterior");
+  }
+  searchCancelToken.current = axios.CancelToken.source();
+
+  try {
+    const isNearbyFilter = filter === "nearby";
+    const hasLocation = !!userLocation;
+
+    let url = "/api/eventos-publicos/";
+    if (isNearbyFilter && hasLocation) url = "/api/eventos-publicos/nearby/";
+
+    const params = { page: pageNumber, page_size: pageSize };
+
+    if (isNearbyFilter && hasLocation) {
+      params.lat = userLocation.latitude;
+      params.lng = userLocation.longitude;
+      params.radius = 5;
+    }
+
+    if (!isNearbyFilter) {
+      if (filter && filter !== "all") params.categoria = filter;
+      if (debouncedSearch) params.search = debouncedSearch;
+    }
+
+    const res = await api.get(url, {
+      params,
+      timeout: 25000,
+      cancelToken: searchCancelToken.current.token,
+    });
+
+    const responseData = res.data || {};
+    const resultadosRaw = Array.isArray(responseData.results)
+      ? responseData.results
+      : Array.isArray(responseData)
+      ? responseData
+      : [];
+
+    if (responseData.count !== undefined) {
+      setNextPage(responseData.next ? pageNumber + 1 : null);
+      setPrevPage(responseData.previous ? pageNumber - 1 : null);
+      setTotalCount(responseData.count);
+      setCurrentPage(pageNumber);
+    }
+
+    const eventosTransformados = resultadosRaw.map(ev => ({
+      id: ev.id,
+      rawEmpresaId: ev.empresa,
+      title: ev.titulo,
+      date: ev.fecha_evento
+        ? new Date(ev.fecha_evento).toLocaleDateString()
+        : ev.creado_en
+        ? new Date(ev.creado_en).toLocaleDateString()
+        : "Fecha no definida",
+      time: ev.fecha_evento
+        ? new Date(ev.fecha_evento).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : null,
+      location: ev.ubicacion || "Ubicación no definida",
+      price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+      type: Array.isArray(ev.categoria) ? ev.categoria : ev.categoria ? [ev.categoria] : ["Sin categoría"],
+      tag: Array.isArray(ev.categoria) ? ev.categoria[0] : ev.categoria || "Sin categoría",
+      imagenes: ev.imagenes,
+      image: ev.imagen || "https://storage.googleapis.com/.../placeholder.png",
+      ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
+      ownerLogo: companyCache[ev.empresa]?.logo || null,
+    }));
+
+    setEventos(prev => (append ? [...prev, ...eventosTransformados] : eventosTransformados));
+    setHasMore(Boolean(responseData.next));
+
+    // Actualización de empresas
+    const idsPendientes = [
+      ...new Set(eventosTransformados.map(ev => ev.rawEmpresaId).filter(id => id && !companyCache[id])),
+    ];
+    if (idsPendientes.length) {
+      const resp = await api.get("/api/public/empresas/bulk/", {
+        params: { ids: idsPendientes.join(",") },
+        timeout: 25000,
+      });
+      const empresas = Array.isArray(resp.data) ? resp.data : [];
+      const nuevosDatosEmpresa = {};
+      empresas.forEach(emp => (nuevosDatosEmpresa[emp.id] = { nombre: emp.nombre, logo: emp.logo }));
+      idsPendientes.forEach(id => {
+        if (!nuevosDatosEmpresa[id]) nuevosDatosEmpresa[id] = { nombre: `Empresa #${id}`, logo: null };
+      });
+      setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
+      setEventos(prev =>
+        prev.map(ev =>
+          ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
+            ? { ...ev, ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre, ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo }
+            : ev
+        )
+      );
+    }
+  } catch (error) {
+    if (!axios.isCancel(error)) console.error(error);
+  } finally {
+    setLoadingline(false);
+  }
+};
+
+// const fetchEventos = async (pageNumber = 1, append = false) => {
+//   setLoadingline(true);  // mini loader
+
+//   try {
+
+//     if (!append) {
+//       scrollRef.current?.scrollTo({ y: 0, animated: true });
+//     }
+
+//     const isNearbyFilter = filter === 'nearby';
+//     const hasLocation = !!userLocation;
+
+//     let url = '/api/eventos-publicos/';
+//     if (isNearbyFilter && hasLocation) url = '/api/eventos-publicos/nearby/';
+
+//     const params = { page: pageNumber, page_size: pageSize };
+
+//     if (isNearbyFilter && hasLocation) {
+//       params.lat = userLocation.latitude;
+//       params.lng = userLocation.longitude;
+//       params.radius = 5;
+//     }
+
+//     if (!isNearbyFilter) {
+//       if (filter && filter !== 'all') params.categoria = filter;
+//       if (search && search.trim()) params.search = search.trim();
+//     }
+
+//     const res = await api.get(url, { params, timeout: 25000 });
+//     const responseData = res.data || {};
+//     const resultadosRaw = Array.isArray(responseData.results)
+//       ? responseData.results
+//       : (Array.isArray(responseData) ? responseData : []);
+
+//     if (responseData.count !== undefined) {
+//       setNextPage(responseData.next ? pageNumber + 1 : null);
+//       setPrevPage(responseData.previous ? pageNumber - 1 : null); 
+//       setTotalCount(responseData.count);
+//       setCurrentPage(pageNumber);
+//     }
+
+//     const eventosTransformados = resultadosRaw.map(ev => {
+//       const categorias = Array.isArray(ev.categoria) ? ev.categoria : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+//       return {
+//         id: ev.id,
+//         rawEmpresaId: ev.empresa,
+//         title: ev.titulo,
+//         date: ev.fecha_evento ? new Date(ev.fecha_evento).toLocaleDateString() : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+//         time: ev.fecha_evento ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
+//         location: ev.ubicacion || 'Ubicación no definida',
+//         price: ev.precio === '0.00' ? 'Entrada libre' : `$${parseFloat(ev.precio).toLocaleString()}`,
+//         type: categorias,
+//         tag: categorias[0],
+//         imagenes: ev.imagenes,
+//         image: ev.imagen || 'https://storage.googleapis.com/.../placeholder.png',
+//         ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
+//         ownerLogo: companyCache[ev.empresa]?.logo || null,
+//       };
+//     });
+
+//     setEventos(prev => (append ? [...prev, ...eventosTransformados] : eventosTransformados));
+//     setHasMore(Boolean(responseData.next));
+
+//     // Información de empresas en bulk
+//     const idsPendientes = [...new Set(eventosTransformados.map(ev => ev.rawEmpresaId).filter(id => id && !companyCache[id]))];
+//     if (idsPendientes.length) {
+//       const resp = await api.get('/api/public/empresas/bulk/', { params: { ids: idsPendientes.join(',') }, timeout: 25000 });
+//       const empresas = Array.isArray(resp.data) ? resp.data : [];
+//       const nuevosDatosEmpresa = {};
+//       empresas.forEach(emp => { nuevosDatosEmpresa[emp.id] = { nombre: emp.nombre, logo: emp.logo }; });
+//       idsPendientes.forEach(id => { if (!nuevosDatosEmpresa[id]) nuevosDatosEmpresa[id] = { nombre: `Empresa #${id}`, logo: null }; });
+//       setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
+//       setEventos(prev => prev.map(ev => ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId] ? { ...ev, ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre, ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo } : ev));
+//     }
+//   } catch (error) {
+//     console.error('Error fetching eventos públicos:', error);
+//   } finally {
+//     setLoadingline(false);
+//   }
+// };
+
+
+// const [debouncedSearch, setDebouncedSearch] = useState("");
+
+// 🔹 Efecto para "debounce" del search
+// useEffect(() => {
+//   const handler = setTimeout(() => {
+//     setDebouncedSearch(search.trim());
+//   }, 600); // espera 600ms después de la última tecla
+
+//   return () => clearTimeout(handler);
+// }, [search]);
+
+// // 🔹 Fetch SOLO cuando el valor debounced cambia
+// useEffect(() => {
+//   if (debouncedSearch === "") {
+//     setEventos([]);
+//     setLoadingline(false);
+//     return;
+//   }
+
+//   fetchEventos(1, false);
+// }, [debouncedSearch, filter]);
+
+
+
+// --- EFECTO DE MONTAJE / RESET (CAMBIO: ahora pide solo primera página y resetea) ---
+useEffect(() => {
+  // Cuando cambia filter/search/userLocation queremos reiniciar la paginación y pedir la página 1
+  const resetAndLoad = async () => {
+    setPage(1);
+    setEventos([]);      // CAMBIO: limpiar eventos anteriores para evitar mezcla
+    setHasMore(true);
+    await fetchEventos(1, false);
+    // opcional: subir scroll al top
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  resetAndLoad();
+  // Dependencias: si cambian estos, reiniciamos y pedimos página 1
+}, [filter, search, userLocation]);
+
+
+// --- FUNCIONES DE NAVEGACION / INFINITE SCROLL (CAMBIO: loadMore pide la siguiente página) ---
+const loadMore = async () => {
+  if (loading || !hasMore) return;
+  const nextPage = page + 1;
+  setPage(nextPage);
+  await fetchEventos(nextPage, true); // append = true
+  // opcional: scroll arriba/bajar con scrollRef
+};
+
 
   // Footer links
   const footerLinks = [
@@ -469,91 +648,91 @@ const filteredEvents = fuente.filter(e => {
   return matchesFilter && qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
 });
 
-// --- useEffect: cuando el user da permiso y activa el filtro "nearby"
-useEffect(() => {
-  // Convertimos la lógica a async/await para manejar mejor las llamadas en cadena
-  const fetchNearbyEvents = async () => {
-    if (filter !== "nearby" || !userLocation) {
-      return; // No hacer nada si el filtro no es 'nearby' o no hay ubicación
-    }
+// // --- useEffect: cuando el user da permiso y activa el filtro "nearby"
+// useEffect(() => {
+//   // Convertimos la lógica a async/await para manejar mejor las llamadas en cadena
+//   const fetchNearbyEvents = async () => {
+//     if (filter !== "nearby" || !userLocation) {
+//       return; // No hacer nada si el filtro no es 'nearby' o no hay ubicación
+//     }
 
-    try {
-      const res = await api.get(`/api/eventos-publicos/nearby/?lat=${userLocation.latitude}&lng=${userLocation.longitude}&radius=5`);
-      const eventos = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
+//     try {
+//       const res = await api.get(`/api/eventos-publicos/nearby/?lat=${userLocation.latitude}&lng=${userLocation.longitude}&radius=5`);
+//       const eventos = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
 
-      // 1. Adaptar al formato de Home, usando el caché si ya existe
-      const adaptados = eventos.map(ev => {
-        const categorias = Array.isArray(ev.categoria) ? ev.categoria : [ev.categoria];
-        return {
-          ...ev,
-          id: ev.id,
-          rawEmpresaId: ev.empresa,
-          title: ev.titulo,
-          date: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleDateString()
-            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-          time: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : null,
-          location: ev.ubicacion || 'Ubicación no definida',
-          price: ev.precio === '0.00'
-            ? 'Entrada libre'
-            : `$${parseFloat(ev.precio).toLocaleString()}`,
-          type: categorias,
-          tag: categorias[0],
-          imagenes: ev.imagenes,
-          image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-          // Usamos el caché existente para una carga inicial rápida
-          ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
-          ownerLogo: companyCache[ev.empresa]?.logo || null,
-        };
-      });
+//       // 1. Adaptar al formato de Home, usando el caché si ya existe
+//       const adaptados = eventos.map(ev => {
+//         const categorias = Array.isArray(ev.categoria) ? ev.categoria : [ev.categoria];
+//         return {
+//           ...ev,
+//           id: ev.id,
+//           rawEmpresaId: ev.empresa,
+//           title: ev.titulo,
+//           date: ev.fecha_evento
+//             ? new Date(ev.fecha_evento).toLocaleDateString()
+//             : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+//           time: ev.fecha_evento
+//             ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+//             : null,
+//           location: ev.ubicacion || 'Ubicación no definida',
+//           price: ev.precio === '0.00'
+//             ? 'Entrada libre'
+//             : `$${parseFloat(ev.precio).toLocaleString()}`,
+//           type: categorias,
+//           tag: categorias[0],
+//           imagenes: ev.imagenes,
+//           image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
+//           // Usamos el caché existente para una carga inicial rápida
+//           ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
+//           ownerLogo: companyCache[ev.empresa]?.logo || null,
+//         };
+//       });
 
-      setNearbyEvents(adaptados); // Mostramos los eventos inmediatamente
+//       setNearbyEvents(adaptados); // Mostramos los eventos inmediatamente
 
-      // 2. Buscar IDs de empresas que no estén en el caché
-      const idsPendientes = [...new Set(
-        adaptados
-          .filter(ev => ev.rawEmpresaId && !companyCache[ev.rawEmpresaId])
-          .map(ev => ev.rawEmpresaId)
-      )];
+//       // 2. Buscar IDs de empresas que no estén en el caché
+//       const idsPendientes = [...new Set(
+//         adaptados
+//           .filter(ev => ev.rawEmpresaId && !companyCache[ev.rawEmpresaId])
+//           .map(ev => ev.rawEmpresaId)
+//       )];
 
-      // 3. Si hay IDs pendientes, hacer la llamada bulk
-      if (idsPendientes.length > 0) {
-        const resp = await api.get(`/api/public/empresas/bulk/`, {
-          params: { ids: idsPendientes.join(',') },
-        });
+//       // 3. Si hay IDs pendientes, hacer la llamada bulk
+//       if (idsPendientes.length > 0) {
+//         const resp = await api.get(`/api/public/empresas/bulk/`, {
+//           params: { ids: idsPendientes.join(',') },
+//         });
 
-        const empresas = resp.data; // array de { id, nombre, logo }
-        const nuevosDatosEmpresa = {};
-        empresas.forEach(emp => {
-          nuevosDatosEmpresa[emp.id] = {
-            nombre: emp.nombre,
-            logo: emp.logo // <-- Usando 'logo' como especificaste
-          };
-        });
+//         const empresas = resp.data; // array de { id, nombre, logo }
+//         const nuevosDatosEmpresa = {};
+//         empresas.forEach(emp => {
+//           nuevosDatosEmpresa[emp.id] = {
+//             nombre: emp.nombre,
+//             logo: emp.logo // <-- Usando 'logo' como especificaste
+//           };
+//         });
 
-        // 4. Actualizar el caché y el estado de los eventos cercanos
-        setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
-        setNearbyEvents(prev =>
-          prev.map(ev =>
-            ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
-              ? {
-                  ...ev,
-                  ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre,
-                  ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo,
-                }
-              : ev
-          )
-        );
-      }
-    } catch (err) {
-      console.error("Error cargando o procesando eventos cercanos:", err);
-    }
-  };
+//         // 4. Actualizar el caché y el estado de los eventos cercanos
+//         setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
+//         setNearbyEvents(prev =>
+//           prev.map(ev =>
+//             ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
+//               ? {
+//                   ...ev,
+//                   ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre,
+//                   ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo,
+//                 }
+//               : ev
+//           )
+//         );
+//       }
+//     } catch (err) {
+//       console.error("Error cargando o procesando eventos cercanos:", err);
+//     }
+//   };
 
-  fetchNearbyEvents();
-}, [filter, userLocation]);
+//   fetchNearbyEvents();
+// }, [filter, userLocation]);
 
 
 
@@ -567,9 +746,10 @@ useEffect(() => {
   const goNext = () => { if (canNext) { setPage(p => p + 1); scrollRef.current?.scrollTo({ y: 0, animated: true }); } };
 
   // Cuando cambia filtro o búsqueda, reinicia página y sube arriba
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  }, [filter, search]);
+//   useEffect(() => {
+//   scrollRef.current?.scrollTo({ y: 0, animated: true });
+// }, [filter]);
+
 
 
   if (loading) {
@@ -660,6 +840,7 @@ useEffect(() => {
           onChangeText={setSearch}
         />
 
+
         {/* Filtros (revertido a una sola fila scrollable) */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={{ paddingRight: 8 }}>
           {filters.map(f => (
@@ -703,114 +884,132 @@ useEffect(() => {
         
         {/* Lista de eventos (oculta si se requiere ubicación para 'nearby') */}
         {!(filter === 'nearby' && !userLocation) && (
-          <>
-            <View style={styles.eventsGrid}>
-              {pageEvents.length === 0 ? (
-                <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>No hay eventos para mostrar.</Text>
-              ) : (
-                pageEvents.map(event => (
-                  <View key={event.id} style={styles.eventCard}>
-                    <View style={styles.ownerRow}>
-                      {/* --- MODIFICACIÓN AQUÍ --- */}
-                      {event.ownerLogo ? (
-                        // Si hay un logo, muestra la imagen
-                        <Image
-                          source={{ uri: event.ownerLogo }}
-                          style={styles.ownerAvatar} // Reutilizamos el estilo para que sea circular
-                        />
-                      ) : (
-                        // Si no hay logo, muestra el avatar con la inicial (fallback)
-                        <View style={styles.ownerAvatar}>
-                          <Text style={styles.ownerAvatarText}>{(event.ownerName||'?').charAt(0).toUpperCase()}</Text>
-                        </View>
-                      )}
-                      {/* --- FIN DE LA MODIFICACIÓN --- */}
-                      <View style={{ flex:1 }}>
-                        <TouchableOpacity
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            // Preferimos el id real si está disponible
-                            let empresaIdTarget = event.rawEmpresaId || null;
-                            if (!empresaIdTarget && event.ownerName?.startsWith('Empresa #')) {
-                              empresaIdTarget = event.ownerName.replace('Empresa #','');
-                            }
-                            if (!empresaIdTarget) return; // No es una empresa identificable
+  <>
+    <View style={styles.eventsGrid}>
 
-                            if (ownEmpresaId && String(empresaIdTarget) === String(ownEmpresaId)) {
-                              // Es la propia empresa logueada
-                              navigation.navigate('Empresa');
-                            } else {
-                              // Cualquier otro usuario (sea empresa o usuario normal) ve el perfil público
-                              navigation.navigate('EmpresaScreenUser', { empresaId: empresaIdTarget });
-                            }
-                          }}
-                        >
-                          <Text style={[styles.ownerName, (event.rawEmpresaId || (event.ownerName?.startsWith('Empresa #'))) && { textDecorationLine: 'underline' }]}>{event.ownerName}</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.ownerLabel}>Organizador</Text>
-                      </View>
-                      {event.tag && (
-                        <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
-                      )}
-                    </View>
-                    <Image
-                      source={{
-                        uri: event.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
-                      }}
-                      style={styles.eventImage}
-                      resizeMode="cover"
-                    />
-                    {/* <Text style={styles.eventTitle}>{event.title}</Text>
-                    <Text style={styles.eventInfo}>{event.date}{event.time ? ` · ${event.time}` : ''} · {event.location}</Text> */}
-                    <Text style={styles.eventTitle}>{event.title}</Text>
-                                                          
-                    {event.time && event.time !== 'Hora no definida' && (
-                      <View style={styles.eventoInfo}>
-                        <Text style={styles.eventoInfoText}>📅 {event.date}  ⏰ {event.time}</Text>
-                      </View>
-                    )}
-                    <View style={styles.eventInfo}>
-                      <Text style={styles.eventoInfoText}>📍 {event.location}</Text>
-                    </View>
-                    <Text style={styles.eventPrice}>{event.price}</Text>
-                    <TouchableOpacity
-                      style={styles.reserveBtn}
-                      onPress={() => {
-                        if (hasEmpresa) {
-                          // Si es empresa: navegar a la pantalla de detalles (BuyScreen)
-                          navigation.navigate('Reservar/Comprar', {
-                            idEvento: event.id,
-                            idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined
-                          });
-                        } else {
-                          // Si es usuario: navegar a BuyScreen para ver detalles y poder guardar
-                          navigation.navigate('Reservar/Comprar', {
-                            idEvento: event.id,
-                            idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined
-                          });
-                        }
-                      }}
-                    >
-                      <Text style={styles.reserveText}>{hasEmpresa ? 'Ver detalles' : 'Ver detalles'}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-            </View>
+      {/* Loading inline */}
+      {loadingline && (
+        <View style={{ paddingVertical: 20, alignItems: 'center', width: '100%' }}>
+          <ActivityIndicator size="small" color="#4f46e5" />
+          <Text style={{ color: '#fff', marginTop: 5 }}>Cargando eventos...</Text>
+        </View>
+      )}
 
-            {filteredEvents.length > pageSize && (
-              <View style={styles.paginationBar}>
-                <TouchableOpacity onPress={goPrev} disabled={!canPrev} style={[styles.pageArrow, !canPrev && styles.pageArrowDisabled]}>
-                  <Text style={styles.pageArrowText}>{'<'}</Text>
-                </TouchableOpacity>
-                <Text style={styles.pageIndicator}>Página {page + 1} de {totalPages}</Text>
-                <TouchableOpacity onPress={goNext} disabled={!canNext} style={[styles.pageArrow, !canNext && styles.pageArrowDisabled]}>
-                  <Text style={styles.pageArrowText}>{'>'}</Text>
-                </TouchableOpacity>
+      {/* No hay eventos */}
+      {!loadingline && events.length === 0 && (
+        <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>
+          No hay eventos para mostrar.
+        </Text>
+      )}
+
+      {/* Lista de eventos */}
+      {!loadingline && events.map(event => (
+        <View key={event.id} style={styles.eventCard}>
+          <View style={styles.ownerRow}>
+            {event.ownerLogo ? (
+              <Image
+                source={{ uri: event.ownerLogo }}
+                style={styles.ownerAvatar}
+              />
+            ) : (
+              <View style={styles.ownerAvatar}>
+                <Text style={styles.ownerAvatarText}>{(event.ownerName || '?').charAt(0).toUpperCase()}</Text>
               </View>
             )}
-          </>
-        )}
+            <View style={{ flex: 1 }}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => {
+                  let empresaIdTarget = event.rawEmpresaId || null;
+                  if (!empresaIdTarget && event.ownerName?.startsWith('Empresa #')) {
+                    empresaIdTarget = event.ownerName.replace('Empresa #', '');
+                  }
+                  if (!empresaIdTarget) return;
+
+                  if (ownEmpresaId && String(empresaIdTarget) === String(ownEmpresaId)) {
+                    navigation.navigate('Empresa');
+                  } else {
+                    navigation.navigate('EmpresaScreenUser', { empresaId: empresaIdTarget });
+                  }
+                }}
+              >
+                <Text style={[styles.ownerName, (event.rawEmpresaId || event.ownerName?.startsWith('Empresa #')) && { textDecorationLine: 'underline' }]}>
+                  {event.ownerName}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.ownerLabel}>Organizador</Text>
+            </View>
+            {event.tag && (
+              <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
+            )}
+          </View>
+
+          <Image
+            source={{
+              uri: event.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
+            }}
+            style={styles.eventImage}
+            resizeMode="cover"
+          />
+
+          <Text style={styles.eventTitle}>{event.title}</Text>
+
+          {event.time && event.time !== 'Hora no definida' && (
+            <View style={styles.eventoInfo}>
+              <Text style={styles.eventoInfoText}>📅 {event.date}  ⏰ {event.time}</Text>
+            </View>
+          )}
+
+          <View style={styles.eventInfo}>
+            <Text style={styles.eventoInfoText}>📍 {event.location}</Text>
+          </View>
+
+          <Text style={styles.eventPrice}>{event.price}</Text>
+
+          <TouchableOpacity
+            style={styles.reserveBtn}
+            onPress={() => {
+              navigation.navigate('Reservar/Comprar', {
+                idEvento: event.id,
+                idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #', '') : undefined
+              });
+            }}
+          >
+            <Text style={styles.reserveText}>Ver detalles</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+
+    </View>
+  </>
+)}
+
+
+            {totalCount > events.length && (
+            <View style={styles.paginationBar}>
+              <TouchableOpacity
+                onPress={() => prevPage && fetchEventos(prevPage)}
+                disabled={!prevPage}
+                style={[styles.pageArrow, !prevPage && styles.pageArrowDisabled]}
+              >
+                <Text style={styles.pageArrowText}>{'<'}</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.pageIndicator}>
+                Página {currentPage} de {Math.ceil(totalCount / pageSize)}
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => nextPage && fetchEventos(nextPage)}
+                disabled={!nextPage}
+                style={[styles.pageArrow, !nextPage && styles.pageArrowDisabled]}
+              >
+                <Text style={styles.pageArrowText}>{'>'}</Text>
+              </TouchableOpacity>
+
+            </View>
+          )}
+
 
         {/* Testimonios eliminados */}
 

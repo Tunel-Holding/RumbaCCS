@@ -50,7 +50,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models.expressions import RawSQL
 from rest_framework.parsers import MultiPartParser, FormParser
 from .supabase_client import supabase, upload_image_to_supabase
-from .services import upload_empresa_profile_picture, delete_empresa_profile_picture
+from .services import upload_empresa_profile_picture, delete_empresa_profile_picture, CustomPagination
 from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny
@@ -395,6 +395,7 @@ class EventoViewSet(viewsets.ModelViewSet):
     serializer_class = EventoSerializer
     authentication_classes = [EmpresaJWTAuthentication]
     permission_classes = [IsEmpresaOrUsuarioAuthenticated]
+    
 
     def get_queryset(self):
         empresa_pk = self.kwargs.get('empresa_pk')
@@ -451,18 +452,29 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
 
 
 class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
-    # queryset = Evento2.objects.all().order_by('-id')  # orden por id
     serializer_class = EventoSerializer
-    permission_classes = [AllowAny]  # público, no requiere token
-    
+    permission_classes = [AllowAny]
+    pagination_class = CustomPagination
+
     def get_queryset(self):
         """
-        Sobrescribimos este método para devolver solo eventos cuya fecha
-        aún no ha pasado (eventos futuros o del día de hoy).
-        Los ordenamos por fecha de evento ascendente para mostrar los más próximos primero.
+        Devuelve eventos futuros y aplica filtros opcionales: category y search.
         """
-        return Evento2.objects.filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
-        
+        queryset = Evento2.objects.filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
+
+        # Filtrar por categoría si se recibe en query params
+        categoria = self.request.query_params.get('categoria')
+        if categoria:
+            queryset = queryset.filter(categoria__icontains=categoria)
+
+
+        # Filtrar por búsqueda (opcional)
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(titulo__icontains=search)
+
+        return queryset
+
     @action(detail=False, methods=['get'])
     def nearby(self, request):
         lat = request.query_params.get('lat')
@@ -475,9 +487,8 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         except ValueError:
             return Response({'detail': 'lat and lng must be floats'}, status=400)
 
-        radius_km = float(request.query_params.get('radius_km', 10))  # default 10 km
+        radius_km = float(request.query_params.get('radius', 10))
 
-        # Haversine formula
         haversine_sql = (
             "6371 * acos( "
             "cos(radians(%s)) * cos(radians(latitude)) * cos(radians(longitude) - radians(%s)) + "
@@ -486,13 +497,13 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         )
         qs = Evento2.objects.annotate(
             distance=RawSQL(haversine_sql, (lat_f, lng_f, lat_f))
-        ).filter(distance__lte=radius_km,fecha_evento__gte=timezone.now()).order_by('distance', 'fecha_evento') # más cercano primero ('distance', 'fecha_evento')
+        ).filter(distance__lte=radius_km, fecha_evento__gte=timezone.now()).order_by('distance', 'fecha_evento')
 
         page = self.paginate_queryset(qs)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-        
+
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 

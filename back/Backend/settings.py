@@ -127,6 +127,15 @@ DATABASES = {
         },
     }
 }
+# Alternativa: configuración para SQLite (local)
+# Útil para desarrollo local sin depender de Supabase
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',  # archivo local en tu proyecto
+#     }
+# }
+
 
 # DATABASES = {
 #     'default': {
@@ -194,6 +203,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',  # en producción restringe por vista
     ),
+     "DEFAULT_PAGINATION_CLASS": "empresa.services.CustomPagination",  # 👈 usa tu archivo services.py
+    "PAGE_SIZE": 10,
     # "DEFAULT_PERMISSION_CLASSES": (
     #     "rest_framework.permissions.IsAuthenticated",
     # ),

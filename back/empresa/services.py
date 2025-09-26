@@ -1,6 +1,8 @@
 import uuid
 from .supabase_client import supabase
 from urllib.parse import urlparse
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
 
 def upload_empresa_profile_picture(file, empresa_id):
     bucket = "empresas"  # asegúrate de tener creado este bucket en Supabase
@@ -23,3 +25,18 @@ def delete_empresa_profile_picture(public_url):
     if "empresas/" in path:
         file_path = path.split("empresas/", 1)[1]
         supabase.storage.from_("empresas").remove([file_path])
+
+
+
+class CustomPagination(PageNumberPagination):
+    page_size = 10  # por defecto
+    page_size_query_param = "page_size"  # permite ?page_size=20
+    max_page_size = 20
+
+    def get_paginated_response(self, data):
+        return Response({
+            "count": self.page.paginator.count,
+            "next": self.get_next_link(),
+            "previous": self.get_previous_link(),
+            "results": data
+        })
