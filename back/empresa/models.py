@@ -86,6 +86,29 @@ class Empresa(models.Model):
         help_text="Usuarios que siguen esta empresa"
     )
 
+     # Estados de verificación manual y auditoría
+   
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pendiente'),
+            ('approved', 'Aprobada'),
+            ('rejected', 'Rechazada'),
+        ],
+        default='pending'
+    )
+    company_verified = models.BooleanField(default=False)
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='empresas_verificadas'
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verification_notes = models.TextField(blank=True)
+    rejection_reason = models.TextField(blank=True)
+
+
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     activo = models.BooleanField(default=True)
 
@@ -93,14 +116,13 @@ class Empresa(models.Model):
         verbose_name = "Empresa"
         verbose_name_plural = "Empresas"
         ordering = ["nombre"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["rif"]),
+            models.Index(fields=["email"]),
+        ]
+
         
-    # def delete(self, *args, **kwargs):
-    #     if self.avatar_path:
-    #         try:
-    #             supabase.storage.from_(settings.SUPABASE_BUCKET).remove([self.avatar_path])
-    #         except Exception:
-    #             pass
-    #     super().delete(*args, **kwargs)
         
     def __str__(self):
         return self.nombre
@@ -121,8 +143,30 @@ class Empresa(models.Model):
     def eventos_publicados(self):
         # si ya tienes un modelo Evento con ForeignKey a Empresa:
         return self.eventos.count() if hasattr(self, "eventos") else 0
+    
+    # Métodos de negocio para verificación
+    def approve(self, user, notes=""):
+        self.company_verified = True
+        self.status = 'approved'
+        self.verified_by = user
+        self.verified_at = timezone.now()
+        self.verification_notes = notes or self.verification_notes
+        self.rejection_reason = ""  # limpia rechazo previo si lo hubo
+        self.save(update_fields=[
+            'company_verified', 'status', 'verified_by', 'verified_at', 'verification_notes', 'rejection_reason'
+        ])
 
-    # Elimina el campo JSONField, ahora se usará la tabla EmpresaRedSocial
+    def reject(self, user, reason=""):
+        self.company_verified = False
+        self.status = 'rejected'
+        self.verified_by = user
+        self.verified_at = timezone.now()
+        self.rejection_reason = reason or self.rejection_reason
+        self.save(update_fields=[
+            'company_verified', 'status', 'verified_by', 'verified_at', 'rejection_reason'
+        ])
+
+
 class EmpresaRedSocial(models.Model):
     RED_CHOICES = [
         ('instagram', 'Instagram'),
