@@ -21,6 +21,9 @@ export default function FormularioScreen({ navigation, route }) {
   const [telefono, setTelefono] = useState('');
   const [correo, setCorreo] = useState('');
   const [redes, setRedes] = useState('');
+  // Contraseña y repetir contraseña
+  const [password, setPassword] = useState('');
+  const [repeatPassword, setRepeatPassword] = useState('');
   // --- Redes sociales múltiples (front) ---
   const [usaRedes, setUsaRedes] = useState(null); // 'si' | 'no' | null
   const SOCIAL_OPTIONS = [
@@ -35,6 +38,7 @@ export default function FormularioScreen({ navigation, route }) {
   const [socialLinks, setSocialLinks] = useState({ instagram:'', facebook:'', tiktok:'', x:'', youtube:'', whatsapp:'' });
   const [descripcion, setDescripcion] = useState(''); // si lo necesitas en actualizar
   const [errores, setErrores] = useState({});
+  const [passwordError, setPasswordError] = useState('');
   const [cargando, setCargando] = useState(false);
   const [verificado, setVerificado] = useState(false);
   const [pinDigits, setPinDigits] = useState(['','','','','','']);
@@ -114,14 +118,19 @@ export default function FormularioScreen({ navigation, route }) {
   // ✅ Validación
   const validarCampos = () => {
     const nuevosErrores = {};
+    let passError = '';
     if (!nombre.trim()) nuevosErrores.nombre = 'Este campo es obligatorio';
     if (!rif.trim()) nuevosErrores.rif = 'Este campo es obligatorio';
     if (!lugar.trim()) nuevosErrores.lugar = 'Este campo es obligatorio';
     if (!telefono.trim()) nuevosErrores.telefono = 'Este campo es obligatorio';
     if (!correo.trim()) nuevosErrores.correo = 'Este campo es obligatorio';
+    if (!password) passError = 'La contraseña es obligatoria';
+    else if (password.length < 6) passError = 'La contraseña debe tener al menos 6 caracteres';
+    else if (password !== repeatPassword) passError = 'Las contraseñas no coinciden';
     setErrores(nuevosErrores);
-    console.log("Errores de validación:", nuevosErrores);
-    return Object.keys(nuevosErrores).length === 0;
+    setPasswordError(passError);
+    console.log("Errores de validación:", nuevosErrores, passError);
+    return Object.keys(nuevosErrores).length === 0 && !passError;
   };
 
 const handleEnviar = async () => {
@@ -153,6 +162,15 @@ const handleEnviar = async () => {
         }
       }
       
+      // Construir array de redes sociales con los seleccionados y sus links
+      const redesSocialesArr = [];
+      if (usaRedes === 'si') {
+        Object.keys(socialChecks).forEach(key => {
+          if (socialChecks[key] && socialLinks[key].trim()) {
+            redesSocialesArr.push({ tipo: key, url: socialLinks[key].trim() });
+          }
+        });
+      }
       const empresaData = {
         nombre,
         rif: rifFormateado,
@@ -160,9 +178,9 @@ const handleEnviar = async () => {
         lugar,
         telefono: telefonoValido,
         email_contacto: correo,
-        redes_sociales: redes || "",
+        redes_sociales: redesSocialesArr,
         email: correo,
-        password: "00000000",
+        password: password,
       };
 
       const res = await api.post('/api/registro-empresa/', empresaData);
@@ -186,6 +204,15 @@ const handleEnviar = async () => {
     } else {
       // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
       console.log("Creando empresa para usuario existente, token:");
+      // Construir array de redes sociales con los seleccionados y sus links
+      const redesSocialesArr2 = [];
+      if (usaRedes === 'si') {
+        Object.keys(socialChecks).forEach(key => {
+          if (socialChecks[key] && socialLinks[key].trim()) {
+            redesSocialesArr2.push({ tipo: key, url: socialLinks[key].trim() });
+          }
+        });
+      }
       const res = await api.post('/api/empresas/', {
         rif: rifFormateado,
         lugar,
@@ -193,9 +220,9 @@ const handleEnviar = async () => {
         nombre,
         descripcion: descripcion || "",
         email_contacto: correo,
-        redes_sociales: redes || "",
+        redes_sociales: redesSocialesArr2,
         email: correo,
-        password: "00000000",
+        password: password,
       });
 
       console.log("Respuesta al crear empresa:", res);
@@ -237,20 +264,29 @@ const handleValidarPin = async () => {
         : (rif ? `${rifPrefix}-${rif}` : '');
   try {
     setCargando(true);
+    // Construir array de redes sociales con los seleccionados y sus links
+    const redesSocialesArr = [];
+    if (usaRedes === 'si') {
+      Object.keys(socialChecks).forEach(key => {
+        if (socialChecks[key] && socialLinks[key].trim()) {
+          redesSocialesArr.push({ tipo: key, url: socialLinks[key].trim() });
+        }
+      });
+    }
     const res = await api.post('/api/validar-pin-empresa/', {
-  email: correo,
-  pin: pinIngresado,
-  password: "00000000",
-  empresa: {
-    nombre,
-    rif: rifFormateado,
-    lugar,
-    telefono,
-    email_contacto: correo,
-    redes_sociales: redes || "",
-    descripcion,
-  }
-});
+      email: correo,
+      pin: pinIngresado,
+      password: password,
+      empresa: {
+        nombre,
+        rif: rifFormateado,
+        lugar,
+        telefono,
+        email_contacto: correo,
+        redes_sociales: redesSocialesArr,
+        descripcion,
+      }
+    });
 
 const data = res.data;
 
@@ -565,6 +601,37 @@ navigation.reset({
               />
             </View>
             {errores.correo && <Text style={styles.errorText}>{errores.correo}</Text>}
+            {/* Contraseña y repetir contraseña */}
+            <Text style={styles.label}>Contraseña</Text>
+            <View onLayout={e => registerFieldPosition('password', e.nativeEvent.layout.y)}>
+              <TextInput
+                style={styles.input}
+                placeholder="Contraseña"
+                placeholderTextColor="#888"
+                value={password}
+                onChangeText={text => { setPassword(text); if (passwordError) setPasswordError(''); }}
+                onFocus={() => scrollToField('password')}
+                secureTextEntry
+                returnKeyType='next'
+                autoCapitalize='none'
+              />
+            </View>
+            <Text style={styles.label}>Repetir contraseña</Text>
+            <View onLayout={e => registerFieldPosition('repeatPassword', e.nativeEvent.layout.y)}>
+              <TextInput
+                style={styles.input}
+                placeholder="Repetir contraseña"
+                placeholderTextColor="#888"
+                value={repeatPassword}
+                onChangeText={text => { setRepeatPassword(text); if (passwordError) setPasswordError(''); }}
+                onFocus={() => scrollToField('repeatPassword')}
+                secureTextEntry
+                returnKeyType='done'
+                autoCapitalize='none'
+              />
+            </View>
+            {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+
             <Text style={styles.label}>¿Agregar redes sociales?</Text>
             <View style={{ flexDirection:'row', marginBottom: 12 }}>
               {['si','no'].map(op => (

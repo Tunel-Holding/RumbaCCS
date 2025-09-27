@@ -1,3 +1,4 @@
+  // ...existing code...
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -22,7 +23,6 @@ import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
 import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
 import { loginConFallback } from '../utils/auth';
@@ -30,6 +30,58 @@ import { loginConFallback } from '../utils/auth';
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreen() {
+  // Estado y lógica para seguidores
+  const [seguidores, setSeguidores] = useState([]);
+  const [seguidoresModal, setSeguidoresModal] = useState(false);
+
+  // Función para obtener los seguidores de la empresa
+  const fetchSeguidores = async () => {
+    try {
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      if (!empresaId) return setSeguidores([]);
+      const res = await api.get(`/api/empresa-seguidores/`);
+      setSeguidores(res.data || []);
+    } catch (e) {
+      setSeguidores([]);
+    }
+  };
+
+  // Modal para mostrar los seguidores
+  const renderSeguidoresModal = () => (
+    <Modal
+      visible={seguidoresModal}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setSeguidoresModal(false)}
+    >
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 8, right: 12, zIndex: 2 }} onPress={() => setSeguidoresModal(false)}>
+            <Text style={{ fontSize: 24, color: '#0ea5e9' }}>×</Text>
+          </TouchableOpacity>
+          <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Usuarios que te siguen</Text>
+          <ScrollView style={{ maxHeight: 300, width: '100%' }}>
+            {seguidores.length === 0 ? (
+              <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>No tienes seguidores aún.</Text>
+            ) : (
+              seguidores.map((seguidor, idx) => (
+                <View key={seguidor.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  {seguidor.avatar_url ? (
+                    <Image source={{ uri: seguidor.avatar_url }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
+                  ) : (
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Text style={{ fontSize: 20, color: '#6b7280' }}>👤</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 16, color: '#111827' }}>{seguidor.username || seguidor.nombre || 'Usuario'}</Text>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
@@ -60,6 +112,7 @@ export default function EmpresaScreen() {
       const response = await api.get(`/api/empresas/${empresaId}/`);
       
       setEmpresaData(response.data);
+      console.log("Datos de empresa:", response.data);
    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
@@ -78,9 +131,51 @@ export default function EmpresaScreen() {
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
-    seguidores: empresaData?.seguidores || 0,
-    eventosPublicados: empresaData?.eventosPublicados || 0,
+    seguidores: empresaData?.total_seguidores || 0,
+    eventosPublicados: empresaData?.total_eventos || 0,
   }
+
+
+
+const handleUploadFoto = async (empresaId) => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    quality: 0.8,
+  });
+
+  if (result.canceled) return;
+
+  const file = {
+    uri: result.assets[0].uri,
+    name: "profile.jpg",
+    type: "image/jpeg",
+  };
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  console.log("Subiendo foto para empresaId:", empresaId);
+
+  try {
+    const response = await api.post(
+      `/api/empresas/${empresaId}/upload-foto/`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+
+    console.log("Logo subido:", response.data.logo);
+    setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
+    return true; // Devuelve true en caso de éxito
+    
+  } catch (error) {
+    console.error("Error subiendo logo:", error.response?.data || error.message);
+    return false
+  }
+};
 
 
   const [eventos, setEventos] = useState([]);
@@ -116,6 +211,7 @@ useEffect(() => {
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
         imagenes: ev.imagenes,
         ownerName: ev.ownerName || `Empresa #${empresaId}`,
+        empresaId: ev.empresaId || empresaId,
       }));
 
       console.log("Status:", res.status);
@@ -297,10 +393,22 @@ useEffect(() => {
         <View style={styles.fotoContainer}>
           <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={() => setProfilePicModal(true)}
+            onPress={async () => {
+              const success = await handleUploadFoto(empresaData?.id);
+              if (!success) {
+                Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
+              }
+            }}
             activeOpacity={0.7}
           >
-            <Text style={styles.fotoIcon}>👤</Text>
+            {empresaData?.logo ? (
+              <Image
+                source={{ uri: empresaData.logo }}
+                style={{ width: '100%', height: '100%', borderRadius: 100 }}
+              />
+            ) : (
+              <Text style={styles.fotoIcon}>👤</Text>
+            )}
           </TouchableOpacity>
         </View>
         {/* Datos de empresa */}
@@ -308,7 +416,18 @@ useEffect(() => {
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
-          
+
+          {/* Botón para ver seguidores justo debajo del texto de seguidores */}
+          <TouchableOpacity
+            style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 12, alignItems: 'center', marginVertical: 10 }}
+            onPress={async () => {
+              await fetchSeguidores();
+              setSeguidoresModal(true);
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ver usuarios que te siguen</Text>
+          </TouchableOpacity>
+
           <View style={styles.accionesRow}>
             {/* Botón de seguir eliminado */}
             <TouchableOpacity
@@ -526,8 +645,9 @@ console.log("imagenes del evento",eventos.imagenes)
                             { text: 'Cancelar', style: 'cancel' },
                             { text: 'Eliminar', style: 'destructive', onPress: async () => {
                                 try {
-                                  await api.delete(`/api/eventos/${evento.id}/`);
+                                  await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
                                   setEventos(prev => prev.filter(ev => ev.id !== evento.id));
+                                  Alert.alert('Éxito', 'El evento ha sido eliminado');
                                 } catch (e) {
                                   Alert.alert('Error', 'No se pudo eliminar el evento');
                                 }
@@ -539,6 +659,20 @@ console.log("imagenes del evento",eventos.imagenes)
                     >
                       <Text style={styles.verDetallesText}>Borrar</Text>
                     </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.verDetallesButton}
+                        onPress={() => {
+                          navigation.navigate('Reservar/Comprar', {
+                            idEvento: evento.id,
+                            idEmpresa: evento.ownerName?.startsWith('Empresa #')
+                              ? evento.ownerName.replace('Empresa #', '')
+                              : undefined
+                          });
+                        }}
+                      >
+                        <Text style={styles.verDetallesText}>Ver detalles</Text>
+                      </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -574,29 +708,7 @@ console.log("imagenes del evento",eventos.imagenes)
         <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
           <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:300 }}>
             <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Cambiar foto de perfil</Text>
-            <TouchableOpacity
-              style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }}
-              onPress={async () => {
-                // Solicitar permisos y abrir galería
-                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                if (status !== 'granted') {
-                  Alert.alert('Permiso requerido', 'Se necesita permiso para acceder a la galería.');
-                  return;
-                }
-                const result = await ImagePicker.launchImageLibraryAsync({
-                  mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                  allowsEditing: true,
-                  aspect: [1, 1],
-                  quality: 0.7,
-                });
-                if (!result.canceled && result.assets && result.assets.length > 0) {
-                  // Aquí puedes manejar la imagen seleccionada: result.assets[0].uri
-                  console.log('Imagen seleccionada:', result.assets[0].uri);
-                  setProfilePicModal(false);
-                  // TODO: subir imagen o actualizar estado
-                }
-              }}
-            >
+            <TouchableOpacity style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }} onPress={() => {/* lógica de selección */}}>
               <Text style={{ color:'#fff', textAlign:'center' }}>Seleccionar imagen</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
@@ -605,6 +717,7 @@ console.log("imagenes del evento",eventos.imagenes)
           </View>
         </View>
       </Modal>
+      
       {/* Modal de Login */}
       <Modal
         visible={loginVisible}
@@ -663,9 +776,9 @@ console.log("imagenes del evento",eventos.imagenes)
           </View>
         </View>
       </Modal>
-      {renderHeader()}
-       {renderNotificationsModal()}
-      
+  {renderHeader()}
+  {renderNotificationsModal()}
+  {renderSeguidoresModal()}
   <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}

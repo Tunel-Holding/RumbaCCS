@@ -39,16 +39,28 @@ export default function EmpresaScreenUser() {
   const [loading, setLoading] = useState(true);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [isEmpresaAccount, setIsEmpresaAccount] = useState(false);
+
 
 
 
   const [empresaData, setEmpresaData] = useState(null);
 
+  
+
   useEffect(() => {
   const fetchEmpresa = async () => {
     try {
+
+      const isEmpresaAccount = await AsyncStorage.getItem('isEmpresaAccount') === 'true';
+      setIsEmpresaAccount(isEmpresaAccount);
+
+
       const empresaId = empresaIdParam;
       const response = await api.get(`/api/public/empresas/${empresaId}/`);
+      if (response.data.is_following) {
+        setIsFollowing(true);
+      }
       setEmpresaData(response.data);
     } catch (error) {
       if (error.response) {
@@ -62,6 +74,8 @@ export default function EmpresaScreenUser() {
   };
   fetchEmpresa();
 }, [empresaIdParam]);
+
+console.log("Empresa Data:", empresaData);
   
 
 const [loginVisible, setLoginVisible] = useState(false);
@@ -90,49 +104,56 @@ const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
     return false;
   }
 };
-const seguir = async () => {
-  try {
-    const token = await AsyncStorage.getItem('accessToken');
-    if (!token) {
-      setLoginVisible(true);     
-    } else {
-      toggleFollow();
-    }
-  } catch (error) {
-    console.error("Error al seguir a la empresa:", error);
-    return false;
-  }
-};
 
 const handleLogin = async () => {
-  setLoginError('');
-  setLoginLoading(true);
   const resultado = await loginConFallback(user, pass);
-  setLoginLoading(false);
   if (resultado.error) {
     switch (resultado.tipo) {
       case 'validacion':
-        setLoginError('Por favor ingresa email y contraseña');
+        Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
         break;
       case 'error':
-        setLoginError('Error inesperado: ' + resultado.error);
+        Alert.alert('Error inesperado', resultado.error);
         break;
       case 'credenciales':
-        setLoginError('Usuario o contraseña incorrectos');
+        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
         break;
     }
     return;
   }
   setLoginVisible(false);
-  setLoginError('');
-  // Login exitoso, no mostrar alerta
+  Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
 };
+const seguir = async () => {
+
+    
+    const token = await AsyncStorage.getItem('accessToken');
+    if (!token) {
+      setLoginVisible(true);
+      return;
+    }
+
+    try {
+      const res = await api.post(`/api/empresas/${empresaIdParam}/seguir/`);
+      
+      if (res.status === 200) {
+        setIsFollowing(true);
+      }
+      else if (res.status === 405) {
+        Alert.alert('Ya sigues a esta empresa');
+      }
+    } catch (error) {
+      console.error("Error al seguir a la empresa:", error);
+    }
+};
+
+console.log('🏢 Datos de la empresa:', empresaData1);
 
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
-    seguidores: empresaData?.seguidores || 0,
-    eventosPublicados: empresaData?.eventosPublicados || 0,
+    seguidores: empresaData?.total_seguidores || 0,
+    eventosPublicados: empresaData?.total_eventos || 0,
   }
 
   const [eventos, setEventos] = useState([]);
@@ -468,7 +489,14 @@ useEffect(() => {
             onPress={() => console.log('Ver perfil de empresa')}
             activeOpacity={0.7}
           >
-            <Text style={styles.fotoIcon}>👤</Text>
+          {empresaData?.logo ? (
+          <Image
+            source={{ uri: empresaData.logo }}
+            style={{ width: '100%', height: '100%', borderRadius: 100 }}
+          />
+        ) : (
+          <Text style={styles.fotoIcon}>👤</Text>
+        )}
           </TouchableOpacity>
         </View>
         {/* Datos de empresa */}
@@ -477,27 +505,28 @@ useEffect(() => {
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
           <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
-          <View style={styles.accionesRow}>
-            <TouchableOpacity
-              style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
-              onPress={seguir}
-              activeOpacity={0.85}
-            >
-              <View style={styles.seguirIcon}>
-                <PersonIcon size={18} color="#ffffff" />
-              </View>
-              <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
-               
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.clasificarButton}
-              activeOpacity={0.85}
-              onPress={() => setModalVisible({ ...modalVisible, rating: true })}
-            >
-              <Text style={styles.clasificarStar}>★</Text>
-              <Text style={styles.clasificarText}>Calificar</Text>
-            </TouchableOpacity>
-          </View>
+          {!isEmpresaAccount && (
+            <View style={styles.accionesRow}>
+              <TouchableOpacity
+                style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
+                onPress={seguir}
+                activeOpacity={0.85}
+              >
+                <View style={styles.seguirIcon}>
+                  <PersonIcon size={18} color="#ffffff" />
+                </View>
+                <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.clasificarButton}
+                activeOpacity={0.85}
+                onPress={() => setModalVisible({ ...modalVisible, rating: true })}
+              >
+                <Text style={styles.clasificarStar}>★</Text>
+                <Text style={styles.clasificarText}>Calificar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </View>
@@ -541,7 +570,6 @@ useEffect(() => {
       </View>
     );
   };
-
 
   const renderEventos = () => (
     <View style={styles.eventosContainer}>

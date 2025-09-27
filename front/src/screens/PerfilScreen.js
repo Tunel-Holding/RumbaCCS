@@ -26,6 +26,12 @@ export default function PerfilScreen({ navigation }) {
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
   const [profilePicModal, setProfilePicModal] = useState(false);
+  // Estado para empresas seguidas (usuario normal)
+  const [empresasSeguidas, setEmpresasSeguidas] = useState([]);
+  const [empresasModal, setEmpresasModal] = useState(false);
+  // Estado para seguidores (usuario empresa)
+  const [seguidores, setSeguidores] = useState([]);
+  const [seguidoresModal, setSeguidoresModal] = useState(false);
 
   useEffect(() => {
     
@@ -63,6 +69,19 @@ export default function PerfilScreen({ navigation }) {
   };
 }, [navigation]);
 
+// RN: envío simple a tu endpoint DRF
+// const uploadAvatar = async (uri, name, type, token) => {
+//   const formData = new FormData();
+//   formData.append('file', { uri, name, type });
+
+//   const res = await api.post(`/api/usuarios/upload_avatar/`, formData, {
+//     headers: {
+//       'Authorization': `Bearer ${token}`, // o 'Token <token>' dependiendo de tu auth en DRF
+//       'Content-Type': 'multipart/form-data',
+//     },
+//   });
+//   return res.data;
+// };
 
  const handleLogout = async () => {
   await Promise.all([
@@ -242,7 +261,124 @@ export default function PerfilScreen({ navigation }) {
             <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
           </TouchableOpacity>
         ) : null}
-        <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>0</Text></Text>
+        {/* Mostrar solo el botón correspondiente según el tipo de usuario */}
+        {!hasEmpresa && (
+          <>
+            <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>{empresasSeguidas.length}</Text></Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 18, marginBottom: 8, alignItems: 'center', alignSelf: 'center' }}
+              onPress={async () => {
+                try {
+                  const res = await api.get('/api/empresas-seguidas/');
+                  setEmpresasSeguidas(res.data || []);
+                } catch (e) {
+                  setEmpresasSeguidas([]);
+                }
+                setEmpresasModal(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ver empresas que sigues</Text>
+            </TouchableOpacity>
+            {/* Modal lista de empresas seguidas */}
+            <Modal
+              visible={empresasModal}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setEmpresasModal(false)}
+            >
+              <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+                <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:320, maxHeight:'80%' }}>
+                  <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#0ea5e9' }}>Empresas que sigues</Text>
+                  <ScrollView style={{ width:'100%' }}>
+                    {empresasSeguidas.length === 0 ? (
+                      <Text style={{ color:'#64748b', textAlign:'center' }}>No sigues ninguna empresa.</Text>
+                    ) : (
+                      empresasSeguidas.map((emp, idx) => (
+                        <View key={emp.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, justifyContent: 'center' }}>
+                          {emp.logo_url || emp.logo ? (
+                            <Image
+                              source={{ uri: emp.logo_url || emp.logo }}
+                              style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb' }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: '#94a3b8', fontSize: 18 }}>🏢</Text>
+                            </View>
+                          )}
+                          <Text style={{ color:'#1e293b', fontSize:16, textAlign:'center', flexShrink: 1 }}>{emp.nombre || emp.name || 'Empresa sin nombre'}</Text>
+                        </View>
+                      ))
+                    )}
+                  </ScrollView>
+                  <TouchableOpacity style={{ marginTop:16 }} onPress={() => setEmpresasModal(false)}>
+                    <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          </>
+        )}
+        {hasEmpresa && (
+          <>
+            <Text style={styles.userStats}>Empresas que sigues: <Text style={styles.highlight}>{seguidores.length}</Text></Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 18, marginBottom: 8, alignItems: 'center', alignSelf: 'center' }}
+              onPress={async () => {
+                try {
+                  const res = await api.get('/api/empresa-seguidores/');
+                  setSeguidores(res.data || []);
+                } catch (e) {
+                  setSeguidores([]);
+                }
+                setSeguidoresModal(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ver empresas que sigues</Text>
+            </TouchableOpacity>
+            {/* Modal lista de seguidores */}
+            <Modal
+              visible={seguidoresModal}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setSeguidoresModal(false)}
+            >
+              <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+                <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:320, maxHeight:'80%' }}>
+                  <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#0ea5e9' }}>Empresas que sigues</Text>
+                  <ScrollView style={{ width:'100%' }}>
+                    {seguidores.length === 0 ? (
+                      <Text style={{ color:'#64748b', textAlign:'center' }}>No sigues ninguna empresa aún.</Text>
+                    ) : (
+                      seguidores.map((user, idx) => (
+                        <View key={user.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, justifyContent: 'center' }}>
+                          {user.avatar_url || user.avatar ? (
+                            <Image
+                              source={{ uri: user.avatar_url || user.avatar }}
+                              style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb' }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: '#94a3b8', fontSize: 18 }}>👤</Text>
+                            </View>
+                          )}
+                          <Text style={{ color:'#1e293b', fontSize:16, textAlign:'center', flexShrink: 1 }}>{user.nombre || user.name || user.username || 'Usuario sin nombre'}</Text>
+                        </View>
+                      ))
+                    )}
+                  </ScrollView>
+                  <TouchableOpacity style={{ marginTop:16 }} onPress={() => setSeguidoresModal(false)}>
+                    <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          </>
+        )}
+        {/* Bloque duplicado de modal de seguidores eliminado para corregir error de sintaxis */}
         {renderSectionButtons()}
       </View>
 
