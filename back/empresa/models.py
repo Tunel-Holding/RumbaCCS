@@ -111,6 +111,28 @@ class Empresa(models.Model):
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     activo = models.BooleanField(default=True)
+    
+    # Asignación de responsable de verificación
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='empresas_asignadas',
+        help_text='Validador asignado para revisar esta empresa'
+    )
+    assigned_at = models.DateTimeField(null=True, blank=True)
+
+    # Opcional: estado interno del proceso de revisión (no reemplaza tu status)
+    review_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pendiente'),
+            ('assigned', 'Asignada'),
+            ('in_review', 'En revisión'),
+        ],
+        default='pending',
+        help_text='Estado del proceso de revisión (independiente de approved/rejected)'
+    )
 
     class Meta:
         verbose_name = "Empresa"
@@ -120,9 +142,19 @@ class Empresa(models.Model):
             models.Index(fields=["status"]),
             models.Index(fields=["rif"]),
             models.Index(fields=["email"]),
+            models.Index(fields=['assigned_to', 'status']),
+            models.Index(fields=['review_status']),
         ]
 
-        
+    # Método liviano para iniciar revisión por el asignado
+    def start_review(self, user):
+        if self.assigned_to_id != user.id:
+            return
+        if self.review_status in ('pending', 'assigned'):
+            self.review_status = 'in_review'
+            self.save(update_fields=['review_status'])
+            
+                
         
     def __str__(self):
         return self.nombre

@@ -74,6 +74,44 @@ class EmpresaRedSocialSerializer(serializers.ModelSerializer):
         model = EmpresaRedSocial
         fields = ['url']
 
+class EmpresaStaffSerializer(serializers.ModelSerializer):
+    assigned_to = serializers.StringRelatedField(read_only=True)
+    verified_by = serializers.StringRelatedField(read_only=True)
+
+    class Meta:
+        model = Empresa
+        fields = [
+            "id",
+            "nombre",
+            "rif",
+            "descripcion",
+            "lugar",
+            "telefono",
+            "email_contacto",
+            "email",
+            "logo",
+            "fecha_creacion",
+            "activo",
+            # 🔹 Campos de asignación y verificación
+            "status",
+            "review_status",
+            "assigned_to",
+            "assigned_at",
+            "company_verified",
+            "verified_by",
+            "verified_at",
+            "verification_notes",
+            "rejection_reason",
+        ]
+        read_only_fields = [
+            "id",
+            "assigned_to",
+            "assigned_at",
+            "verified_by",
+            "verified_at",
+            "fecha_creacion",
+        ]
+
 class EmpresaSerializer(serializers.ModelSerializer):
     total_seguidores = serializers.SerializerMethodField()
     is_siguiendo = serializers.SerializerMethodField()

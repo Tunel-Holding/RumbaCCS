@@ -8,11 +8,13 @@ from .models import (
     )
 from .serializers import (
     EmpresaTokenObtainPairSerializer,
-    EmpresaPublicSerializer, 
+    EmpresaPublicSerializer,
+    EmpresaSerializer,
     RatingSerializer,
     EventoImagenSerializer,
     TempImageSerializer,
     EmpresaBulkSerializer,
+    EmpresaStaffSerializer,
     )
 from api.models import EmailVerification
 from django.utils import timezone
@@ -54,6 +56,10 @@ from .services import upload_empresa_profile_picture, delete_empresa_profile_pic
 from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
+from .services import asignar_empresa_por_menor_carga, NoStaffAvailable
+from .notifications import notificar_asignacion_empresa
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -151,6 +157,15 @@ class EmpresaValidarPinView(generics.CreateAPIView):
             if url:
                 EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
 
+        # 🔹 Asignación automática al staff con menor carga
+        try:
+            asignar_empresa_por_menor_carga(empresa, nombre_grupo="Verificadores")
+        except NoStaffAvailable:
+            pass  # queda pendiente sin assigned_to
+        else:
+            if empresa.assigned_to:
+                notificar_asignacion_empresa(empresa)
+        
         print(f"[VALIDAR PIN] Empresa creada correctamente para email={email}")
 
         empresa_data_serialized = EmpresaSerializer(
@@ -283,6 +298,14 @@ class EmpresaViewSet(ModelViewSet):
             if url:
                 EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
 
+        # 🔹 Aquí añadimos la asignación automática
+        try:
+            asignar_empresa_por_menor_carga(empresa, nombre_grupo="Verificadores")
+        except NoStaffAvailable:
+            pass  # queda pendiente sin assigned_to
+        else:
+            if empresa.assigned_to:
+                notificar_asignacion_empresa(empresa)
 
     # Acción para seguir una empresa
     @action(detail=True, methods=['post'])

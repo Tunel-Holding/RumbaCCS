@@ -127,12 +127,14 @@ DATABASES = {
         },
     }
 }
+
 # Alternativa: configuración para SQLite (local)
 # Útil para desarrollo local sin depender de Supabase
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.sqlite3',
 #         'NAME': BASE_DIR / 'db.sqlite3',  # archivo local en tu proyecto
+        
 #     }
 # }
 
