@@ -3,8 +3,25 @@ from django.contrib import admin
 from django.utils import timezone
 from django import forms
 from django.contrib.admin.helpers import ActionForm
+from httpx import request
 from .models import Empresa
 from .notifications import notificar_asignacion_empresa, notificar_cambio_status
+
+class EmpresasAsignadasFilter(admin.SimpleListFilter):
+    title = "Empresas asignadas"
+    parameter_name = "empresas_asignadas"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("mias", "Asignadas a mí"),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == "mias":
+            return queryset.filter(assigned_to=request.user,
+                                   status='pending')
+        return queryset
+
 
 class VerificacionActionForm(ActionForm):
     notes = forms.CharField(
@@ -28,13 +45,19 @@ class EmpresaAdmin(admin.ModelAdmin):
         'nombre', 'rif', 'email', 'lugar', 'activo',
         'company_verified', 'status', 'verified_by', 'verified_at'
     )
-    list_filter = ('status', 'activo', 'company_verified', 'lugar')
+    list_filter = ('status', 'activo', 'company_verified', 'lugar', EmpresasAsignadasFilter)
     search_fields = ('nombre', 'rif', 'email')
     readonly_fields = ('verified_by', 'verified_at', 'fecha_creacion')
     date_hierarchy = 'fecha_creacion'
 
     action_form = VerificacionActionForm
     actions = ['aprobar_empresas', 'rechazar_empresas']
+    
+    def lookups(self, request, model_admin):
+        if request.user.groups.filter(name="Verificadores").exists():
+            return (("mias", "Asignadas a mí"),)
+        return ()
+
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
