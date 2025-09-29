@@ -110,7 +110,11 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         usuario = self.get_object()
         empresas = usuario.empresas_que_sigue.all()
         serializer = EmpresaSerializer(empresas, many=True, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response({
+            # "total": usuario.total_empresas_que_sigue,
+            "empresas": serializer.data
+        }, status=status.HTTP_200_OK)
+
 
 class FinalizeRegisterView(APIView):
     def post(self, request):

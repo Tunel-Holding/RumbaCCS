@@ -375,6 +375,11 @@ class EmpresaViewSet(ModelViewSet):
             status=status.HTTP_200_OK
         )
 
+    @action(detail=True, methods=["get"])
+    def seguidores(self, request, pk=None):
+        empresa = self.get_object()
+        seguidores = empresa.seguidores.all().values("id", "username")
+        return Response(seguidores)
 
 # -----------------------------
 # Endpoint de detalle de empresa

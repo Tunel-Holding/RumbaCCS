@@ -146,13 +146,15 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "rating_count",
             "total_eventos",
             "is_following",
+            "status",
         ]
         read_only_fields = [
             "id",
             "total_seguidores",
             "is_siguiendo",
             "fecha_creacion",
-            "activo"
+            "activo",
+            "status",
         ]
 
     def get_is_following(self, obj):
@@ -281,6 +283,7 @@ class EmpresaPublicSerializer(serializers.ModelSerializer):
     is_following = serializers.SerializerMethodField()
     total_seguidores = serializers.SerializerMethodField()
     total_eventos = serializers.SerializerMethodField()
+    
 
     class Meta:
         model = Empresa
