@@ -451,28 +451,6 @@ const handleImageUpload = async (eventoId, file) => {
 };
 
 
-// const fetchCoordinatesOSM = async (address) => {
-//   try {
-//     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
-//     const response = await fetch(url, {
-//       headers: {
-//         'User-Agent': 'RumbaApp/1.0 (noreplyrumbaccs@gmail.com)' // obligatorio para Nominatim
-//       }
-//     });
-//     const data = await response.json();
-//     if (data && data.length > 0) {
-//       const { lat, lon } = data[0];
-//       return { latitude: parseFloat(lat), longitude: parseFloat(lon) };
-//     } else {
-//       console.warn('No se encontraron coordenadas para', address);
-//       return null;
-//     }
-//   } catch (error) {
-//     console.error('Error al obtener coordenadas OSM:', error);
-//     return null;
-//   }
-// };
-
 const searchAddress = async (query) => {
     if (!query || query.trim() === "") return [];
 
@@ -490,27 +468,44 @@ const searchAddress = async (query) => {
     return data.map((item) => {
       const addr = item.address || {};
 
-      // Prioridad para sitio específico
-      const site =
-        addr.house ||
-        addr.building ||
-        addr.attraction ||
-        addr.amenity ||
-        addr.tourism ||
-        addr.leisure ||
-        addr.historic ||
-        addr.shop ||
-        '';
+      // // Prioridad para sitio específico
+      // const site =
+      //   addr.house ||
+      //   addr.building ||
+      //   addr.attraction ||
+      //   addr.amenity ||
+      //   addr.tourism ||
+      //   addr.leisure ||
+      //   addr.historic ||
+      //   addr.shop ||
+      //   '';
 
-      const road = addr.road || addr.pedestrian || '';
-      const suburb = addr.suburb || addr.neighbourhood || '';
-      const city = addr.city || addr.town || addr.village || '';
+      // const road = addr.road || addr.pedestrian || '';
+      // const suburb = addr.suburb || addr.neighbourhood || '';
+      // const city = addr.city || addr.town || addr.village || '';
 
-      // Combinar solo los que existan
-      const name = [site, road, suburb, city].filter(Boolean).join(', ');
+      // // Combinar solo los que existan
+      // const name = [site, road, suburb, city].filter(Boolean).join(', ');
+
+      // 1. Construimos la dirección ideal por partes, dando prioridad a los campos más específicos.
+      const placeName = addr.amenity || addr.shop || addr.tourism || addr.leisure || addr.building || addr.house_number;
+      const street = addr.road || addr.pedestrian;
+      const neighborhood = addr.suburb || addr.neighbourhood || addr.quarter;
+      const city = addr.city || addr.town || addr.village;
+
+      // 2. Combinamos las partes que existen en un array.
+      const parts = [placeName, street, neighborhood, city].filter(Boolean); // Elimina partes vacías
+
+      // 3. Creamos el nombre a partir de las partes.
+      let constructedName = [...new Set(parts)].join(', '); // `new Set` para evitar duplicados (ej: "Sambil, Sambil, Caracas")
+
+      // 4. Si el nombre construido es muy pobre (ej. solo "Caracas"), usamos el 'display_name' como fallback.
+      if (parts.length <= 1 && item.display_name) {
+        constructedName = item.display_name.replace(/, Venezuela$/, '').replace(/, \d{4,5}$/, ''); // Limpia el código postal y el país.
+      }
 
       return {
-        name,                  // "Edificio XYZ, Avenida Urdaneta, La Candelaria, Caracas"
+        name: constructedName,                  // "Edificio XYZ, Avenida Urdaneta, La Candelaria, Caracas"
         latitude: parseFloat(item.lat),
         longitude: parseFloat(item.lon),
       };
@@ -776,78 +771,6 @@ useEffect(() => {
     </View>
   </Modal>
 );
-
-  // const renderUbicacionModal = () => (
-  //   <Modal
-  //     visible={ubicacionModalVisible}
-  //     transparent
-  //     animationType="slide"
-  //     onRequestClose={() => setUbicacionModalVisible(false)}
-  //   >
-  //     <View style={styles.modalOverlay}>
-  //       <View style={styles.modalContent}>
-  //         <View style={styles.modalHeader}>
-  //           <Text style={styles.modalTitle}>Seleccionar Ubicación</Text>
-  //           <TouchableOpacity onPress={() => setUbicacionModalVisible(false)}>
-  //             <Text style={styles.closeButton}>×</Text>
-  //           </TouchableOpacity>
-  //         </View>
-          
-  //         {/* Simulación de Google Maps */}
-  //         <View style={styles.mapContainer}>
-  //           <View style={styles.mapPlaceholder}>
-  //             <Text style={styles.mapPlaceholderText}>🗺️</Text>
-  //             <Text style={styles.mapPlaceholderText}>Google Maps</Text>
-  //             <Text style={styles.mapPlaceholderText}>Selecciona ubicación</Text>
-  //           </View>
-            
-  //           <View style={styles.searchContainer}>
-  //             <TextInput
-  //               style={styles.searchInput}
-  //               placeholder="Buscar ubicación..."
-  //               placeholderTextColor="#64748b"
-  //               value={formData.ubicacion}
-  //               onChangeText={(text) => setFormData({...formData, ubicacion: text})}
-  //             />
-  //             <TouchableOpacity style={styles.searchButton}>
-  //               <Text style={styles.searchButtonText}>🔍</Text>
-  //             </TouchableOpacity>
-  //           </View>
-            
-  //           <View style={styles.locationOptions}>
-  //             <TouchableOpacity 
-  //               style={styles.locationOption}
-  //               onPress={() => {
-  //                 setFormData({...formData, ubicacion: 'Estadio Nacional, Santiago'});
-  //                 setUbicacionModalVisible(false);
-  //               }}
-  //             >
-  //               <Text style={styles.locationOptionText}>📍 Estadio Nacional, Santiago</Text>
-  //             </TouchableOpacity>
-  //             <TouchableOpacity 
-  //               style={styles.locationOption}
-  //               onPress={() => {
-  //                 setFormData({...formData, ubicacion: 'Plaza de Armas, Santiago'});
-  //                 setUbicacionModalVisible(false);
-  //               }}
-  //             >
-  //               <Text style={styles.locationOptionText}>📍 Plaza de Armas, Santiago</Text>
-  //             </TouchableOpacity>
-  //             <TouchableOpacity 
-  //               style={styles.locationOption}
-  //               onPress={() => {
-  //                 setFormData({...formData, ubicacion: 'Teatro Municipal, Santiago'});
-  //                 setUbicacionModalVisible(false);
-  //               }}
-  //             >
-  //               <Text style={styles.locationOptionText}>📍 Teatro Municipal, Santiago</Text>
-  //             </TouchableOpacity>
-  //           </View>
-  //         </View>
-  //       </View>
-  //     </View>
-  //   </Modal>
-  // );
 
   return (
     <SafeAreaView style={[styles.container, { paddingTop: safeMargins.top }]}>

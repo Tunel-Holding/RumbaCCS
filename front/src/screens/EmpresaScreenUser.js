@@ -170,7 +170,9 @@ useEffect(() => {
 
       const res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
 
-      const eventosTransformados = res.data.map(ev => {
+      const eventos = Array.isArray(res.data) ? res.data : res.data.results || res.data.eventos || [];
+
+      const eventosTransformados = eventos.map(ev => {
         // Separar fecha y hora si viene en formato ISO
         let fecha = "Fecha no definida";
         let hora = "Hora no definida";

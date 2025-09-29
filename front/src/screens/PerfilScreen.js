@@ -33,12 +33,14 @@ export default function PerfilScreen({ navigation }) {
   const [seguidores, setSeguidores] = useState([]);
   const [seguidoresModal, setSeguidoresModal] = useState(false);
 
+  
   useEffect(() => {
     
   // Función que lee el nombre guardado en AsyncStorage
   const fetchUserName = async () => {
     try {
       const name = await AsyncStorage.getItem('userName');
+      
       const empresaId = await AsyncStorage.getItem('empresaId');
       const token = await AsyncStorage.getItem('accessToken');
       setHasEmpresa(!!(empresaId && empresaId !== ''));
@@ -89,6 +91,8 @@ export default function PerfilScreen({ navigation }) {
     AsyncStorage.removeItem('userEmail'),
     AsyncStorage.removeItem('accessToken'),
     AsyncStorage.removeItem('empresaId'),
+    AsyncStorage.removeItem('isEmpresaAccount'),
+    AsyncStorage.removeItem('userId'),
   ]);
 
   setUserName('');
@@ -269,7 +273,8 @@ export default function PerfilScreen({ navigation }) {
               style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 18, marginBottom: 8, alignItems: 'center', alignSelf: 'center' }}
               onPress={async () => {
                 try {
-                  const res = await api.get('/api/empresas-seguidas/');
+                  const userId = await AsyncStorage.getItem('userId');
+                  const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
                   setEmpresasSeguidas(res.data || []);
                 } catch (e) {
                   setEmpresasSeguidas([]);
@@ -327,8 +332,10 @@ export default function PerfilScreen({ navigation }) {
               style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 18, marginBottom: 8, alignItems: 'center', alignSelf: 'center' }}
               onPress={async () => {
                 try {
-                  const res = await api.get('/api/empresa-seguidores/');
-                  setSeguidores(res.data || []);
+                  const userId = await AsyncStorage.getItem('userId');
+                  const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
+                  setSeguidores(res.data.empresas || []);
+
                 } catch (e) {
                   setSeguidores([]);
                 }
@@ -354,9 +361,9 @@ export default function PerfilScreen({ navigation }) {
                     ) : (
                       seguidores.map((user, idx) => (
                         <View key={user.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, justifyContent: 'center' }}>
-                          {user.avatar_url || user.avatar ? (
+                          {user.logo || user.avatar ? (
                             <Image
-                              source={{ uri: user.avatar_url || user.avatar }}
+                              source={{ uri: user.logo || user.avatar }}
                               style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb' }}
                               resizeMode="cover"
                             />

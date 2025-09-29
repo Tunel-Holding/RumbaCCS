@@ -39,7 +39,7 @@ export default function EmpresaScreen() {
     try {
       const empresaId = await AsyncStorage.getItem('empresaId');
       if (!empresaId) return setSeguidores([]);
-      const res = await api.get(`/api/empresa-seguidores/`);
+      const res = await api.get(`/api/empresas/${empresaId}/seguidores/`);
       setSeguidores(res.data || []);
     } catch (e) {
       setSeguidores([]);
@@ -575,6 +575,8 @@ console.log("imagenes del evento",eventos.imagenes)
         </View>
       );
     }
+
+
     return (
       <View style={styles.eventosContainer}>
         <View style={styles.eventosHeader}>

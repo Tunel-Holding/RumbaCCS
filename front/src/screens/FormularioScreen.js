@@ -308,7 +308,7 @@ if (data.empresa.id) {
   setCargando(false);
   return;
 }
-
+await AsyncStorage.setItem('isEmpresaAccount', 'true');
 await AsyncStorage.setItem('accessToken', data.access);
 await AsyncStorage.setItem('refreshToken', data.refresh);
 await AsyncStorage.setItem('empresa', JSON.stringify(data));
