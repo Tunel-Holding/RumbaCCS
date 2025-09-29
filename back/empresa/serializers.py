@@ -1,4 +1,4 @@
-from .models import Empresa, Evento2, Rating, EmpresaEvento, EventoImagen, UsuarioEvento
+from .models import Empresa, Evento2, Rating, EmpresaEvento, EventoImagen, UsuarioEvento, EmpresaRedSocial
 # Serializer para eventos guardados por usuario
 
 from rest_framework import serializers
@@ -67,24 +67,70 @@ class EventoSerializer(serializers.ModelSerializer):
             print(f'{field} -> valor: {value!r}, tipo: {type(value)}')
         return super().validate(attrs)
     
-class EmpresaSerializer(serializers.ModelSerializer):
-    
-    total_seguidores = serializers.SerializerMethodField()
-    is_siguiendo = serializers.SerializerMethodField()
-    password = serializers.CharField(write_only=True, required=True)
-    avg_rating = serializers.SerializerMethodField(read_only=True)
-    rating_count = serializers.SerializerMethodField(read_only=True)
-    
-    eventos = EventoSerializer(many=True, read_only=True)
+
+# Nuevo serializer para redes sociales
+class EmpresaRedSocialSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EmpresaRedSocial
+        fields = ['url']
+
+class EmpresaStaffSerializer(serializers.ModelSerializer):
+    assigned_to = serializers.StringRelatedField(read_only=True)
+    verified_by = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Empresa
         fields = [
             "id",
             "nombre",
-            "rif",               # Nuevo campo requerido y único
+            "rif",
             "descripcion",
-            "lugar",             # Sustituye a 'direccion'
+            "lugar",
+            "telefono",
+            "email_contacto",
+            "email",
+            "logo",
+            "fecha_creacion",
+            "activo",
+            # 🔹 Campos de asignación y verificación
+            "status",
+            "review_status",
+            "assigned_to",
+            "assigned_at",
+            "company_verified",
+            "verified_by",
+            "verified_at",
+            "verification_notes",
+            "rejection_reason",
+        ]
+        read_only_fields = [
+            "id",
+            "assigned_to",
+            "assigned_at",
+            "verified_by",
+            "verified_at",
+            "fecha_creacion",
+        ]
+
+class EmpresaSerializer(serializers.ModelSerializer):
+    total_seguidores = serializers.SerializerMethodField()
+    is_siguiendo = serializers.SerializerMethodField()
+    password = serializers.CharField(write_only=True, required=True)
+    avg_rating = serializers.SerializerMethodField(read_only=True)
+    rating_count = serializers.SerializerMethodField(read_only=True)
+    eventos = EventoSerializer(many=True, read_only=True)
+    redes_sociales = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+    total_eventos = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Empresa
+        fields = [
+            "id",
+            "nombre",
+            "rif",
+            "descripcion",
+            "lugar",
             "telefono",
             "email_contacto",
             "email",
@@ -98,6 +144,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "activo",
             "avg_rating",
             "rating_count",
+            "total_eventos",
+            "is_following",
         ]
         read_only_fields = [
             "id",
@@ -107,14 +155,36 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "activo"
         ]
 
+    def get_is_following(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+
+        if getattr(user, "kind", None) != "usuario":
+            return False
+
+        usuario = user.obj
+        return obj.seguidores.filter(id=usuario.id).exists()
+    
     def get_total_seguidores(self, obj):
         return obj.seguidores.count()
 
+    def get_total_eventos(self, obj):
+        return obj.eventos.count()
+    
     def get_is_siguiendo(self, obj):
-        user = self.context["request"].user
-        if user.is_authenticated:
-            return obj.seguidores.filter(id=user.id).exists()
-        return False
+        auth_entity = self.context["request"].user
+        if not auth_entity or not auth_entity.is_authenticated:
+            return False
+
+        if getattr(auth_entity, "kind", None) != "usuario":
+            return False  # solo usuarios pueden seguir empresas
+
+        usuario = auth_entity.obj
+        return obj.seguidores.filter(id=usuario.id).exists()
+
 
     def get_avg_rating(self, obj):
         agg = obj.ratings.aggregate(avg=Avg('rating'))
@@ -124,6 +194,9 @@ class EmpresaSerializer(serializers.ModelSerializer):
     def get_rating_count(self, obj):
         agg = obj.ratings.aggregate(count=Count('id'))
         return agg.get('count') or 0
+
+    def get_redes_sociales(self, obj):
+        return [r.url for r in obj.redes.all()]
     
     # def validate(self, attrs):
     #     user = self.context["request"].user
@@ -137,6 +210,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
     
 
 class EmpresaRegistroSerializer(serializers.ModelSerializer):
+    redes_sociales = serializers.ListField(child=serializers.URLField(), write_only=True, required=False)
     # Campos para crear el usuario
     # email = serializers.EmailField(write_only=True)
     # password = serializers.CharField(write_only=True)
@@ -160,15 +234,13 @@ class EmpresaRegistroSerializer(serializers.ModelSerializer):
             "logo",
             "email",      
             "password",   
-            # "phone",      # para user
-            # "birthday",   # para user
-            # "region",     # para user
-            # "gender"      # para user
         ]
 
     def create(self, validated_data):
+        redes = validated_data.pop('redes_sociales', [])
         empresa = Empresa.objects.create(**validated_data)
-
+        for url in redes:
+            EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo='instagram') # Puedes adaptar el tipo según el frontend
         return empresa
 
 class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -206,9 +278,12 @@ class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
         
         
 class EmpresaPublicSerializer(serializers.ModelSerializer):
+    is_following = serializers.SerializerMethodField()
+    total_seguidores = serializers.SerializerMethodField()
+    total_eventos = serializers.SerializerMethodField()
+
     class Meta:
         model = Empresa
-        # 🔓 Solo los campos visibles públicamente
         fields = [
             "id",
             "nombre",
@@ -218,8 +293,36 @@ class EmpresaPublicSerializer(serializers.ModelSerializer):
             "lugar",
             "telefono",
             "email_contacto",
+            "is_following",
+            "total_seguidores",
+            "total_eventos",
         ]
-        
+
+    def get_is_following(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+
+        # Caso AuthEntity (tienes .kind y .obj)
+        if getattr(user, "kind", None) == "usuario" and hasattr(user, "obj"):
+            usuario = user.obj
+            return obj.seguidores.filter(id=usuario.id).exists()
+
+        # Caso que sea directamente un Usuario (por si acaso)
+        from .models import Usuario
+        try:
+            if isinstance(user, Usuario):
+                return obj.seguidores.filter(id=user.id).exists()
+        except Exception:
+            pass
+
+        return False
+    def get_total_seguidores(self, obj):
+        return obj.seguidores.count()
+    def get_total_eventos(self, obj):
+        return obj.eventos.count()
 
 class EventoPublicSerializer(serializers.ModelSerializer):
     imagenes = EventoImagenSerializer(many=True, read_only=True)
@@ -309,4 +412,4 @@ class UsuarioEventoSerializer(serializers.ModelSerializer):
 class EmpresaBulkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
-        fields = ['id', 'nombre']
+        fields = ['id', 'nombre', 'logo']

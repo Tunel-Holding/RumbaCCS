@@ -193,7 +193,9 @@ useEffect(() => {
 
       const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
 
-      const eventosTransformados = res.data.map(ev => ({
+      const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
+
+      const eventosTransformados = resultadosRaw.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento
@@ -389,27 +391,29 @@ useEffect(() => {
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
       <View style={styles.perfilContent}>
+
         {/* Foto de perfil */}
         <View style={styles.fotoContainer}>
           <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={async () => {
-              const success = await handleUploadFoto(empresaData?.id);
+            onPress={async () => { // <-- Convertir a async
+              const success = await handleUploadFoto(empresaData?.id); // <-- Esperar el resultado
               if (!success) {
                 Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
               }
+              // No es necesario navegar, la imagen se actualiza sola con setEmpresaData
             }}
             activeOpacity={0.7}
           >
             {empresaData?.logo ? (
-              <Image
-                source={{ uri: empresaData.logo }}
-                style={{ width: '100%', height: '100%', borderRadius: 100 }}
-              />
-            ) : (
-              <Text style={styles.fotoIcon}>👤</Text>
-            )}
-          </TouchableOpacity>
+            <Image
+              source={{ uri: empresaData.logo }}
+              style={{ width: '100%', height: '100%', borderRadius: 100 }}
+            />
+          ) : (
+            <Text style={styles.fotoIcon}>👤</Text>
+          )}
+        </TouchableOpacity>
         </View>
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>

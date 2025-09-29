@@ -10,6 +10,8 @@ export const loginConFallback = async (email, password) => {
     const resUser = await api.post('/api/login/', { email, password });
     const data = resUser.data;
 
+    console.log('token access:', data.access);
+
     await AsyncStorage.multiSet([
       ['accessToken', data.access],
       ['refreshToken', data.refresh],

@@ -7,6 +7,8 @@ from django.utils import timezone
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.auth.hashers import make_password, check_password
 import uuid
+from django.conf import settings
+
 
 Usuario = get_user_model()
 
@@ -21,6 +23,9 @@ class Empresa(models.Model):
     )
 
     password = models.CharField(max_length=128, default="00000000", help_text="Contraseña para login de la empresa")
+    avatar_path = models.CharField(max_length=512, blank=True, null=True)
+    avatar_url = models.URLField(blank=True, null=True)
+    logo = models.URLField(blank=True, null=True,default='')  # solo guardamos URL
 
     def set_password(self, raw_password):
         self.password = make_password(raw_password)
@@ -73,14 +78,7 @@ class Empresa(models.Model):
     )
 
     email = models.EmailField(unique=True, default="")  # para login de la empresa
-
-    redes_sociales = models.URLField(
-        blank=True, null=True,
-        validators=[URLValidator(message="Debe ser una URL válida.")]
-    )
-
-    logo = models.ImageField(upload_to="logos_empresas/", blank=True, null=True)
-
+    
     seguidores = models.ManyToManyField(
         Usuario,
         related_name="empresas_que_sigue",
@@ -88,15 +86,76 @@ class Empresa(models.Model):
         help_text="Usuarios que siguen esta empresa"
     )
 
+     # Estados de verificación manual y auditoría
+   
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pendiente'),
+            ('approved', 'Aprobada'),
+            ('rejected', 'Rechazada'),
+        ],
+        default='pending'
+    )
+    company_verified = models.BooleanField(default=False)
+    verified_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='empresas_verificadas'
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verification_notes = models.TextField(blank=True)
+    rejection_reason = models.TextField(blank=True)
+
+
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     activo = models.BooleanField(default=True)
+    
+    # Asignación de responsable de verificación
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='empresas_asignadas',
+        help_text='Validador asignado para revisar esta empresa'
+    )
+    assigned_at = models.DateTimeField(null=True, blank=True)
+
+    # Opcional: estado interno del proceso de revisión (no reemplaza tu status)
+    review_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending', 'Pendiente'),
+            ('assigned', 'Asignada'),
+            ('in_review', 'En revisión'),
+        ],
+        default='pending',
+        help_text='Estado del proceso de revisión (independiente de approved/rejected)'
+    )
 
     class Meta:
         verbose_name = "Empresa"
         verbose_name_plural = "Empresas"
         ordering = ["nombre"]
-        
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["rif"]),
+            models.Index(fields=["email"]),
+            models.Index(fields=['assigned_to', 'status']),
+            models.Index(fields=['review_status']),
+        ]
 
+    # Método liviano para iniciar revisión por el asignado
+    def start_review(self, user):
+        if self.assigned_to_id != user.id:
+            return
+        if self.review_status in ('pending', 'assigned'):
+            self.review_status = 'in_review'
+            self.save(update_fields=['review_status'])
+            
+                
+        
     def __str__(self):
         return self.nombre
 
@@ -116,6 +175,52 @@ class Empresa(models.Model):
     def eventos_publicados(self):
         # si ya tienes un modelo Evento con ForeignKey a Empresa:
         return self.eventos.count() if hasattr(self, "eventos") else 0
+    
+    # Métodos de negocio para verificación
+    def approve(self, user, notes=""):
+        self.company_verified = True
+        self.status = 'approved'
+        self.verified_by = user
+        self.verified_at = timezone.now()
+        self.verification_notes = notes or self.verification_notes
+        self.rejection_reason = ""  # limpia rechazo previo si lo hubo
+        self.save(update_fields=[
+            'company_verified', 'status', 'verified_by', 'verified_at', 'verification_notes', 'rejection_reason'
+        ])
+
+    def reject(self, user, reason=""):
+        self.company_verified = False
+        self.status = 'rejected'
+        self.verified_by = user
+        self.verified_at = timezone.now()
+        self.rejection_reason = reason or self.rejection_reason
+        self.save(update_fields=[
+            'company_verified', 'status', 'verified_by', 'verified_at', 'rejection_reason'
+        ])
+
+
+class EmpresaRedSocial(models.Model):
+    RED_CHOICES = [
+        ('instagram', 'Instagram'),
+        ('facebook', 'Facebook'),
+        ('tiktok', 'TikTok'),
+        ('x', 'X (Twitter)'),
+        ('youtube', 'YouTube'),
+        ('whatsapp', 'WhatsApp'),
+    ]
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='redes')
+    tipo = models.CharField(max_length=20, choices=RED_CHOICES)
+    url = models.URLField(max_length=512)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Red social de empresa"
+        verbose_name_plural = "Redes sociales de empresa"
+        unique_together = ('empresa', 'tipo')
+
+    def __str__(self):
+        return f"{self.empresa.nombre} - {self.get_tipo_display()}: {self.url}"
+
 
 
 class Evento2(models.Model):
@@ -246,8 +351,9 @@ class Evento2(models.Model):
         return f"{self.titulo} – {self.empresa.nombre}"
 
 class EventoImagen(models.Model):
-    evento = models.ForeignKey(Evento2,on_delete=models.CASCADE, related_name="imagenes")
-    url = models.URLField()
+    evento = models.ForeignKey("Evento2", on_delete=models.CASCADE, related_name="imagenes")
+    path = models.CharField(max_length=255,default="")  # ej: eventos/23/uuid.jpg
+    url = models.URLField()  # URL pública o firmada
     creada_en = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):

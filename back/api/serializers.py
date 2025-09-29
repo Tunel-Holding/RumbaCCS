@@ -66,3 +66,5 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = Usuario.objects.create_user(password=password, **validated_data)
         return user
 
+# class UploadImageSerializer(serializers.Serializer):
+#     file = serializers.ImageField()
