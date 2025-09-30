@@ -1,4 +1,3 @@
-  // ...existing code...
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -17,6 +16,7 @@ import {
   TextInput,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
@@ -55,25 +55,25 @@ export default function EmpresaScreen() {
       onRequestClose={() => setSeguidoresModal(false)}
     >
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative' }}>
+        <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative', borderWidth: 1, borderColor: '#334155' }}>
           <TouchableOpacity style={{ position: 'absolute', top: 8, right: 12, zIndex: 2 }} onPress={() => setSeguidoresModal(false)}>
             <Text style={{ fontSize: 24, color: '#0ea5e9' }}>×</Text>
           </TouchableOpacity>
-          <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Usuarios que te siguen</Text>
+          <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16, color: '#fff' }}>Usuarios que te siguen</Text>
           <ScrollView style={{ maxHeight: 300, width: '100%' }}>
             {seguidores.length === 0 ? (
-              <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>No tienes seguidores aún.</Text>
+              <Text style={{ color: '#94a3b8', textAlign: 'center', marginTop: 16 }}>No tienes seguidores aún.</Text>
             ) : (
               seguidores.map((seguidor, idx) => (
-                <View key={seguidor.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <View key={seguidor.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, backgroundColor: '#334155', borderRadius: 10, padding: 8 }}>
                   {seguidor.avatar_url ? (
-                    <Image source={{ uri: seguidor.avatar_url }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
+                    <Image source={{ uri: seguidor.avatar_url }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12, borderWidth: 2, borderColor: '#0ea5e9' }} />
                   ) : (
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                      <Text style={{ fontSize: 20, color: '#6b7280' }}>👤</Text>
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#475569', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Text style={{ fontSize: 20, color: '#f1f5f9' }}>👤</Text>
                     </View>
                   )}
-                  <Text style={{ fontSize: 16, color: '#111827' }}>{seguidor.username || seguidor.nombre || 'Usuario'}</Text>
+                  <Text style={{ fontSize: 16, color: '#e0e7ff', fontWeight: '600' }}>{seguidor.username || seguidor.nombre || 'Usuario'}</Text>
                 </View>
               ))
             )}
@@ -385,6 +385,9 @@ useEffect(() => {
   );
 
   const [profilePicModal, setProfilePicModal] = useState(false);
+  const [profilePicLoading, setProfilePicLoading] = useState(false);
+  const [profilePicEdit, setProfilePicEdit] = useState(null); // { uri }
+  const [profilePicEditVisible, setProfilePicEditVisible] = useState(false);
 
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
@@ -394,14 +397,24 @@ useEffect(() => {
           <TouchableOpacity
             style={styles.fotoPerfil}
             onPress={async () => {
-              const success = await handleUploadFoto(empresaData?.id);
-              if (!success) {
-                Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
-              }
+              // Selección de imagen
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.8,
+                allowsEditing: true,
+                aspect: [1, 1],
+              });
+              if (result.canceled) return;
+              setProfilePicEdit({ uri: result.assets[0].uri });
+              setProfilePicEditVisible(true);
             }}
             activeOpacity={0.7}
           >
-            {empresaData?.logo ? (
+            {profilePicLoading ? (
+              <View style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center', zIndex: 2 }}>
+                <ActivityIndicator size="large" color="#0ea5e9" />
+              </View>
+            ) : empresaData?.logo ? (
               <Image
                 source={{ uri: empresaData.logo }}
                 style={{ width: '100%', height: '100%', borderRadius: 100 }}
@@ -672,7 +685,7 @@ console.log("imagenes del evento",eventos.imagenes)
                         }}
                       >
                         <Text style={styles.verDetallesText}>Ver detalles</Text>
-                      </TouchableOpacity>
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -786,6 +799,74 @@ console.log("imagenes del evento",eventos.imagenes)
           {renderEventos()}
         </View>
       </ScrollView>
+
+      {/* Modal para editar y aceptar la imagen de perfil */}
+      <Modal
+        visible={profilePicEditVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setProfilePicEditVisible(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:24, alignItems:'center', width:320, borderWidth:1, borderColor:'#334155' }}>
+            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#fff' }}>Ajusta tu foto de perfil</Text>
+            {profilePicEdit && (
+              <View style={{ width: 200, height: 200, borderRadius: 100, overflow: 'hidden', backgroundColor: '#334155', marginBottom: 16, justifyContent:'center', alignItems:'center' }}>
+                <Image
+                  source={{ uri: profilePicEdit.uri }}
+                  style={{ width: 200, height: 200, borderRadius: 100 }}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
+            <View style={{ flexDirection:'row', gap:16 }}>
+              <TouchableOpacity
+                style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginRight:8 }}
+                onPress={async () => {
+                  setProfilePicLoading(true);
+                  // Recorte circular
+                  let finalUri = profilePicEdit.uri;
+                  const manipResult = await ImageManipulator.manipulateAsync(
+                    profilePicEdit.uri,
+                    [{ resize: { width: 400, height: 400 } }],
+                    { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+                  );
+                  finalUri = manipResult.uri;
+                  // Subir imagen
+                  const file = {
+                    uri: finalUri,
+                    name: "profile.jpg",
+                    type: "image/jpeg",
+                  };
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  try {
+                    const response = await api.post(
+                      `/api/empresas/${empresaData?.id}/upload-foto/`,
+                      formData,
+                      { headers: { "Content-Type": "multipart/form-data" } }
+                    );
+                    setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
+                    setProfilePicEditVisible(false);
+                  } catch (error) {
+                    Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
+                  } finally {
+                    setProfilePicLoading(false);
+                  }
+                }}
+              >
+                <Text style={{ color:'#fff', fontWeight:'bold' }}>Aceptar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor:'#e5e7eb', borderRadius:8, padding:12 }}
+                onPress={() => setProfilePicEditVisible(false)}
+              >
+                <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
