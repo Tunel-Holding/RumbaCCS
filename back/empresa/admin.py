@@ -45,7 +45,7 @@ class EmpresaAdmin(admin.ModelAdmin):
         'nombre', 'rif', 'email', 'lugar', 'activo',
         'company_verified', 'status', 'verified_by', 'verified_at'
     )
-    list_filter = ('status', 'activo', 'company_verified', 'lugar', EmpresasAsignadasFilter)
+    list_filter = ('status', EmpresasAsignadasFilter)
     search_fields = ('nombre', 'rif', 'email')
     readonly_fields = ('verified_by', 'verified_at', 'fecha_creacion')
     date_hierarchy = 'fecha_creacion'

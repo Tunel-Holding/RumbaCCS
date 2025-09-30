@@ -727,6 +727,7 @@ class EmpresaEventoCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class UsuarioEventoViewSet(viewsets.ModelViewSet):
+    
     serializer_class = UsuarioEventoSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -739,3 +740,80 @@ class UsuarioEventoViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
+        
+class EmpresaValidarPinConUsuarioView(generics.CreateAPIView):
+    serializer_class = EmpresaRegistroSerializer
+    permission_classes = [IsEmpresaOrUsuarioAuthenticated]
+    authentication_classes = [EmpresaOrUsuarioJWTAuthentication]
+
+    def create(self, request, *args, **kwargs):
+        auth_entity = request.user
+        real_obj = getattr(auth_entity, "obj", None)
+
+        if not auth_entity or getattr(auth_entity, "kind", None) != "usuario":
+            return Response({"detail": "Solo un usuario puede registrar una empresa."}, status=403)
+
+        pin = request.data.get("pin")
+        email = request.data.get("email")
+        empresa_data = request.data.get("empresa", {})
+
+        print("empresa_data para serializer:", empresa_data)
+
+        # 🔹 Validar PIN
+        try:
+            verif = EmailVerification.objects.get(email=email, code=pin, is_verified=False)
+        except EmailVerification.DoesNotExist:
+            return Response({"detail": "PIN inválido o expirado."}, status=400)
+
+        if verif.expires_at < timezone.now():
+            return Response({"detail": "PIN expirado."}, status=400)
+
+        verif.is_verified = True
+        verif.save()
+
+        # Extraer password y redes sociales
+        password = request.data.get("password")
+        redes_sociales = empresa_data.pop("redes_sociales", [])
+
+        # Filtrar campos válidos para Empresa
+        empresa_fields = ["nombre", "rif", "descripcion", "lugar", "telefono", "email_contacto", "logo"]
+        empresa_data = {k: v for k, v in empresa_data.items() if k in empresa_fields}
+
+        # Crear empresa vinculada al usuario
+        empresa = Empresa.objects.create(
+            usuario=real_obj,
+            password=make_password(password) if password else None,
+            email =email,
+            **empresa_data
+        )
+
+        # Guardar redes sociales
+        from .models import EmpresaRedSocial
+        for red in redes_sociales:
+            if isinstance(red, dict):
+                tipo = red.get('tipo', 'instagram')
+                url = red.get('url', '')
+            else:
+                tipo = 'instagram'
+                url = red
+            if url:
+                EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
+
+        # Asignación automática
+        try:
+            asignar_empresa_por_menor_carga(empresa, nombre_grupo="Verificadores")
+        except NoStaffAvailable:
+            pass
+        else:
+            if empresa.assigned_to:
+                notificar_asignacion_empresa(empresa)
+
+        empresa_serialized = EmpresaSerializer(empresa, context={"request": request}).data
+
+        # Limpiar PINs antiguos
+        EmailVerification.objects.filter(email=email, is_verified=True).delete()
+
+        return Response(
+            {"message": "Empresa creada exitosamente", "empresa": empresa_serialized},
+            status=201
+        )
