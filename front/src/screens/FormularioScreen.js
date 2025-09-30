@@ -147,8 +147,7 @@ const handleEnviar = async () => {
 
     
     console.log("Entrando a handleEnviar, token:", token);
-    if (!token) {
-      // 🚀 Caso 1: Registro directo como empresa
+
       let telefonoValido = telefono;
       if (!/^\+?\d{7,15}$/.test(telefono)) {
         telefonoValido = telefono.replace(/[^\d+]/g, "");
@@ -201,44 +200,45 @@ const handleEnviar = async () => {
         setTimeout(() => setCargando(false), 150); // deja visible el loader unos ms hasta que cambia la vista
       });
 
-    } else {
-      // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
-      console.log("Creando empresa para usuario existente, token:");
-      // Construir array de redes sociales con los seleccionados y sus links
-      const redesSocialesArr2 = [];
-      if (usaRedes === 'si') {
-        Object.keys(socialChecks).forEach(key => {
-          if (socialChecks[key] && socialLinks[key].trim()) {
-            redesSocialesArr2.push({ tipo: key, url: socialLinks[key].trim() });
-          }
-        });
-      }
-      const res = await api.post('/api/empresas/', {
-        rif: rifFormateado,
-        lugar,
-        telefono,
-        nombre,
-        descripcion: descripcion || "",
-        email_contacto: correo,
-        redes_sociales: redesSocialesArr2,
-        email: correo,
-        password: password,
-      });
+    
+    // else {
+    //   // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
+    //   console.log("Creando empresa para usuario existente, token:");
+    //   // Construir array de redes sociales con los seleccionados y sus links
+    //   const redesSocialesArr2 = [];
+    //   if (usaRedes === 'si') {
+    //     Object.keys(socialChecks).forEach(key => {
+    //       if (socialChecks[key] && socialLinks[key].trim()) {
+    //         redesSocialesArr2.push({ tipo: key, url: socialLinks[key].trim() });
+    //       }
+    //     });
+    //   }
+    //   const res = await api.post('/api/empresas/', {
+    //     rif: rifFormateado,
+    //     lugar,
+    //     telefono,
+    //     nombre,
+    //     descripcion: descripcion || "",
+    //     email_contacto: correo,
+    //     redes_sociales: redesSocialesArr2,
+    //     email: correo,
+    //     password: password,
+    //   });
 
-      console.log("Respuesta al crear empresa:", res);
-      const data = res.data;
-      if (!res.status || res.status >= 400) {
-        console.error("Error backend:", data);
-        Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
-        setCargando(false);
-        return;
-      }
-      if (data.id) {
-        await AsyncStorage.setItem("empresaId", data.id.toString());
-      }
-      navigation.navigate("Empresa", { empresaId: data.id });
-      setCargando(false);
-    }
+    //   console.log("Respuesta al crear empresa:", res);
+    //   const data = res.data;
+    //   if (!res.status || res.status >= 400) {
+    //     console.error("Error backend:", data);
+    //     Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
+    //     setCargando(false);
+    //     return;
+    //   }
+    //   if (data.id) {
+    //     await AsyncStorage.setItem("empresaId", data.id.toString());
+    //   }
+    //   navigation.navigate("Empresa", { empresaId: data.id });
+    //   setCargando(false);
+    // }
   } catch (error) {
     console.error("Error capturado en catch:", error);
     setCargando(false);
@@ -247,23 +247,122 @@ const handleEnviar = async () => {
 };
 
 
-// Nueva función para validar el pin y crear usuario+empresa
+// // Nueva función para validar el pin y crear usuario+empresa
+// const handleValidarPin = async () => {
+//   const pinIngresado = pinDigits.join('');
+//   if (pinIngresado.length !== PIN_LENGTH) {
+//     Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
+//     return;
+//   }
+//   if (!correo) {
+//   Alert.alert("Error", "El correo no está definido, vuelve a registrarte.");
+//   setCargando(false);
+//   return;
+// }
+//   const rifFormateado = /^\d{9}$/.test(rif)
+//         ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
+//         : (rif ? `${rifPrefix}-${rif}` : '');
+//   try {
+//     setCargando(true);
+//     // Construir array de redes sociales con los seleccionados y sus links
+//     const redesSocialesArr = [];
+//     if (usaRedes === 'si') {
+//       Object.keys(socialChecks).forEach(key => {
+//         if (socialChecks[key] && socialLinks[key].trim()) {
+//           redesSocialesArr.push({ tipo: key, url: socialLinks[key].trim() });
+//         }
+//       });
+//     }
+
+//     const token = await AsyncStorage.getItem("accessToken");
+
+//     const endpoint = token 
+//       ? '/api/validar-pin-empresa-usuario/' 
+//       : '/api/validar-pin-empresa/';
+
+
+//     const res = await api.post(endpoint, {
+//       email: correo,
+//       pin: pinIngresado,
+//       password: password,
+//       empresa: {
+//         nombre,
+//         rif: rifFormateado,
+//         lugar,
+//         telefono,
+//         email_contacto: correo,
+//         redes_sociales: redesSocialesArr,
+//         descripcion,
+//       }
+//     }, {
+//       headers: {
+//         Authorization: `Bearer ${token}`, // 👈 necesario
+//       }
+//     });
+
+// const data = res.data;
+
+// if (!res.status || res.status >= 400) {
+//   Alert.alert("Error", data?.detail || "No se pudo validar el pin");
+//   setCargando(false);
+//   return;
+// }
+
+// console.log("PIN validado y empresa creada:", data);
+
+// if (data.empresa.id) {
+//   await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
+//   if (data.usuario_id) {
+//     await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
+//   }
+// } else {
+//   Alert.alert("Error", "No se pudo obtener el ID de la empresa");
+//   setCargando(false);
+//   return;
+// }
+// await AsyncStorage.setItem('isEmpresaAccount', 'true');
+// await AsyncStorage.setItem('accessToken', data.access);
+// await AsyncStorage.setItem('refreshToken', data.refresh);
+// await AsyncStorage.setItem('empresa', JSON.stringify(data));
+// if (data.usuario_id) {
+//   await AsyncStorage.setItem('usuarioId', data.usuario_id.toString());
+// }
+
+// Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
+// setCargando(false);
+// navigation.reset({
+//   index: 0,
+//   routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
+// });
+    
+//   } catch (error) {
+//     setCargando(false);
+//     // Marcar error de PIN si el backend devuelve 400/401 o respuesta esperada de PIN inválido
+//     setPinError(true);
+//   }
+
+// };
+
 const handleValidarPin = async () => {
   const pinIngresado = pinDigits.join('');
   if (pinIngresado.length !== PIN_LENGTH) {
     Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
     return;
   }
+
   if (!correo) {
-  Alert.alert("Error", "El correo no está definido, vuelve a registrarte.");
-  setCargando(false);
-  return;
-}
+    Alert.alert("Error", "El correo no está definido, vuelve a registrarte.");
+    setCargando(false);
+    return;
+  }
+
   const rifFormateado = /^\d{9}$/.test(rif)
-        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
-        : (rif ? `${rifPrefix}-${rif}` : '');
+    ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
+    : (rif ? `${rifPrefix}-${rif}` : '');
+
   try {
     setCargando(true);
+
     // Construir array de redes sociales con los seleccionados y sus links
     const redesSocialesArr = [];
     if (usaRedes === 'si') {
@@ -273,10 +372,19 @@ const handleValidarPin = async () => {
         }
       });
     }
-    const res = await api.post('/api/validar-pin-empresa/', {
+
+    const token = await AsyncStorage.getItem("accessToken");
+
+    const endpoint = token
+      ? '/api/validar-pin-empresa-usuario/'
+      : '/api/validar-pin-empresa/';
+
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    const res = await api.post(endpoint, {
       email: correo,
       pin: pinIngresado,
-      password: password,
+      password: password, // 🔹 password necesario en ambos flujos
       empresa: {
         nombre,
         rif: rifFormateado,
@@ -286,51 +394,49 @@ const handleValidarPin = async () => {
         redes_sociales: redesSocialesArr,
         descripcion,
       }
+    }, { headers });
+
+    const data = res.data;
+
+    if (!res.status || res.status >= 400) {
+      Alert.alert("Error", data?.detail || "No se pudo validar el pin");
+      setCargando(false);
+      return;
+    }
+
+    console.log("PIN validado y empresa creada:", data);
+
+    // Guardar datos en AsyncStorage
+    if (data.empresa && data.empresa.id) {
+      await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
+    } else {
+      console.warn("No se encontró data.empresa.id", data);
+    }
+    
+    if (data.usuario_id) {
+      await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
+    }
+
+    if (data.access) await AsyncStorage.setItem('accessToken', data.access);
+    if (data.refresh) await AsyncStorage.setItem('refreshToken', data.refresh);
+
+    await AsyncStorage.setItem('isEmpresaAccount', 'true');
+    await AsyncStorage.setItem('empresa', JSON.stringify(data.empresa));
+
+    Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
+    setCargando(false);
+
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
     });
 
-const data = res.data;
-
-if (!res.status || res.status >= 400) {
-  Alert.alert("Error", data?.detail || "No se pudo validar el pin");
-  setCargando(false);
-  return;
-}
-
-console.log("PIN validado y empresa creada:", data);
-
-if (data.empresa.id) {
-  await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
-  if (data.usuario_id) {
-    await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
-  }
-} else {
-  Alert.alert("Error", "No se pudo obtener el ID de la empresa");
-  setCargando(false);
-  return;
-}
-await AsyncStorage.setItem('isEmpresaAccount', 'true');
-await AsyncStorage.setItem('accessToken', data.access);
-await AsyncStorage.setItem('refreshToken', data.refresh);
-await AsyncStorage.setItem('empresa', JSON.stringify(data));
-if (data.usuario_id) {
-  await AsyncStorage.setItem('usuarioId', data.usuario_id.toString());
-}
-
-Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
-setCargando(false);
-navigation.reset({
-  index: 0,
-  routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
-});
-    
   } catch (error) {
+    console.error("Error al validar PIN:", error);
     setCargando(false);
-    // Marcar error de PIN si el backend devuelve 400/401 o respuesta esperada de PIN inválido
     setPinError(true);
   }
-
 };
-
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top }}>
