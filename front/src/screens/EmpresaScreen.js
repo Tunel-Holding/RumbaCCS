@@ -112,7 +112,6 @@ export default function EmpresaScreen() {
       const response = await api.get(`/api/empresas/${empresaId}/`);
       
       setEmpresaData(response.data);
-      console.log("Datos de empresa:", response.data);
    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
@@ -172,8 +171,9 @@ const handleUploadFoto = async (empresaId) => {
     return true; // Devuelve true en caso de éxito
     
   } catch (error) {
-    console.error("Error subiendo logo:", error.response?.data || error.message);
-    return false
+    const msg = error.response?.data?.error || "Error inesperado";
+    Alert.alert("Error", msg);
+    return false;
   }
 };
 
