@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
+from django.conf import settings
 
 def upload_empresa_profile_picture(file, empresa_id):
     bucket = "empresas"  # asegúrate de tener creado este bucket en Supabase
@@ -88,3 +89,35 @@ def asignar_empresa_por_menor_carga(empresa, nombre_grupo='Validadores', max_pen
     empresa.review_status = 'assigned'
     empresa.save(update_fields=['assigned_to', 'assigned_at', 'review_status'])
     return empresa
+
+
+def validate_image_with_sightengine(file):
+    """
+    Envía la imagen a Sightengine y valida que sea segura.
+    Retorna True si la imagen es válida, False si no.
+    """
+    import requests
+
+    api_user =  settings.SIGHTENGINE_API_USER
+    api_secret = settings.SIGHTENGINE_API_SECRET
+
+    try:
+        response = requests.post(
+            "https://api.sightengine.com/1.0/check.json",
+            files={"media": file},
+            data={"models": "nudity,wad,offensive", "api_user": api_user, "api_secret": api_secret},
+        )
+        result = response.json()
+
+        # 👇 Lógica simple: puedes ajustar los umbrales
+        if result.get("status") != "success":
+            return False
+
+        nudity = result.get("nudity", {})
+        if nudity.get("safe", 0) < 0.85:  # menos del 85% seguro
+            return False
+
+        return True
+    except Exception:
+        return False
+        
