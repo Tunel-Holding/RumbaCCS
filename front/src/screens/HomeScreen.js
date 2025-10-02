@@ -53,6 +53,33 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const scrollRef = useRef(null);
+  const heroScrollRef = useRef(null);
+  const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
+
+  const scrollToHeroIndex = (index) => {
+    const cardW = width; // full-bleed card width (no gap)
+    if (heroScrollRef.current && typeof heroScrollRef.current.scrollTo === 'function') {
+      try {
+        heroScrollRef.current.scrollTo({ x: index * cardW, animated: true });
+      } catch (e) {
+        // some RN versions expose different refs; ignore
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Auto-advance every 4s
+    const maxCards = Math.max(1, (events && events.length > 0 ? Math.min(events.length, 3) : 3));
+    const interval = setInterval(() => {
+      setCurrentHeroIndex(prev => {
+        const next = (prev + 1) % maxCards;
+        scrollToHeroIndex(next);
+        return next;
+      });
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [events]);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [loginVisible, setLoginVisible] = useState(false);
@@ -572,10 +599,41 @@ const filteredEvents = fuente.filter(e => {
           </View>
         </View>
 
-        {/* Hero/Video (imagen responsiva) */}
+        {/* Hero: carrusel de fotos de eventos publicados (hasta 3) */}
         <View style={styles.heroSection}>
-          <Image source={{ uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80' }} style={styles.heroImage} resizeMode="cover" />
-          <View style={styles.heroOverlay} />
+          <ScrollView
+            ref={heroScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.heroCarousel}
+            contentContainerStyle={{ paddingHorizontal: 0 }}
+            snapToInterval={width}
+            decelerationRate={'fast'}
+            onMomentumScrollEnd={(e) => {
+              const x = e.nativeEvent.contentOffset.x;
+              const w = width; // full-bleed card width
+              const idx = Math.round(x / w);
+              setCurrentHeroIndex(idx);
+            }}
+          >
+            { (events && events.length > 0 ? events.slice(0,3) : [null,null,null]).map((ev, idx) => {
+                const uri = ev?.imagenes?.[0]?.url || ev?.image || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png';
+                return (
+                  <TouchableOpacity key={idx} activeOpacity={0.9} style={styles.heroCard} onPress={() => {
+                    if (ev && ev.id) {
+                      navigation.navigate('Reservar/Comprar', { idEvento: ev.id, idEmpresa: ev.rawEmpresaId });
+                    }
+                  }}>
+                    <Image source={{ uri }} style={styles.heroCardImage} resizeMode="cover" />
+                    <View style={styles.heroCardOverlay} />
+                    <View style={styles.heroCardText}>
+                      <Text style={styles.heroCardTitle}>{ev?.title || 'Próximo evento'}</Text>
+                      {ev?.location ? <Text style={styles.heroCardLocation}>📍 {ev.location}</Text> : null}
+                    </View>
+                  </TouchableOpacity>
+                );
+            })}
+          </ScrollView>
         </View>
 
         {/* Buscador */}
@@ -863,6 +921,15 @@ const styles = StyleSheet.create({
   heroSection: { height: width < 600 ? 180 : 260, marginBottom: 16, borderRadius: 16, overflow: 'hidden', position: 'relative' },
   heroImage: { width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 },
   heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(49,46,129,0.7)' },
+
+  heroCarousel: { flexDirection: 'row' },
+  // Full-bleed hero card: match window width and remove gap
+  heroCard: { width: width, height: '100%', borderRadius: 0, overflow: 'hidden', marginRight: 0, backgroundColor: '#111827' },
+  heroCardImage: { width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 },
+  heroCardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
+  heroCardText: { position: 'absolute', bottom: 12, left: 12, right: 12, zIndex: 2 },
+  heroCardTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
+  heroCardLocation: { color: '#e6edf3', fontSize: 12, marginTop: 4, opacity: 0.95 },
   search: { backgroundColor: '#fff', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 16 },
   filters: { flexDirection: 'row', marginBottom: 12 },
   filterBtn: { backgroundColor: '#334155', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16, marginRight: 8 },

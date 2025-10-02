@@ -457,16 +457,16 @@ export default function BuyScreen() {
 
   // Footer de HomeScreen.js
   const Footer = () => (
-    <View style={styles.footer}>
-      <Text style={styles.footerTitle}>RumbaCCS</Text>
-      <Text style={styles.footerDesc}>Tu plataforma de confianza para reservas de eventos y experiencias memorables.</Text>
-      <View style={styles.footerLinks}>
-        {footerLinks.map((l, i) => (
-          <Text key={i} style={styles.footerLink}>{l.title}</Text>
-        ))} 
-      </View>
-      <Text style={styles.footerCopyright}>© 2025 RumbaCCS. Todos los derechos reservados.</Text>
-    </View>
+     <View style={styles.footer}>
+              <Text style={styles.footerTitle}>RumbaCCS</Text>
+              <Text style={styles.footerDesc}>Tu plataforma de confianza para reservas de eventos y experiencias memorables.</Text>
+              <View style={styles.footerLinks}>
+                {footerLinks.map((l, i) => (
+                  <Text key={i} style={styles.footerLink}>{l.title}</Text>
+                ))}
+              </View>
+              <Text style={styles.footerCopyright}>© 2025 Tunel Holding. Todos los derechos reservados.</Text>
+            </View>
   );
 if (loading) {
   return (
