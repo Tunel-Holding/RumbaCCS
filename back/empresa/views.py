@@ -1,3 +1,4 @@
+from httpx import request
 from .models import UsuarioEvento
 from .serializers import UsuarioEventoSerializer
 # ViewSet para eventos guardados por usuario
@@ -58,7 +59,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-from .services import asignar_empresa_por_menor_carga, NoStaffAvailable
+from .services import asignar_empresa_por_menor_carga, NoStaffAvailable, validate_image_with_sightengine
 from .notifications import notificar_asignacion_empresa
 
 class IsEmpresaAuthenticated(BasePermission):
@@ -247,6 +248,12 @@ class EmpresaViewSet(ModelViewSet):
         if not file:
             return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
 
+        if not validate_image_with_sightengine(file):
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+        
+        file.seek(0)
+
+        
         # Si ya tiene logo, eliminarlo primero
         if empresa.logo:
             delete_empresa_profile_picture(empresa.logo)
@@ -454,30 +461,140 @@ class TempImageUploadView(APIView):
             return Response(serializer.validated_data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+# class EventoImagenViewSet(viewsets.ModelViewSet):
+#     queryset = EventoImagen.objects.all()
+#     serializer_class = EventoImagenSerializer
+#     parser_classes = [MultiPartParser, FormParser]
+
+#     def create(self, request, *args, **kwargs):
+#         evento_id = kwargs.get('evento_pk')
+#         file = request.data.get("file")
+#         if not file:
+#             return Response({"error": "No se subió archivo"}, status=400)
+
+#         try:
+#             evento = Evento2.objects.get(id=evento_id)
+#         except Evento2.DoesNotExist:
+#             return Response({"error": "Evento no encontrado"}, status=404)
+
+#         try:
+#             empresa_id = evento.empresa_id  # suponiendo que tu evento tiene FK a Empresa
+#             path, url = upload_image_to_supabase(file, empresa_id, evento_id)
+#             evento.imagenes.create(path=path, url=url)
+#             return Response({"url": url}, status=201)
+#         except Exception as e:
+#             return Response({"error": str(e)}, status=500)
+
 class EventoImagenViewSet(viewsets.ModelViewSet):
     queryset = EventoImagen.objects.all()
     serializer_class = EventoImagenSerializer
     parser_classes = [MultiPartParser, FormParser]
 
     def create(self, request, *args, **kwargs):
-        evento_id = kwargs.get('evento_pk')
-        file = request.data.get("file")
-        if not file:
-            return Response({"error": "No se subió archivo"}, status=400)
+        evento_id = kwargs.get("evento_pk")
+        files = request.FILES.getlist("files")
+        
+        print("FILES RECIBIDOS:", request.FILES)
+        print("DATA RECIBIDA:", request.data)
+
+
+        if not files:
+            return Response({"error": "No se subieron archivos"}, status=400)
 
         try:
             evento = Evento2.objects.get(id=evento_id)
         except Evento2.DoesNotExist:
             return Response({"error": "Evento no encontrado"}, status=404)
 
+        empresa_id = evento.empresa_id
+        uploaded_paths = []
+        uploaded_urls = []
+        saved_records = []
+
         try:
-            empresa_id = evento.empresa_id  # suponiendo que tu evento tiene FK a Empresa
-            path, url = upload_image_to_supabase(file, empresa_id, evento_id)
-            evento.imagenes.create(path=path, url=url)
-            return Response({"url": url}, status=201)
+            for file in files:
+                
+                is_valid = self.validate_image_with_sightengine(file)
+                print(f"Validación {file.name}: {is_valid}")
+                # 1. Validar con Sightengine (tu lógica aquí)
+                if not is_valid:
+                    # rollback: borrar imágenes ya subidas
+                    self.rollback_supabase(uploaded_paths)
+                    # borrar registros creados
+                    for r in saved_records:
+                        r.delete()
+                    
+                    evento.delete()
+                    
+                    return Response(
+                        {"error": f"La imagen {file.name} no pasó validación. Se canceló la operación."},
+                        status=400,
+                    )
+
+                # 2. Subir a Supabase
+                path, url = upload_image_to_supabase(file, empresa_id, evento_id)
+                print("Subida correcta:", path, url)
+                uploaded_paths.append(path)
+                uploaded_urls.append(url)
+                saved_records.append(evento.imagenes.create(path=path, url=url))
+
+                
+                print("Creando registro en DB:", {"path": path, "url": url})
+                # 3. Crear registro en DB
+                record = evento.imagenes.create(path=path, url=url)
+                saved_records.append(record)
+
+            return Response({"urls": uploaded_urls}, status=201)
+
         except Exception as e:
+            print(f"🔥 Error general en create: {e}")
+            # rollback: eliminar uploads y registros
+            self.rollback_supabase(uploaded_paths)
+            for r in saved_records:
+                r.delete()
             return Response({"error": str(e)}, status=500)
 
+    def rollback_supabase(self, paths):
+        """Elimina de Supabase todas las rutas pasadas"""
+        bucket = "eventos_publicos"
+        for p in paths:
+            try:
+                supabase.storage.from_(bucket).remove([p])
+                print(f"🗑️ Eliminada de Supabase: {p}")
+            except Exception as e:
+                print(f"⚠️ Error al eliminar {p}: {e}")
+    
+    
+    def validate_image_with_sightengine(self, file):
+        """
+        Envía la imagen a Sightengine y valida que sea segura.
+        Retorna True si la imagen es válida, False si no.
+        """
+        import requests
+
+        api_user =  settings.SIGHTENGINE_API_USER
+        api_secret = settings.SIGHTENGINE_API_SECRET
+
+        try:
+            response = requests.post(
+                "https://api.sightengine.com/1.0/check.json",
+                files={"media": file},
+                data={"models": "nudity,wad,offensive", "api_user": api_user, "api_secret": api_secret},
+            )
+            result = response.json()
+
+            # 👇 Lógica simple: puedes ajustar los umbrales
+            if result.get("status") != "success":
+                return False
+
+            nudity = result.get("nudity", {})
+            if nudity.get("safe", 0) < 0.85:  # menos del 85% seguro
+                return False
+
+            return True
+        except Exception:
+            return False
+   
 
 class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = EventoSerializer

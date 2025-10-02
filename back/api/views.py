@@ -14,6 +14,8 @@ from django.core.mail import send_mail
 from django.utils import timezone
 import random
 from django.conf import settings
+from empresa.services import validate_image_with_sightengine
+from .services import upload_user_profile_picture, delete_user_profile_picture
 
 Usuario = get_user_model()
 
@@ -114,6 +116,31 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             # "total": usuario.total_empresas_que_sigue,
             "empresas": serializer.data
         }, status=status.HTTP_200_OK)
+        
+    @action(detail=True, methods=["post"], url_path="upload-foto")
+    def upload_foto(self, request, pk=None):
+        usuario = self.get_object()
+        file = request.data.get("file")
+
+        if not file:
+            return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not validate_image_with_sightengine(file):
+            return Response({"error": "La imagen no pasó la validación de contenido."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        file.seek(0)  # rebobinar para reutilizar el archivo
+
+        # Si ya tiene foto, eliminarla primero
+        if usuario.foto:  # o usuario.avatar, según tu modelo
+            delete_user_profile_picture(usuario.foto)
+
+        # Subir nueva
+        public_url = upload_user_profile_picture(file, usuario.id)
+        usuario.foto = public_url
+        usuario.save()
+
+        return Response({"foto": public_url}, status=status.HTTP_200_OK)
 
 
 class FinalizeRegisterView(APIView):

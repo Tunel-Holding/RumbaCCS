@@ -27,9 +27,8 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_BUCKET_EVENTOS = os.getenv("SUPABASE_BUCKET_EVENTOS", "Evento")
-
-# Verificación temporal
-print("SUPABASE_URL:", SUPABASE_URL)
+SIGHTENGINE_API_USER = os.getenv("SIGHTENGINE_API_USER")
+SIGHTENGINE_API_SECRET = os.getenv("SIGHTENGINE_API_SECRET")
 
 
 # Quick-start development settings - unsuitable for production

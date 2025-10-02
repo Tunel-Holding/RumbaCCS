@@ -166,44 +166,126 @@ export default function AddScreen() {
   }
 };
 
-  const uploadEventoImage = async (eventoId, uri, empresaId) => {
+//   const uploadEventoImage = async (eventoId, uri, empresaId) => {
+
+//   const formData = new FormData();
+
+//   formData.append("file", {
+//     uri,
+//     name: `image_${Date.now()}.jpg`,
+//     type: "image/jpeg",
+//   });
+
+//   try {
+//     const token = await AsyncStorage.getItem("accesToken");
+
+//   const res = await api.post(
+//     `api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
+//     formData,
+//     {
+//       headers: {
+//         Authorization: `Bearer ${token}`,
+//         "Content-Type": "multipart/form-data",
+//       },
+//     }
+//   );
+
+//   // en axios, si hay error de status, lanza excepción, así que esta parte es innecesaria
+//   // pero si quieres validación extra:
+//   if (!res || res.status < 200 || res.status >= 300) {
+//     throw new Error(res?.data?.error || "Error al subir imagen");
+//   }
+
+//   // la respuesta ya está en res.data
+//   return res.data.url;
+//   } catch (e) {
+//     Alert.alert('Al subir la imagen', e.message);
+//     throw e; // relanzar para que el caller lo capture
+//   }
+// };
+
+// const uploadEventoImages = async (eventoId, uris, empresaId) => {
+//   const formData = new FormData();
+
+//   // ⬇️ Recorremos todas las imágenes y las agregamos al formData
+//   uris.forEach((uri, index) => {
+//     const filename = `image_${Date.now()}_${index}.jpg`;
+//     formData.append("files", {
+//       uri,
+//       name: filename,
+//       type: "image/jpeg", // ⚠️ si soportás png, webp, etc. conviene detectarlo dinámicamente
+//     });
+//   });
+
+//   try {
+//     const token = await AsyncStorage.getItem("accessToken"); // ojo: lo tenías escrito como "accesToken"
+
+//     const res = await api.post(
+//       `/api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
+//       formData,
+//       {
+//         headers: {
+//           "Content-Type": "multipart/form-data",
+//         },
+//       }
+//     );
+
+//     // if (!res || res.status < 200 || res.status >= 300) {
+//     //   throw new Error(res?.data?.error || "Error al subir imágenes");
+//     // }
+//     if (res.status >= 200 && res.status < 300) {
+//       return res.data.urls || []; // éxito, retornamos array vacío si no hay urls
+//     } else {
+//       // mostrar alerta y retornar null
+//       Alert.alert("Error al subir imágenes", res?.data?.error || "Error desconocido");
+//       return null;
+//     }
+
+//     // ⬅️ backend devuelve { urls: [...] }
+//     return res.data.urls;
+//   } catch (e) {
+//     console.error("🔥 Error al subir imágenes:", e);
+//     Alert.alert("Error al subir imágenes", e.message || "Intenta de nuevo");
+//   }
+// };
+
+const uploadEventoImages = async (eventoId, uris, empresaId) => {
   const formData = new FormData();
-  formData.append("file", {
-    uri,
-    name: `image_${Date.now()}.jpg`,
-    type: "image/jpeg",
+
+  // ⬇️ Recorremos todas las imágenes y las agregamos al formData
+  uris.forEach((uri, index) => {
+    const filename = `image_${Date.now()}_${index}.jpg`;
+    formData.append("files", {
+      uri,
+      name: filename,
+      type: "image/jpeg", // ⚠️ si soportás png, webp, etc. conviene detectarlo dinámicamente
+    });
   });
 
   try {
-    const token = await AsyncStorage.getItem("accesToken");
+    const res = await api.post(
+      `/api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
 
-  const res = await api.post(
-    `api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
-    formData,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
+    // ✅ si todo salió bien
+    return res.data.urls || [];
 
-  // en axios, si hay error de status, lanza excepción, así que esta parte es innecesaria
-  // pero si quieres validación extra:
-  if (!res || res.status < 200 || res.status >= 300) {
-    throw new Error(res?.data?.error || "Error al subir imagen");
-  }
-
-  // la respuesta ya está en res.data
-  return res.data.url;
-  } catch (e) {
-    Alert.alert('Al subir la imagen', e.message);
+  } catch (error) {
+    // ⚠️ solo mostramos alerta y no relanzamos excepción
+    const message = error.response?.data?.error || error.message || "Error desconocido";
+    Alert.alert("Error al subir imágenes", message);
+    return null; // indicamos fallo sin romper el flujo
   }
 };
 
 
-
-  const createEvento = async (payload, empresaId) => {
+const createEvento = async (payload, empresaId) => {
 
   const endpoint = `/api/empresas/${empresaId}/eventos/`;
   const res = await api.post(endpoint, payload);
@@ -214,7 +296,6 @@ export default function AddScreen() {
   }
   return res.data; // devuelve el evento creado
 };
-
 
   const handleCreateEvent = async () => {
     const empresaId = await AsyncStorage.getItem('empresaId');
@@ -291,54 +372,58 @@ export default function AddScreen() {
   console.log('payload:', payload);
 
   
- try {
-    // 1) crear evento
-    const newEvent = await createEvento(payload, empresaId);
-    const eventoId = newEvent.id;
-    setEventoId(eventoId);
 
-    // 2) subir imágenes locales (si existen)
-    const localImgs = formData.imagenesLocales || [];
-    if (localImgs.length > 0) {
-      // opcional: mostrar loader
-      setUploadingImages(true);
+    try {
+      // 1) crear evento
+      const newEvent = await createEvento(payload, empresaId);
+      const eventoId = newEvent.id;
+      setEventoId(eventoId);
 
-      const uploads = localImgs.map(uri => uploadEventoImage(eventoId, uri,empresaId));
-      const results = await Promise.allSettled(uploads);
+      // 2) subir imágenes locales en un solo request
+      const localImgs = formData.imagenesLocales || [];
+      if (localImgs.length > 0) {
+        setUploadingImages(true);
 
-      console.log("Results",results)
+        try {
+          // ⬇️ Usamos la nueva función de múltiples imágenes
+          const uploadedUrls = await uploadEventoImages(
+            eventoId,
+            localImgs,
+            empresaId
+          );
 
-      const uploadedUrls = [];
-      const failed = [];
+          if (!uploadedUrls) {
+          // backend ya borró el evento si alguna imagen falló
+          setUploadingImages(false);
+          return; // solo salir, alert ya se mostró
+        }
 
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled') uploadedUrls.push(r.value);
-        else failed.push({ uri: localImgs[i], reason: r.reason });
-      });
+          // actualizar estado
+          setFormData((prev) => ({
+            ...prev,
+            imagenesLocales: [],
+            imagenesTemp: [...(prev.imagenesTemp || []), ...uploadedUrls],
+          }));
 
-      // actualizar el estado: limpiar locales y agregar las urls subidas
-      setFormData(prev => ({
-        ...prev,
-        imagenesLocales: [],
-        imagenesTemp: [...(prev.imagenesTemp || []), ...uploadedUrls],
-      }));
+          setUploadingImages(false);
+        } catch (err) {
 
-      setUploadingImages(false);
-
-      console.log("failed:",failed)
-
-      if (failed.length > 0) {
-        console.warn('Algunas imágenes no se subieron:', failed);
-        Alert.alert('Aviso', `${failed.length} imagen(es) no se pudieron subir.`);
+          // Si falla el upload múltiple, backend ya habrá borrado el evento
+          setUploadingImages(false);
+          Alert.alert(
+            "Error",
+            "El evento fue eliminado porque una de las imágenes no pasó la verificación."
+          );
+          return;
+        }
       }
-    }
 
-      Alert.alert('Éxito', 'Evento agregado correctamente', [
-      { text: 'OK', onPress: () => navigation.navigate('Empresa') },
-    ]);
-  } catch (e) {
-    Alert.alert('Error de red', e.message);
-  }
+      Alert.alert("Éxito", "Evento agregado correctamente", [
+        { text: "OK", onPress: () => navigation.navigate("Empresa") },
+      ]);
+    } catch (e) {
+      Alert.alert("Error de red", e.message);
+    }
   };
 
 /**

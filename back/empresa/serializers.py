@@ -138,7 +138,6 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "redes_sociales",
             "logo",
             "total_seguidores",
-            "eventos",
             "is_siguiendo",
             "fecha_creacion",
             "activo",
@@ -147,6 +146,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "total_eventos",
             "is_following",
             "status",
+            "eventos",
         ]
         read_only_fields = [
             "id",
