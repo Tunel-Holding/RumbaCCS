@@ -8,11 +8,13 @@ from .models import (
     )
 from .serializers import (
     EmpresaTokenObtainPairSerializer,
-    EmpresaPublicSerializer, 
+    EmpresaPublicSerializer,
+    EmpresaSerializer,
     RatingSerializer,
     EventoImagenSerializer,
     TempImageSerializer,
     EmpresaBulkSerializer,
+    EmpresaStaffSerializer,
     )
 from api.models import EmailVerification
 from django.utils import timezone
@@ -50,10 +52,14 @@ from django.shortcuts import get_object_or_404
 from django.db.models.expressions import RawSQL
 from rest_framework.parsers import MultiPartParser, FormParser
 from .supabase_client import supabase, upload_image_to_supabase
-from .services import upload_empresa_profile_picture, delete_empresa_profile_picture
+from .services import upload_empresa_profile_picture, delete_empresa_profile_picture, CustomPagination
 from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
+from .services import asignar_empresa_por_menor_carga, NoStaffAvailable
+from .notifications import notificar_asignacion_empresa
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -110,12 +116,13 @@ class EmpresaValidarPinView(generics.CreateAPIView):
         pin = request.data.get('pin')
         empresa_data = request.data.get('empresa', {})
         empresa_fields = [
-            'nombre', 'rif', 'descripcion', 'lugar', 'telefono', 'email_contacto', 'redes_sociales', 'logo',
+            'nombre', 'rif', 'descripcion', 'lugar', 'telefono', 'email_contacto', 'logo',
         ]
+        redes_sociales = empresa_data.get('redes_sociales', [])
         empresa_data = {k: v for k, v in empresa_data.items() if k in empresa_fields}
         empresa_data['email'] = email
 
-        print(f"[VALIDAR PIN] email={email}, pin={pin}, empresa_data={empresa_data}")
+        print(f"[VALIDAR PIN] email={email}, pin={pin}, empresa_data={empresa_data}, redes_sociales={redes_sociales}")
 
         # Validar pin
         try:
@@ -137,7 +144,28 @@ class EmpresaValidarPinView(generics.CreateAPIView):
             password=make_password(password),
             **empresa_data
         )
+        # Guardar redes sociales
+        from .models import EmpresaRedSocial
+        for red in redes_sociales:
+            # Espera que cada elemento sea un dict: {'tipo': ..., 'url': ...}
+            if isinstance(red, dict):
+                tipo = red.get('tipo', 'instagram')
+                url = red.get('url', '')
+            else:
+                tipo = 'instagram'
+                url = red
+            if url:
+                EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
 
+        # 🔹 Asignación automática al staff con menor carga
+        try:
+            asignar_empresa_por_menor_carga(empresa, nombre_grupo="Verificadores")
+        except NoStaffAvailable:
+            pass  # queda pendiente sin assigned_to
+        else:
+            if empresa.assigned_to:
+                notificar_asignacion_empresa(empresa)
+        
         print(f"[VALIDAR PIN] Empresa creada correctamente para email={email}")
 
         empresa_data_serialized = EmpresaSerializer(
@@ -249,28 +277,109 @@ class EmpresaViewSet(ModelViewSet):
         if getattr(real_obj, "empresa", None):
             raise ValidationError({"non_field_errors": ["Este usuario ya tiene una empresa asociada."]})
 
-        # Guardar empresa
+        # Guardar empresa y redes sociales
         password = serializer.validated_data.pop("password", None)
+        redes = self.request.data.get('redes_sociales', [])
+        empresa = None
         if password:
-            serializer.save(usuario=real_obj, password=make_password(password))
+            empresa = serializer.save(usuario=real_obj, password=make_password(password))
         else:
-            serializer.save(usuario=real_obj)
+            empresa = serializer.save(usuario=real_obj)
+        # Guardar redes sociales
+        from .models import EmpresaRedSocial
+        for red in redes:
+            # Espera que cada elemento sea un dict: {'tipo': ..., 'url': ...}
+            if isinstance(red, dict):
+                tipo = red.get('tipo', 'instagram')
+                url = red.get('url', '')
+            else:
+                tipo = 'instagram'
+                url = red
+            if url:
+                EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
 
-
+        # 🔹 Aquí añadimos la asignación automática
+        try:
+            asignar_empresa_por_menor_carga(empresa, nombre_grupo="Verificadores")
+        except NoStaffAvailable:
+            pass  # queda pendiente sin assigned_to
+        else:
+            if empresa.assigned_to:
+                notificar_asignacion_empresa(empresa)
 
     # Acción para seguir una empresa
     @action(detail=True, methods=['post'])
     def seguir(self, request, pk=None):
         empresa = self.get_object()
-        empresa.seguidores.add(request.user)
-        return Response({"status": f"Ahora sigues a {empresa.nombre}"}, status=status.HTTP_200_OK)
+        auth_entity = request.user
+
+        if not auth_entity or not getattr(auth_entity, "is_authenticated", False):
+            return Response(
+                {"detail": "Debes iniciar sesión para seguir empresas."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        usuario = None
+        if getattr(auth_entity, "kind", None) == "usuario":
+            usuario = auth_entity.obj
+        elif getattr(auth_entity, "kind", None) == "empresa":
+            # 👇 empresa ligada a un usuario
+            usuario = getattr(auth_entity.obj, "usuario", None)
+
+        if not usuario:
+            return Response(
+                {"detail": "Solo los usuarios pueden seguir empresas."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if empresa.seguidores.filter(id=usuario.id).exists():
+            return Response({"detail": "Ya sigues a esta empresa."}, status=405)
+
+        empresa.seguidores.add(usuario)
+        return Response(
+            {"status": f"Ahora sigues a {empresa.nombre}"},
+            status=status.HTTP_200_OK
+        )
+
 
     # Acción para dejar de seguir una empresa
     @action(detail=True, methods=['post'])
     def dejar_de_seguir(self, request, pk=None):
         empresa = self.get_object()
-        empresa.seguidores.remove(request.user)
-        return Response({"status": f"Has dejado de seguir a {empresa.nombre}"}, status=status.HTTP_200_OK)
+        auth_entity = request.user
+
+        if not auth_entity or not getattr(auth_entity, "is_authenticated", False):
+            return Response(
+                {"detail": "Debes iniciar sesión para dejar de seguir empresas."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        usuario = None
+        if getattr(auth_entity, "kind", None) == "usuario":
+            usuario = auth_entity.obj
+        elif getattr(auth_entity, "kind", None) == "empresa":
+            usuario = getattr(auth_entity.obj, "usuario", None)
+
+        if not usuario:
+            return Response(
+                {"detail": "Solo los usuarios pueden dejar de seguir empresas."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        if not empresa.seguidores.filter(id=usuario.id).exists():
+            return Response({"detail": "No sigues a esta empresa."}, status=400)
+
+        empresa.seguidores.remove(usuario)
+        return Response(
+            {"status": f"Has dejado de seguir a {empresa.nombre}"},
+            status=status.HTTP_200_OK
+        )
+
+    @action(detail=True, methods=["get"])
+    def seguidores(self, request, pk=None):
+        empresa = self.get_object()
+        seguidores = empresa.seguidores.all().values("id", "username")
+        return Response(seguidores)
 
 # -----------------------------
 # Endpoint de detalle de empresa
@@ -314,6 +423,7 @@ class EventoViewSet(viewsets.ModelViewSet):
     serializer_class = EventoSerializer
     authentication_classes = [EmpresaJWTAuthentication]
     permission_classes = [IsEmpresaOrUsuarioAuthenticated]
+    
 
     def get_queryset(self):
         empresa_pk = self.kwargs.get('empresa_pk')
@@ -370,10 +480,29 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
 
 
 class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Evento2.objects.all().order_by('-id')  # orden por id
     serializer_class = EventoSerializer
-    permission_classes = [AllowAny]  # público, no requiere token
-    
+    permission_classes = [AllowAny]
+    pagination_class = CustomPagination
+
+    def get_queryset(self):
+        """
+        Devuelve eventos futuros y aplica filtros opcionales: category y search.
+        """
+        queryset = Evento2.objects.filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
+
+        # Filtrar por categoría si se recibe en query params
+        categoria = self.request.query_params.get('categoria')
+        if categoria:
+            queryset = queryset.filter(categoria__icontains=categoria)
+
+
+        # Filtrar por búsqueda (opcional)
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(titulo__icontains=search)
+
+        return queryset
+
     @action(detail=False, methods=['get'])
     def nearby(self, request):
         lat = request.query_params.get('lat')
@@ -386,9 +515,8 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         except ValueError:
             return Response({'detail': 'lat and lng must be floats'}, status=400)
 
-        radius_km = float(request.query_params.get('radius_km', 10))  # default 10 km
+        radius_km = float(request.query_params.get('radius', 10))
 
-        # Haversine formula
         haversine_sql = (
             "6371 * acos( "
             "cos(radians(%s)) * cos(radians(latitude)) * cos(radians(longitude) - radians(%s)) + "
@@ -397,13 +525,13 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         )
         qs = Evento2.objects.annotate(
             distance=RawSQL(haversine_sql, (lat_f, lng_f, lat_f))
-        ).filter(distance__lte=radius_km).order_by('distance') # más cercano primero ('distance', 'fecha_evento')
+        ).filter(distance__lte=radius_km, fecha_evento__gte=timezone.now()).order_by('distance', 'fecha_evento')
 
         page = self.paginate_queryset(qs)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
-        
+
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
@@ -599,6 +727,7 @@ class EmpresaEventoCreateView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 class UsuarioEventoViewSet(viewsets.ModelViewSet):
+    
     serializer_class = UsuarioEventoSerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -611,3 +740,80 @@ class UsuarioEventoViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
+        
+class EmpresaValidarPinConUsuarioView(generics.CreateAPIView):
+    serializer_class = EmpresaRegistroSerializer
+    permission_classes = [IsEmpresaOrUsuarioAuthenticated]
+    authentication_classes = [EmpresaOrUsuarioJWTAuthentication]
+
+    def create(self, request, *args, **kwargs):
+        auth_entity = request.user
+        real_obj = getattr(auth_entity, "obj", None)
+
+        if not auth_entity or getattr(auth_entity, "kind", None) != "usuario":
+            return Response({"detail": "Solo un usuario puede registrar una empresa."}, status=403)
+
+        pin = request.data.get("pin")
+        email = request.data.get("email")
+        empresa_data = request.data.get("empresa", {})
+
+        print("empresa_data para serializer:", empresa_data)
+
+        # 🔹 Validar PIN
+        try:
+            verif = EmailVerification.objects.get(email=email, code=pin, is_verified=False)
+        except EmailVerification.DoesNotExist:
+            return Response({"detail": "PIN inválido o expirado."}, status=400)
+
+        if verif.expires_at < timezone.now():
+            return Response({"detail": "PIN expirado."}, status=400)
+
+        verif.is_verified = True
+        verif.save()
+
+        # Extraer password y redes sociales
+        password = request.data.get("password")
+        redes_sociales = empresa_data.pop("redes_sociales", [])
+
+        # Filtrar campos válidos para Empresa
+        empresa_fields = ["nombre", "rif", "descripcion", "lugar", "telefono", "email_contacto", "logo"]
+        empresa_data = {k: v for k, v in empresa_data.items() if k in empresa_fields}
+
+        # Crear empresa vinculada al usuario
+        empresa = Empresa.objects.create(
+            usuario=real_obj,
+            password=make_password(password) if password else None,
+            email =email,
+            **empresa_data
+        )
+
+        # Guardar redes sociales
+        from .models import EmpresaRedSocial
+        for red in redes_sociales:
+            if isinstance(red, dict):
+                tipo = red.get('tipo', 'instagram')
+                url = red.get('url', '')
+            else:
+                tipo = 'instagram'
+                url = red
+            if url:
+                EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
+
+        # Asignación automática
+        try:
+            asignar_empresa_por_menor_carga(empresa, nombre_grupo="Verificadores")
+        except NoStaffAvailable:
+            pass
+        else:
+            if empresa.assigned_to:
+                notificar_asignacion_empresa(empresa)
+
+        empresa_serialized = EmpresaSerializer(empresa, context={"request": request}).data
+
+        # Limpiar PINs antiguos
+        EmailVerification.objects.filter(email=email, is_verified=True).delete()
+
+        return Response(
+            {"message": "Empresa creada exitosamente", "empresa": empresa_serialized},
+            status=201
+        )
