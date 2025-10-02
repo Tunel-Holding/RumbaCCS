@@ -171,7 +171,6 @@ export default function PerfilScreen({ navigation }) {
       <TouchableOpacity
         style={[styles.sectionButton, styles.blue, selectedSection === 'guardados' && styles.sectionButtonActive]}
         onPress={() => {
-          console.log('Botón de guardados presionado');
           setSelectedSection('guardados');
         }}
         activeOpacity={0.8}
@@ -184,6 +183,25 @@ export default function PerfilScreen({ navigation }) {
         activeOpacity={0.8}
       >
         <SvgXml xml={svgComentarios} width={24} height={24} />
+      </TouchableOpacity>
+      {/* Botón de empresas que sigues, como icono SVG, junto a los otros botones */}
+      <TouchableOpacity
+        style={[styles.sectionButton, styles.blue, selectedSection === 'empresas' && styles.sectionButtonActive]}
+        onPress={async () => {
+          try {
+            const res = await api.get('/api/empresas-seguidas/');
+            setEmpresasSeguidas(res.data || []);
+          } catch (e) {
+            setEmpresasSeguidas([]);
+          }
+          setSelectedSection('empresas');
+        }}
+        activeOpacity={0.8}
+      >
+        <SvgXml xml={`<svg width='24' height='24' viewBox='0 0 24 24' fill='none'>
+  <circle cx='12' cy='8' r='4' stroke='#0ea5e9' stroke-width='2' fill='#dbeafe'/>
+  <path d='M4 20c0-3.3137 3.134-6 7-6s7 2.6863 7 6' stroke='#0ea5e9' stroke-width='2' fill='#dbeafe'/>
+</svg>`} width={24} height={24} />
       </TouchableOpacity>
     </View>
   );
@@ -326,6 +344,18 @@ export default function PerfilScreen({ navigation }) {
       console.log('Error al borrar evento guardado:', error);
     }
   };
+
+  // Cierra la lista de empresas seguidas al cambiar de sección o salir de la pantalla
+  useEffect(() => {
+    if (mostrarEmpresasAbajo && selectedSection !== null) {
+      setMostrarEmpresasAbajo(false);
+    }
+  }, [selectedSection]);
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => setMostrarEmpresasAbajo(false);
+    }, [])
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -622,6 +652,37 @@ export default function PerfilScreen({ navigation }) {
             )}
         </View>
       )}
+      {selectedSection === 'empresas' && (
+        <View style={[styles.sectionContent, { padding: 16, backgroundColor: 'transparent', margin: 0 }]}> 
+          <Text style={styles.sectionTitle}>Empresas que sigues</Text>
+          {empresasSeguidas.length === 0 ? (
+            <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>
+              Aún no sigues ninguna empresa
+            </Text>
+          ) : (
+            empresasSeguidas.map((emp, idx) => (
+              <TouchableOpacity
+                key={emp.id || idx}
+                style={{ backgroundColor: '#334155', borderRadius: 16, flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 16 }}
+                onPress={() => navigation.navigate('EmpresaScreen', { empresaId: emp.id })}
+              >
+                {emp.logo_url || emp.logo ? (
+                  <Image
+                    source={{ uri: emp.logo_url || emp.logo }}
+                    style={{ width: 40, height: 40, borderRadius: 20, marginRight: 14, backgroundColor: '#111827' }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={{ width: 40, height: 40, borderRadius: 20, marginRight: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: '#94a3b8', fontSize: 22 }}>🏢</Text>
+                  </View>
+                )}
+                <Text style={{ color: '#e0e7ff', fontSize: 17, fontWeight: '500' }}>{emp.nombre || emp.name || 'Empresa sin nombre'}</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      )}
 
       {/* Modals solo versión móvil */}
       <Modal visible={modalVisible.cart} transparent animationType="none">
@@ -729,6 +790,48 @@ export default function PerfilScreen({ navigation }) {
         </View>
       </Modal>
       </ScrollView>
+
+      {/* Nueva sección: Empresas que sigues en la parte inferior */}
+      {/* Lista de empresas que sigues, con estilo similar a eventos guardados */}
+      {mostrarEmpresasAbajo && (
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#334155', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, zIndex: 100, maxHeight: '60%' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={{ color: '#0ea5e9', fontWeight: 'bold', fontSize: 18 }}>Empresas que sigues</Text>
+            <TouchableOpacity onPress={() => setMostrarEmpresasAbajo(false)}>
+              <Text style={{ color: '#0ea5e9', fontWeight: 'bold', fontSize: 18 }}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView>
+            {empresasSeguidas && empresasSeguidas.length > 0 ? (
+              empresasSeguidas.map((emp, idx) => (
+                <TouchableOpacity
+                  key={emp.id || idx}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: idx !== empresasSeguidas.length - 1 ? 1 : 0, borderColor: '#475569', backgroundColor: '#475569', borderRadius: 12, marginBottom: 10, paddingHorizontal: 10 }}
+                  onPress={() => {
+                    setMostrarEmpresasAbajo(false);
+                    navigation.navigate('EmpresaScreen', { empresaId: emp.id });
+                  }}
+                >
+                  {emp.logo_url || emp.logo ? (
+                    <Image
+                      source={{ uri: emp.logo_url || emp.logo }}
+                      style={{ width: 40, height: 40, borderRadius: 20, marginRight: 14, backgroundColor: '#111827' }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={{ width: 40, height: 40, borderRadius: 20, marginRight: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#94a3b8', fontSize: 22 }}>🏢</Text>
+                    </View>
+                  )}
+                  <Text style={{ color: '#e0e7ff', fontSize: 17, fontWeight: '500' }}>{emp.nombre || emp.name || 'Empresa sin nombre'}</Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 16, fontSize: 16 }}>Aún no sigues ninguna empresa</Text>
+            )}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 }

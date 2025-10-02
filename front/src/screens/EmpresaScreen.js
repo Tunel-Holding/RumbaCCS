@@ -17,6 +17,7 @@ import {
   TextInput,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
@@ -118,6 +119,7 @@ export default function EmpresaScreen() {
       const response = await api.get(`/api/empresas/${empresaId}/`);
       
       setEmpresaData(response.data);
+      console.log("Datos de empresa:", response.data);
    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
@@ -388,6 +390,9 @@ useEffect(() => {
   );
 
   const [profilePicModal, setProfilePicModal] = useState(false);
+  const [profilePicLoading, setProfilePicLoading] = useState(false);
+  const [profilePicEdit, setProfilePicEdit] = useState(null); // { uri }
+  const [profilePicEditVisible, setProfilePicEditVisible] = useState(false);
 
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
@@ -693,7 +698,9 @@ console.log("imagenes del evento",eventos.imagenes)
                             { text: 'Eliminar', style: 'destructive', onPress: async () => {
                                 try {
                                   await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
+                                  await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
                                   setEventos(prev => prev.filter(ev => ev.id !== evento.id));
+                                  Alert.alert('Éxito', 'El evento ha sido eliminado');
                                   Alert.alert('Éxito', 'El evento ha sido eliminado');
                                 } catch (e) {
                                   Alert.alert('Error', 'No se pudo eliminar el evento');
@@ -833,6 +840,74 @@ console.log("imagenes del evento",eventos.imagenes)
           {renderEventos()}
         </View>
       </ScrollView>
+
+      {/* Modal para editar y aceptar la imagen de perfil */}
+      <Modal
+        visible={profilePicEditVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setProfilePicEditVisible(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:24, alignItems:'center', width:320, borderWidth:1, borderColor:'#334155' }}>
+            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#fff' }}>Ajusta tu foto de perfil</Text>
+            {profilePicEdit && (
+              <View style={{ width: 200, height: 200, borderRadius: 100, overflow: 'hidden', backgroundColor: '#334155', marginBottom: 16, justifyContent:'center', alignItems:'center' }}>
+                <Image
+                  source={{ uri: profilePicEdit.uri }}
+                  style={{ width: 200, height: 200, borderRadius: 100 }}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
+            <View style={{ flexDirection:'row', gap:16 }}>
+              <TouchableOpacity
+                style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginRight:8 }}
+                onPress={async () => {
+                  setProfilePicLoading(true);
+                  // Recorte circular
+                  let finalUri = profilePicEdit.uri;
+                  const manipResult = await ImageManipulator.manipulateAsync(
+                    profilePicEdit.uri,
+                    [{ resize: { width: 400, height: 400 } }],
+                    { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+                  );
+                  finalUri = manipResult.uri;
+                  // Subir imagen
+                  const file = {
+                    uri: finalUri,
+                    name: "profile.jpg",
+                    type: "image/jpeg",
+                  };
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  try {
+                    const response = await api.post(
+                      `/api/empresas/${empresaData?.id}/upload-foto/`,
+                      formData,
+                      { headers: { "Content-Type": "multipart/form-data" } }
+                    );
+                    setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
+                    setProfilePicEditVisible(false);
+                  } catch (error) {
+                    Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
+                  } finally {
+                    setProfilePicLoading(false);
+                  }
+                }}
+              >
+                <Text style={{ color:'#fff', fontWeight:'bold' }}>Aceptar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor:'#e5e7eb', borderRadius:8, padding:12 }}
+                onPress={() => setProfilePicEditVisible(false)}
+              >
+                <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
