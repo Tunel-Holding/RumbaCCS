@@ -2,6 +2,8 @@ import email
 from django.shortcuts import render
 from rest_framework import viewsets, permissions, generics, status
 from django.contrib.auth import get_user_model, authenticate
+from empresa.serializers import EmpresaSerializer
+from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -102,6 +104,16 @@ class VerifyCodeView(APIView):
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UserPublicSerializer
+
+    @action(detail=True, methods=["get"], url_path="empresas-seguidas")
+    def empresas_seguidas(self, request, pk=None):
+        usuario = self.get_object()
+        empresas = usuario.empresas_que_sigue.all()
+        serializer = EmpresaSerializer(empresas, many=True, context={"request": request})
+        return Response({
+            # "total": usuario.total_empresas_que_sigue,
+            "empresas": serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 class FinalizeRegisterView(APIView):

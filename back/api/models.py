@@ -73,8 +73,8 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
         validators=[MinValueValidator(1000000000), MaxValueValidator(9999999999)]
     )
     birthday = models.DateField(null=True, blank=True)
-    region = models.CharField(max_length=20, choices=ESTADO_CHOICES)
-    gender = models.CharField(max_length=9, choices=GENERO_CHOICES)
+    region = models.CharField(max_length=20, choices=ESTADO_CHOICES,null=True, blank=True)
+    gender = models.CharField(max_length=9, choices=GENERO_CHOICES, null=True, blank=True)
     
     avatar_path = models.CharField(max_length=512, blank=True, null=True)
     avatar_url = models.URLField(blank=True, null=True)
@@ -86,7 +86,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     objects = UsuarioManager()
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = ['username']
+    REQUIRED_FIELDS = ['username','phone']
     
     # def delete(self, *args, **kwargs):
     #     if self.avatar_path:
