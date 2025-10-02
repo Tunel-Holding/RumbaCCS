@@ -4,7 +4,7 @@ import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarModal from '../components/CalendarModal';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, ActivityIndicator } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 
 
@@ -26,13 +26,47 @@ export default function PerfilScreen({ navigation }) {
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
   const [profilePicModal, setProfilePicModal] = useState(false);
+  // Estado para empresas seguidas (usuario normal)
+  const [empresasSeguidas, setEmpresasSeguidas] = useState([]);
+  const [empresasModal, setEmpresasModal] = useState(false);
+  // Estado para seguidores (usuario empresa)
+  const [seguidores, setSeguidores] = useState([]);
+  const [seguidoresModal, setSeguidoresModal] = useState(false);
 
+  // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
+  const fetchEmpresasSeguidas = async () => {
+    try {
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        setEmpresasSeguidas([]);
+        return;
+      }
+      const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
+      // Normalizar distintas formas de respuesta
+      const dataArray = Array.isArray(res?.data)
+        ? res.data
+        : (res?.data?.empresas && Array.isArray(res.data.empresas) ? res.data.empresas : (Array.isArray(res?.data?.results) ? res.data.results : []));
+      if (!Array.isArray(res?.data) && !Array.isArray(res?.data?.empresas) && !Array.isArray(res?.data?.results)) {
+        console.warn('PerfilScreen.fetchEmpresasSeguidas: unexpected response shape:', res?.data);
+      }
+      setEmpresasSeguidas(dataArray || []);
+    } catch (e) {
+      console.log('Error al cargar empresas seguidas:', e);
+      setEmpresasSeguidas([]);
+    }
+  };
+
+  // Normalizar posibles valores no-array que puedan venir de la API
+  const empresasArray = Array.isArray(empresasSeguidas) ? empresasSeguidas : [];
+
+  
   useEffect(() => {
     
   // Función que lee el nombre guardado en AsyncStorage
   const fetchUserName = async () => {
     try {
       const name = await AsyncStorage.getItem('userName');
+      
       const empresaId = await AsyncStorage.getItem('empresaId');
       const token = await AsyncStorage.getItem('accessToken');
       setHasEmpresa(!!(empresaId && empresaId !== ''));
@@ -43,6 +77,8 @@ export default function PerfilScreen({ navigation }) {
       } else {
         setUserName('');
       }
+      // Actualizar contador de empresas seguidas cuando leemos el user
+      fetchEmpresasSeguidas();
     } catch (error) {
       console.log('Error al leer userName:', error);
       setUserName('');
@@ -54,6 +90,9 @@ export default function PerfilScreen({ navigation }) {
 
   // Llamada inicial al montar la pantalla
   fetchUserName();
+
+  // También actualizar el contador cada vez que la pantalla gana foco
+  navigation.addListener('focus', fetchEmpresasSeguidas);
 
   // Limpiar el listener cuando el componente se desmonta
   return () => {
@@ -83,6 +122,8 @@ export default function PerfilScreen({ navigation }) {
     AsyncStorage.removeItem('userEmail'),
     AsyncStorage.removeItem('accessToken'),
     AsyncStorage.removeItem('empresaId'),
+    AsyncStorage.removeItem('isEmpresaAccount'),
+    AsyncStorage.removeItem('userId'),
   ]);
 
   setUserName('');
@@ -150,13 +191,23 @@ export default function PerfilScreen({ navigation }) {
   // --- Estado para eventos guardados ---
   const [guardados, setGuardados] = useState([]);
   const [loadingGuardados, setLoadingGuardados] = useState(false);
+  // Estado para comentarios relacionados a empresas
+  const [comentarios, setComentarios] = useState([]);
+  const [loadingComentarios, setLoadingComentarios] = useState(false);
 
   // Función para cargar eventos guardados desde el backend
   const fetchGuardados = async () => {
     setLoadingGuardados(true);
     try {
       const response = await api.get('api/eventos-guardados/');
-      setGuardados(response.data.map(e => ({
+      // Normalizar la respuesta: puede venir como array o como objeto paginado
+      const dataArray = Array.isArray(response?.data)
+        ? response.data
+        : (response?.data && Array.isArray(response.data.results) ? response.data.results : []);
+      if (!Array.isArray(response?.data) && !Array.isArray(response?.data?.results)) {
+        console.warn('PerfilScreen: /api/eventos-guardados returned non-array response:', response?.data);
+      }
+      setGuardados(dataArray.map(e => ({
         id: e.id, // id del registro UsuarioEvento
         eventoId: e.evento_obj.id, // id del evento original
         titulo: e.evento_obj.titulo,
@@ -185,6 +236,10 @@ export default function PerfilScreen({ navigation }) {
       console.log('useEffect: selectedSection es guardados, ejecutando fetchGuardados');
       fetchGuardados();
     }
+    // Si cambiamos a la sección 'comentarios', traemos los comentarios de empresas
+    if (selectedSection === 'comentarios') {
+      fetchComentarios();
+    }
   }, [selectedSection]);
 
   // Llama a fetchGuardados cuando el usuario regresa a la pantalla de guardados
@@ -193,8 +248,72 @@ export default function PerfilScreen({ navigation }) {
       if (selectedSection === 'guardados') {
         fetchGuardados();
       }
+      if (selectedSection === 'comentarios') {
+        fetchComentarios();
+      }
     }, [selectedSection])
   );
+
+  // --- Función para cargar comentarios de empresas ---
+  const fetchComentarios = async () => {
+    setLoadingComentarios(true);
+    try {
+      // Si el usuario es una empresa propia, pedimos los ratings de su empresa
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      if (hasEmpresa && empresaId) {
+        const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
+        const data = Array.isArray(res.data) ? res.data : (Array.isArray(res.data.results) ? res.data.results : []);
+        setComentarios((data || []).map(c => ({ ...c, empresa_nombre: res.data?.empresa?.nombre || 'Mi empresa' })) || []);
+        return;
+      }
+
+      // Usuario normal: mostremos SOLO comentarios que el usuario haya escrito
+      const userId = await AsyncStorage.getItem('userId');
+      let empresas = empresasSeguidas;
+      if ((!empresas || empresas.length === 0) && userId) {
+        // intentar obtener directamente
+        const resSeg = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
+        empresas = Array.isArray(resSeg.data) ? resSeg.data : (Array.isArray(resSeg.data.empresas) ? resSeg.data.empresas : (Array.isArray(resSeg.data.results) ? resSeg.data.results : []));
+      }
+
+      if (!empresas || empresas.length === 0) {
+        setComentarios([]);
+        return;
+      }
+
+      // Para cada empresa pedimos sus ratings en paralelo y filtramos por usuario == userId y comentario no vacío
+      const promises = empresas.map(emp => api.get(`/api/empresas/${emp.id}/ratings/`).then(r => ({ empresa: emp, data: r.data })).catch(e => ({ empresa: emp, data: [] })));
+      const results = await Promise.all(promises);
+
+      // Aplanar, normalizar y filtrar solo comentarios del usuario
+      const all = [];
+      results.forEach(r => {
+        const arr = Array.isArray(r.data) ? r.data : (Array.isArray(r.data.results) ? r.data.results : []);
+        const mapped = (arr || []).map(c => ({ ...c, empresa_nombre: r.empresa?.nombre || r.empresa?.name || 'Empresa' }));
+        // Filtramos: solo los ratings cuyo campo usuario coincida con userId y que tengan comentario no vacío
+        const filtered = mapped.filter(c => {
+          const usuarioId = c.usuario || c.usuario_id || (c.usuario && c.usuario.id) || null;
+          const hasComentario = c.comentario && String(c.comentario).trim().length > 0;
+          return usuarioId && String(usuarioId) === String(userId) && hasComentario;
+        });
+        all.push(...filtered);
+      });
+
+      // Ordenar por fecha reciente para mejor UX (si existe creado_en o creadoAt)
+      all.sort((a,b) => {
+        const ta = new Date(a.creado_en || a.created_at || a.createdAt || 0).getTime();
+        const tb = new Date(b.creado_en || b.created_at || b.createdAt || 0).getTime();
+        return tb - ta;
+      });
+
+      setComentarios(all);
+    } catch (e) {
+      console.log('Error fetchComentarios', e);
+      setComentarios([]);
+    } finally {
+      setLoadingComentarios(false);
+    }
+  };
 
   // --- Función para borrar evento guardado ---
   const borrarGuardado = async (id) => {
@@ -229,13 +348,37 @@ export default function PerfilScreen({ navigation }) {
           visible={menuVisible}
           setVisible={setMenuVisible}
           hasEmpresa={hasEmpresa}
-          onMenuItemPress={item => {
+          onMenuItemPress={async (item) => {
             setMenuVisible(false);
-           if (item === 'calendar') setModalVisible({ ...modalVisible, calendar: true });
+            if (item === 'calendar') setModalVisible({ ...modalVisible, calendar: true });
             else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
             else if (item === 'inicio') navigation.navigate('HomeScreen');
-            else if (item === 'register') navigation.navigate('Empresa');
-            else if (item === 'empresa_form') navigation.navigate('FormularioScreen');
+            else if (item === 'register') {
+              // Al pedir 'Perfil empresa' desde el menú, cambiamos el contexto a empresa
+              try {
+                const empresaId = await AsyncStorage.getItem('empresaId');
+                if (!empresaId) {
+                  Alert.alert('No tienes empresa afiliada', 'No se encontró una empresa asociada a tu cuenta.');
+                  return;
+                }
+
+                // Limpiar datos de sesión del usuario
+                await Promise.all([
+                  AsyncStorage.removeItem('userName'),
+                  AsyncStorage.removeItem('userEmail'),
+                  AsyncStorage.removeItem('userId'),
+                ]);
+
+                // Marcar que ahora estamos en modo empresa y actualizar userKind
+                await AsyncStorage.setItem('isEmpresaAccount', 'true');
+                await AsyncStorage.setItem('userKind', 'empresa');
+
+                navigation.navigate('Empresa', { empresaId });
+              } catch (e) {
+                console.log('Error switching to empresa account from menu', e);
+                Alert.alert('Error', 'No se pudo cambiar a la cuenta empresa. Intenta nuevamente.');
+              }
+            } else if (item === 'empresa_form') navigation.navigate('FormularioScreen');
           }}
         />
       </View>
@@ -255,7 +398,126 @@ export default function PerfilScreen({ navigation }) {
             <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
           </TouchableOpacity>
         ) : null}
-        <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>0</Text></Text>
+        {/* Mostrar solo el botón correspondiente según el tipo de usuario */}
+        {!hasEmpresa && (
+          <>
+            <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>{empresasArray.length}</Text></Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 18, marginBottom: 8, alignItems: 'center', alignSelf: 'center' }}
+              onPress={async () => {
+                await fetchEmpresasSeguidas();
+                setEmpresasModal(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ver empresas que sigues</Text>
+            </TouchableOpacity>
+            {/* Modal lista de empresas seguidas */}
+            <Modal
+              visible={empresasModal}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setEmpresasModal(false)}
+            >
+              <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+                <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:320, maxHeight:'80%' }}>
+                  <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#0ea5e9' }}>Empresas que sigues</Text>
+                  <ScrollView style={{ width:'100%' }}>
+                    {empresasArray.length === 0 ? (
+                      <Text style={{ color:'#64748b', textAlign:'center' }}>No sigues ninguna empresa.</Text>
+                    ) : (
+                      empresasArray.map((emp, idx) => (
+                        <View key={emp.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, justifyContent: 'center' }}>
+                          {emp.logo_url || emp.logo ? (
+                            <Image
+                              source={{ uri: emp.logo_url || emp.logo }}
+                              style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb' }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: '#94a3b8', fontSize: 18 }}>🏢</Text>
+                            </View>
+                          )}
+                          <Text style={{ color:'#1e293b', fontSize:16, textAlign:'center', flexShrink: 1 }}>{emp.nombre || emp.name || 'Empresa sin nombre'}</Text>
+                        </View>
+                      ))
+                    )}
+                  </ScrollView>
+                  <TouchableOpacity style={{ marginTop:16 }} onPress={() => setEmpresasModal(false)}>
+                    <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          </>
+        )}
+          {/* Si el usuario tiene una empresa afiliada, permitir cambiar a su perfil empresa */}
+          
+        {hasEmpresa && (
+          <>
+            <Text style={styles.userStats}>Empresas que sigues: <Text style={styles.highlight}>{seguidores.length}</Text></Text>
+            <TouchableOpacity
+              style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 18, marginBottom: 8, alignItems: 'center', alignSelf: 'center' }}
+              onPress={async () => {
+                // Reuse the same endpoint to fetch seguidores; normalize if needed
+                try {
+                  const userId = await AsyncStorage.getItem('userId');
+                  const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
+                  const seguidoresArray = res?.data?.empresas && Array.isArray(res.data.empresas)
+                    ? res.data.empresas
+                    : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.results) ? res.data.results : []));
+                  setSeguidores(seguidoresArray || []);
+                } catch (e) {
+                  setSeguidores([]);
+                }
+                setSeguidoresModal(true);
+              }}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ver empresas que sigues</Text>
+            </TouchableOpacity>
+            {/* Modal lista de seguidores */}
+            <Modal
+              visible={seguidoresModal}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setSeguidoresModal(false)}
+            >
+              <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+                <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:320, maxHeight:'80%' }}>
+                  <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#0ea5e9' }}>Empresas que sigues</Text>
+                  <ScrollView style={{ width:'100%' }}>
+                    {seguidores.length === 0 ? (
+                      <Text style={{ color:'#64748b', textAlign:'center' }}>No sigues ninguna empresa aún.</Text>
+                    ) : (
+                      seguidores.map((user, idx) => (
+                        <View key={user.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, justifyContent: 'center' }}>
+                          {user.logo || user.avatar ? (
+                            <Image
+                              source={{ uri: user.logo || user.avatar }}
+                              style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb' }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: '#94a3b8', fontSize: 18 }}>👤</Text>
+                            </View>
+                          )}
+                          <Text style={{ color:'#1e293b', fontSize:16, textAlign:'center', flexShrink: 1 }}>{user.nombre || user.name || user.username || 'Usuario sin nombre'}</Text>
+                        </View>
+                      ))
+                    )}
+                  </ScrollView>
+                  <TouchableOpacity style={{ marginTop:16 }} onPress={() => setSeguidoresModal(false)}>
+                    <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          </>
+        )}
+        {/* Bloque duplicado de modal de seguidores eliminado para corregir error de sintaxis */}
         {renderSectionButtons()}
       </View>
 
@@ -334,22 +596,30 @@ export default function PerfilScreen({ navigation }) {
       {selectedSection === 'comentarios' && (
         <View style={[styles.sectionContent, {backgroundColor: 'transparent', margin: 0}] }>
           <Text style={styles.sectionTitle}>Comentarios publicados</Text>
-          <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 12, width: '100%' }}>
-            <Text style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 16 }}>Festival de Cine Nocturno</Text>
-            <Text style={{ color: '#374151', marginTop: 4 }}><Text style={{ fontWeight: 'bold', color: '#111827' }}>@cinelover:</Text> ¡La selección de películas estuvo aterradora y brillante!</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-              <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' d='M14.318 5.318a4.5 4.5 0 0 1 6.364 6.364L12 20.364 3.318 11.682a4.5 4.5 0 1 1 6.364-6.364z' /></svg>`} width={20} height={20} />
-              <Text style={{ color: '#374151', marginLeft: 4 }}>12</Text>
-            </View>
-          </View>
-          <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, width: '100%' }}>
-            <Text style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 16 }}>Festival de Cine Nocturno</Text>
-            <Text style={{ color: '#374151', marginTop: 4 }}><Text style={{ fontWeight: 'bold', color: '#111827' }}>@cinelover:</Text> ¡AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA!</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-              <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' d='M14.318 5.318a4.5 4.5 0 0 1 6.364 6.364L12 20.364 3.318 11.682a4.5 4.5 0 1 1 6.364-6.364z' /></svg>`} width={20} height={20} />
-              <Text style={{ color: '#374151', marginLeft: 4 }}>12</Text>
-            </View>
-          </View>
+            {loadingComentarios ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#7c3aed" />
+                <Text style={{ color: '#9ca3af', marginTop: 8 }}>Cargando comentarios...</Text>
+              </View>
+            ) : comentarios.length === 0 ? (
+              hasEmpresa ? (
+                <Text style={{ color: '#94a3b8', textAlign: 'center', marginVertical: 16 }}>No se han encontrado mensajes afiliados a tu cuenta.</Text>
+              ) : (
+                <Text style={{ color: '#94a3b8', textAlign: 'center', marginVertical: 16 }}>No hay comentarios públicos de empresas para mostrar.</Text>
+              )
+            ) : (
+              comentarios.map((c, idx) => (
+                <View key={c.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 12, width: '100%' }}>
+                  <Text style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 16 }}>{c.empresa_nombre || c.empresa || 'Empresa'}</Text>
+                  <Text style={{ color: '#374151', marginTop: 6 }}><Text style={{ fontWeight: 'bold', color: '#111827' }}>{c.usuario_username || c.usuario || c.user_name || '@anon' }:</Text> {c.comentario || c.comentario_text || c.comentario || c.text || '(sin texto)'}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                    <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' d='M14.318 5.318a4.5 4.5 0 0 1 6.364 6.364L12 20.364 3.318 11.682a4.5 4.5 0 1 1 6.364-6.364z' /></svg>`} width={20} height={20} />
+                    <Text style={{ color: '#374151', marginLeft: 8 }}>{c.rating || c.valor || '-'}</Text>
+                    {c.created_at && <Text style={{ color: '#94a3b8', marginLeft: 12, fontSize: 12 }}>{new Date(c.created_at).toLocaleDateString()}</Text>}
+                  </View>
+                </View>
+              ))
+            )}
         </View>
       )}
 

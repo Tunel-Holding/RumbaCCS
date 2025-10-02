@@ -39,16 +39,28 @@ export default function EmpresaScreenUser() {
   const [loading, setLoading] = useState(true);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [isEmpresaAccount, setIsEmpresaAccount] = useState(false);
+
 
 
 
   const [empresaData, setEmpresaData] = useState(null);
 
+  
+
   useEffect(() => {
   const fetchEmpresa = async () => {
     try {
+
+      const isEmpresaAccount = await AsyncStorage.getItem('isEmpresaAccount') === 'true';
+      setIsEmpresaAccount(isEmpresaAccount);
+
+
       const empresaId = empresaIdParam;
       const response = await api.get(`/api/public/empresas/${empresaId}/`);
+      if (response.data.is_following) {
+        setIsFollowing(true);
+      }
       setEmpresaData(response.data);
     } catch (error) {
       if (error.response) {
@@ -62,6 +74,8 @@ export default function EmpresaScreenUser() {
   };
   fetchEmpresa();
 }, [empresaIdParam]);
+
+console.log("Empresa Data:", empresaData);
   
 
 const [loginVisible, setLoginVisible] = useState(false);
@@ -111,24 +125,35 @@ const handleLogin = async () => {
   Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
 };
 const seguir = async () => {
-  try {
+
+    
     const token = await AsyncStorage.getItem('accessToken');
     if (!token) {
-      setLoginVisible(true);     
-    } else {
-      toggleFollow();
+      setLoginVisible(true);
+      return;
     }
-  } catch (error) {
-    console.error("Error al seguir a la empresa:", error);
-    return false;
-  }
+
+    try {
+      const res = await api.post(`/api/empresas/${empresaIdParam}/seguir/`);
+      
+      if (res.status === 200) {
+        setIsFollowing(true);
+      }
+      else if (res.status === 405) {
+        Alert.alert('Ya sigues a esta empresa');
+      }
+    } catch (error) {
+      console.error("Error al seguir a la empresa:", error);
+    }
 };
+
+console.log('🏢 Datos de la empresa:', empresaData1);
 
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
-    seguidores: empresaData?.seguidores || 0,
-    eventosPublicados: empresaData?.eventosPublicados || 0,
+    seguidores: empresaData?.total_seguidores || 0,
+    eventosPublicados: empresaData?.total_eventos || 0,
   }
 
   const [eventos, setEventos] = useState([]);
@@ -145,7 +170,9 @@ useEffect(() => {
 
       const res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
 
-      const eventosTransformados = res.data.map(ev => {
+      const eventos = Array.isArray(res.data) ? res.data : res.data.results || res.data.eventos || [];
+
+      const eventosTransformados = eventos.map(ev => {
         // Separar fecha y hora si viene en formato ISO
         let fecha = "Fecha no definida";
         let hora = "Hora no definida";
@@ -480,27 +507,28 @@ useEffect(() => {
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
           <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
-          <View style={styles.accionesRow}>
-            <TouchableOpacity
-              style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
-              onPress={seguir}
-              activeOpacity={0.85}
-            >
-              <View style={styles.seguirIcon}>
-                <PersonIcon size={18} color="#ffffff" />
-              </View>
-              <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
-               
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.clasificarButton}
-              activeOpacity={0.85}
-              onPress={() => setModalVisible({ ...modalVisible, rating: true })}
-            >
-              <Text style={styles.clasificarStar}>★</Text>
-              <Text style={styles.clasificarText}>Calificar</Text>
-            </TouchableOpacity>
-          </View>
+          {!isEmpresaAccount && (
+            <View style={styles.accionesRow}>
+              <TouchableOpacity
+                style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
+                onPress={seguir}
+                activeOpacity={0.85}
+              >
+                <View style={styles.seguirIcon}>
+                  <PersonIcon size={18} color="#ffffff" />
+                </View>
+                <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.clasificarButton}
+                activeOpacity={0.85}
+                onPress={() => setModalVisible({ ...modalVisible, rating: true })}
+              >
+                <Text style={styles.clasificarStar}>★</Text>
+                <Text style={styles.clasificarText}>Calificar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </View>
@@ -544,7 +572,6 @@ useEffect(() => {
       </View>
     );
   };
-console.log('🖼️ URL de imagen del evento:', eventos);
 
   const renderEventos = () => (
     <View style={styles.eventosContainer}>
@@ -596,7 +623,7 @@ console.log('🖼️ URL de imagen del evento:', eventos);
                             navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
                           }}
                         >
-                          <Text style={styles.verDetallesText}>{hasEmpresa ? 'Ver detalles' : 'Guardar'}</Text>
+                          <Text style={styles.verDetallesText}>{'Ver detalles'}</Text>
                         </TouchableOpacity>
                     </View>
                   </View>

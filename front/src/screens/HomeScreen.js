@@ -3,6 +3,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native'; // <--
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { loginConFallback } from '../utils/auth';
+import axios from 'axios';
 
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -60,11 +61,26 @@ export default function HomeScreen() {
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [loadingline, setLoadingline] = useState(false); // <-- Nuevo estado para loading inline
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
   const [empresaData, setEmpresaData] = useState(null);
   const [isEmpresaAccount, setIsEmpresaAccount] = useState(false); // <-- NUEVO ESTADO
+  const [hasMore, setHasMore] = useState(true);      // CAMBIO: controla si hay más páginas en backend
+  const [nextPage, setNextPage] = useState(null);
+  const [prevPage, setPrevPage] = useState(null);
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10; // Consistente con el backend
+
+  let searchTimeout;
+  
+// useEffect(() => {
+//   if (filter === "nearby" && !userLocation) return; // espera ubicación
+//   fetchEventos(1, false);
+// }, [filter, userLocation, search]);
+
 
   // --- FUNCIÓN PARA RECARGAR DATOS DE LA EMPRESA ---
   const refreshEmpresaData = useCallback(async () => {
@@ -125,67 +141,68 @@ export default function HomeScreen() {
     await AsyncStorage.clear(); // Opcional: clear() ya limpia todo
     setIsLogged(false);
     setIsEmpresaAccount(false); // Limpiamos el estado
-    Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
+
   };
 
 const handleLogin = async () => {
   setLoginError('');
   setLoginLoading(true);
-  const resultado = await loginConFallback(user, pass);
-  if (resultado.error) {
-    switch (resultado.tipo) {
-      case 'validacion':
-        setLoginError('Por favor ingresa email y contraseña');
-        break;
-      case 'error':
-        setLoginError('Error inesperado: ' + resultado.error);
-        break;
-      case 'credenciales':
-        setLoginError('Usuario o contraseña incorrectos');
-        break;
+  try {
+    const resultado = await loginConFallback(user, pass);
+    if (resultado.error) {
+      switch (resultado.tipo) {
+        case 'validacion':
+          setLoginError('Por favor ingresa email y contraseña');
+          break;
+        case 'error':
+          setLoginError('Error inesperado: ' + resultado.error);
+          break;
+        case 'credenciales':
+          setLoginError('Usuario o contraseña incorrectos');
+          break;
+      }
+      return; // Salimos de la función si hay un error
     }
-    return;
-  }
-  console.log("Login exitoso, datos recibidos:", resultado.data);
+    console.log("Login exitoso, datos recibidos:", resultado.data);
 
-  // --- LÓGICA DE DIFERENCIACIÓN DE CUENTAS ---
-  // Si el login fue exitoso y trajo el objeto 'empresa', es una cuenta de empresa.
-  if (resultado.data?.empresa) {
-    console.log("Es una cuenta de Empresa:", resultado.data.empresa);
-    setEmpresaData(resultado.data.empresa);
-    setHasEmpresa(true); // Una cuenta de empresa, por definición, tiene empresa.
-    setIsEmpresaAccount(true); // Marcamos que es una cuenta de tipo empresa.
-    await AsyncStorage.setItem('isEmpresaAccount', 'true');
-  } else {
-    // Si no trae el objeto 'empresa', es una cuenta de usuario.
-    console.log("Es una cuenta de Usuario.");
-    setIsEmpresaAccount(false); // No es una cuenta de tipo empresa.
-    
-    // Verificamos si este usuario tiene una empresa vinculada.
-    if (resultado.data?.empresa_id) {
-      console.log("Usuario con empresa vinculada (ID):", resultado.data.empresa_id);
+    // --- LÓGICA DE DIFERENCIACIÓN DE CUENTAS ---
+    // (Tu lógica existente se mantiene aquí)
+    if (resultado.data?.empresa) {
+      console.log("Es una cuenta de Empresa:", resultado.data.empresa);
+      setEmpresaData(resultado.data.empresa);
       setHasEmpresa(true);
+      setIsEmpresaAccount(true);
+      await AsyncStorage.setItem('isEmpresaAccount', 'true');
     } else {
-      console.log("Usuario sin empresa vinculada.");
-      setHasEmpresa(false);
+      console.log("Es una cuenta de Usuario.");
+
+      const userId = resultado.data.user.id; // Asignamos userId para uso posterior
+
+      await AsyncStorage.setItem("userId", userId.toString());
+      setIsEmpresaAccount(false);
+      if (resultado.data?.empresa_id) {
+        console.log("Usuario con empresa vinculada (ID):", resultado.data.empresa_id);
+        setHasEmpresa(true);
+      } else {
+        console.log("Usuario sin empresa vinculada.");
+        setHasEmpresa(false);
+      }
+      setEmpresaData(null);
+      await AsyncStorage.setItem('isEmpresaAccount', 'false');
     }
-    // En ambos casos de usuario, no tenemos los datos completos de la empresa aún.
-    setEmpresaData(null);
-    await AsyncStorage.setItem('isEmpresaAccount', 'false');
+
+    setIsLogged(true);
+    setLoginVisible(false);
+  } finally {
+    // Este bloque se ejecuta SIEMPRE, tanto si hay éxito como si hay error.
+    setLoginLoading(false);
   }
-
-  setIsLogged(true);
-  setLoginVisible(false);
-  Alert.alert('Login correcto', `Bienvenido/a`);
-  // No es necesario navegar, el estado se actualizará y la UI cambiará sola.
 };
-
 
 
   const [events, setEventos] = useState([]);
   // Cache local de datos de empresas para evitar múltiples llamadas.
   const [companyCache, setCompanyCache] = useState({}); // { empresaId: { nombre, logo } }
-  const pageSize = 10;
   const [page, setPage] = useState(0); // página actual 0-index
   // Estados de ubicación (placeholder, sin llamadas nativas todavía)
   const [userLocation, setUserLocation] = useState(null); // { latitude, longitude }
@@ -256,101 +273,23 @@ const handleLogin = async () => {
     return false;
   };
 
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+const searchCancelToken = useRef(null);
+
+// 🔹 Debounce: solo actualizar debouncedSearch 600ms después de que el usuario deje de escribir
 useEffect(() => {
-  const fetchEventos = async () => {
-    try {
-      const res = await api.get('/api/eventos-publicos/');
-      const data = res.data;
+  const handler = setTimeout(() => {
+    setDebouncedSearch(search.trim());
+  }, 600);
 
-      // Transformamos eventos
-      const eventosTransformados = data.map(ev => {
-        const categorias = Array.isArray(ev.categoria)
-          ? ev.categoria
-          : (ev.categoria ? [ev.categoria] : ['Sin categoría']);
+  return () => clearTimeout(handler);
+}, [search]);
 
-        return {
-          id: ev.id,
-          rawEmpresaId: ev.empresa,
-          title: ev.titulo,
-          date: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleDateString()
-            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-          time: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : null,
-          location: ev.ubicacion || 'Ubicación no definida',
-          price: ev.precio === '0.00'
-            ? 'Entrada libre'
-            : `$${parseFloat(ev.precio).toLocaleString()}`,
-          type: categorias,
-          tag: categorias[0],
-          imagenes: ev.imagenes,
-          image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-          // Usamos el caché si ya existe, si no, un placeholder
-          ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
-          ownerLogo: companyCache[ev.empresa]?.logo || null,
-        };
-      });
+// 🔹 Fetch de eventos solo cuando cambia debouncedSearch o filter
+useEffect(() => {
+  fetchEventos(1, false);
+}, [debouncedSearch, filter]);
 
-      setEventos(eventosTransformados);
-
-      // ---- Resolver datos de empresa usando el endpoint bulk ----
-      const idsPendientes = [...new Set(
-        eventosTransformados
-          .filter(ev => ev.rawEmpresaId && !companyCache[ev.rawEmpresaId])
-          .map(ev => ev.rawEmpresaId)
-      )];
-
-      if (idsPendientes.length) {
-        try {
-          const resp = await api.get(`/api/public/empresas/bulk/`, {
-            params: { ids: idsPendientes.join(',') },
-            timeout: 25000
-          });
-
-          const empresas = resp.data; // ← array de { id, nombre, logo }
-          const nuevosDatosEmpresa = {};
-          empresas.forEach(emp => {
-            // Guardamos el objeto completo con nombre y logo
-            nuevosDatosEmpresa[emp.id] = {
-              nombre: emp.nombre,
-              logo: emp.logo
-            };
-          });
-
-          // fallback por si alguna empresa no existe en la respuesta
-          idsPendientes.forEach(id => {
-            if (!nuevosDatosEmpresa[id]) {
-              nuevosDatosEmpresa[id] = { nombre: `Empresa #${id}`, logo: null };
-            }
-          });
-
-          // Actualizamos el caché y el estado de los eventos con los nuevos datos
-          setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
-          setEventos(prev =>
-            prev.map(ev =>
-              ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
-                ? {
-                    ...ev,
-                    ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre,
-                    ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo,
-                  }
-                : ev
-            )
-          );
-        } catch (err) {
-          console.error('Error resolviendo datos de empresa en bulk:', err);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching eventos públicos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchEventos();
-}, []);
 
   // Filtros disponibles
   const filters = [
@@ -372,6 +311,127 @@ useEffect(() => {
     { key: 'Música', label: 'Música' },
     { key: 'Teatro', label: 'Teatro' },
   ];
+
+const fetchEventos = async (pageNumber = 1, append = false) => {
+  setLoadingline(true);
+
+  if (!append) scrollRef.current?.scrollTo({ y: 0, animated: true });
+
+  // Cancelar request anterior si existe
+  if (searchCancelToken.current) {
+    searchCancelToken.current.cancel("Nueva búsqueda, cancelando anterior");
+  }
+  searchCancelToken.current = axios.CancelToken.source();
+
+  try {
+    const isNearbyFilter = filter === "nearby";
+    const hasLocation = !!userLocation;
+
+    let url = "/api/eventos-publicos/";
+    if (isNearbyFilter && hasLocation) url = "/api/eventos-publicos/nearby/";
+
+    const params = { page: pageNumber, page_size: pageSize };
+
+    if (isNearbyFilter && hasLocation) {
+      params.lat = userLocation.latitude;
+      params.lng = userLocation.longitude;
+      params.radius = 5;
+    }
+
+    if (!isNearbyFilter) {
+      if (filter && filter !== "all") params.categoria = filter;
+      if (debouncedSearch) params.search = debouncedSearch;
+    }
+
+    const res = await api.get(url, {
+      params,
+      timeout: 25000,
+      cancelToken: searchCancelToken.current.token,
+    });
+
+    const responseData = res.data || {};
+    const resultadosRaw = Array.isArray(responseData.results)
+      ? responseData.results
+      : Array.isArray(responseData)
+      ? responseData
+      : [];
+
+    if (responseData.count !== undefined) {
+      setNextPage(responseData.next ? pageNumber + 1 : null);
+      setPrevPage(responseData.previous ? pageNumber - 1 : null);
+      setTotalCount(responseData.count);
+      setCurrentPage(pageNumber);
+    }
+
+    const eventosTransformados = resultadosRaw.map(ev => ({
+      id: ev.id,
+      rawEmpresaId: ev.empresa,
+      title: ev.titulo,
+      date: ev.fecha_evento
+        ? new Date(ev.fecha_evento).toLocaleDateString()
+        : ev.creado_en
+        ? new Date(ev.creado_en).toLocaleDateString()
+        : "Fecha no definida",
+      time: ev.fecha_evento
+        ? new Date(ev.fecha_evento).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : null,
+      location: ev.ubicacion || "Ubicación no definida",
+      price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+      type: Array.isArray(ev.categoria) ? ev.categoria : ev.categoria ? [ev.categoria] : ["Sin categoría"],
+      tag: Array.isArray(ev.categoria) ? ev.categoria[0] : ev.categoria || "Sin categoría",
+      imagenes: ev.imagenes,
+      image: ev.imagen || "https://storage.googleapis.com/.../placeholder.png",
+      ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
+      ownerLogo: companyCache[ev.empresa]?.logo || null,
+    }));
+
+    setEventos(prev => (append ? [...prev, ...eventosTransformados] : eventosTransformados));
+    setHasMore(Boolean(responseData.next));
+
+    // Actualización de empresas
+    const idsPendientes = [
+      ...new Set(eventosTransformados.map(ev => ev.rawEmpresaId).filter(id => id && !companyCache[id])),
+    ];
+    if (idsPendientes.length) {
+      const resp = await api.get("/api/public/empresas/bulk/", {
+        params: { ids: idsPendientes.join(",") },
+        timeout: 25000,
+      });
+      const empresas = Array.isArray(resp.data) ? resp.data : [];
+      const nuevosDatosEmpresa = {};
+      empresas.forEach(emp => (nuevosDatosEmpresa[emp.id] = { nombre: emp.nombre, logo: emp.logo }));
+      idsPendientes.forEach(id => {
+        if (!nuevosDatosEmpresa[id]) nuevosDatosEmpresa[id] = { nombre: `Empresa #${id}`, logo: null };
+      });
+      setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
+      setEventos(prev =>
+        prev.map(ev =>
+          ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
+            ? { ...ev, ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre, ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo }
+            : ev
+        )
+      );
+    }
+  } catch (error) {
+    if (!axios.isCancel(error)) console.error(error);
+  } finally {
+    setLoadingline(false);
+  }
+};
+
+
+// --- FUNCIONES DE NAVEGACION / INFINITE SCROLL (CAMBIO: loadMore pide la siguiente página) ---
+const loadMore = async () => {
+  if (loading || !hasMore) return;
+  const nextPage = page + 1;
+  setPage(nextPage);
+  await fetchEventos(nextPage, true); // append = true
+  // opcional: scroll arriba/bajar con scrollRef
+};
+
 
   // Footer links
   const footerLinks = [
@@ -418,94 +478,6 @@ const filteredEvents = fuente.filter(e => {
   return matchesFilter && qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
 });
 
-// --- useEffect: cuando el user da permiso y activa el filtro "nearby"
-useEffect(() => {
-  // Convertimos la lógica a async/await para manejar mejor las llamadas en cadena
-  const fetchNearbyEvents = async () => {
-    if (filter !== "nearby" || !userLocation) {
-      return; // No hacer nada si el filtro no es 'nearby' o no hay ubicación
-    }
-
-    try {
-      const res = await api.get(`/api/eventos-publicos/nearby/?lat=${userLocation.latitude}&lng=${userLocation.longitude}&radius=5`);
-      const eventos = Array.isArray(res.data) ? res.data : (res.data ? [res.data] : []);
-
-      // 1. Adaptar al formato de Home, usando el caché si ya existe
-      const adaptados = eventos.map(ev => {
-        const categorias = Array.isArray(ev.categoria) ? ev.categoria : [ev.categoria];
-        return {
-          ...ev,
-          id: ev.id,
-          rawEmpresaId: ev.empresa,
-          title: ev.titulo,
-          date: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleDateString()
-            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-          time: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            : null,
-          location: ev.ubicacion || 'Ubicación no definida',
-          price: ev.precio === '0.00'
-            ? 'Entrada libre'
-            : `$${parseFloat(ev.precio).toLocaleString()}`,
-          type: categorias,
-          tag: categorias[0],
-          imagenes: ev.imagenes,
-          image: ev.imagen || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png',
-          // Usamos el caché existente para una carga inicial rápida
-          ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
-          ownerLogo: companyCache[ev.empresa]?.logo || null,
-        };
-      });
-
-      setNearbyEvents(adaptados); // Mostramos los eventos inmediatamente
-
-      // 2. Buscar IDs de empresas que no estén en el caché
-      const idsPendientes = [...new Set(
-        adaptados
-          .filter(ev => ev.rawEmpresaId && !companyCache[ev.rawEmpresaId])
-          .map(ev => ev.rawEmpresaId)
-      )];
-
-      // 3. Si hay IDs pendientes, hacer la llamada bulk
-      if (idsPendientes.length > 0) {
-        const resp = await api.get(`/api/public/empresas/bulk/`, {
-          params: { ids: idsPendientes.join(',') },
-        });
-
-        const empresas = resp.data; // array de { id, nombre, logo }
-        const nuevosDatosEmpresa = {};
-        empresas.forEach(emp => {
-          nuevosDatosEmpresa[emp.id] = {
-            nombre: emp.nombre,
-            logo: emp.logo // <-- Usando 'logo' como especificaste
-          };
-        });
-
-        // 4. Actualizar el caché y el estado de los eventos cercanos
-        setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
-        setNearbyEvents(prev =>
-          prev.map(ev =>
-            ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
-              ? {
-                  ...ev,
-                  ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre,
-                  ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo,
-                }
-              : ev
-          )
-        );
-      }
-    } catch (err) {
-      console.error("Error cargando o procesando eventos cercanos:", err);
-    }
-  };
-
-  fetchNearbyEvents();
-}, [filter, userLocation]);
-
-
-
   // Reiniciar página si cambian filtro o búsqueda
   useEffect(() => { setPage(0); }, [filter, search]);
   const totalPages = Math.ceil(filteredEvents.length / pageSize) || 1;
@@ -516,9 +488,10 @@ useEffect(() => {
   const goNext = () => { if (canNext) { setPage(p => p + 1); scrollRef.current?.scrollTo({ y: 0, animated: true }); } };
 
   // Cuando cambia filtro o búsqueda, reinicia página y sube arriba
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ y: 0, animated: true });
-  }, [filter, search]);
+//   useEffect(() => {
+//   scrollRef.current?.scrollTo({ y: 0, animated: true });
+// }, [filter]);
+
 
 
   if (loading) {
@@ -583,11 +556,16 @@ useEffect(() => {
                     }
                   }}
                 >
-                  <Image
-                    // Muestra el logo de la empresa si es una cuenta de empresa y tiene logo, si no, un avatar genérico.
-                    source={{ uri: (isEmpresaAccount && empresaData?.logo) ? empresaData.logo : 'https://randomuser.me/api/portraits/men/32.jpg' }}
-                    style={{ width: 32, height: 32, borderRadius: 100, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}
-                  />
+                  {isEmpresaAccount && empresaData?.logo ? (
+                    <Image
+                      source={{ uri: empresaData.logo }}
+                      style={{ width: 32, height: 32, borderRadius: 100, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}
+                    />
+                  ) : (
+                    <View style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9', alignItems: 'center', justifyContent: 'center', backgroundColor: '#a4a5dfff' }}>
+                      <Text style={{ color: '#fff', fontSize: 16 }}>👤</Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               )}
             </View>
@@ -608,6 +586,7 @@ useEffect(() => {
           value={search}
           onChangeText={setSearch}
         />
+
 
         {/* Filtros (revertido a una sola fila scrollable) */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={{ paddingRight: 8 }}>
@@ -637,7 +616,14 @@ useEffect(() => {
             </Text>
             <TouchableOpacity
               style={styles.permissionBtn}
-              onPress={solicitarUbicacion}
+              onPress={async () => {
+                if (!isLogged) {
+                  Alert.alert('Inicia sesión', 'Debes iniciar sesión para ver eventos cerca de ti.');
+                  return;
+                }
+                // Si está logueado, ejecutamos la solicitud de ubicación
+                solicitarUbicacion();
+              }}
               disabled={locationStatus === 'requesting'}
             >
               <Text style={styles.permissionBtnText}>
@@ -652,114 +638,132 @@ useEffect(() => {
         
         {/* Lista de eventos (oculta si se requiere ubicación para 'nearby') */}
         {!(filter === 'nearby' && !userLocation) && (
-          <>
-            <View style={styles.eventsGrid}>
-              {pageEvents.length === 0 ? (
-                <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>No hay eventos para mostrar.</Text>
-              ) : (
-                pageEvents.map(event => (
-                  <View key={event.id} style={styles.eventCard}>
-                    <View style={styles.ownerRow}>
-                      {/* --- MODIFICACIÓN AQUÍ --- */}
-                      {event.ownerLogo ? (
-                        // Si hay un logo, muestra la imagen
-                        <Image
-                          source={{ uri: event.ownerLogo }}
-                          style={styles.ownerAvatar} // Reutilizamos el estilo para que sea circular
-                        />
-                      ) : (
-                        // Si no hay logo, muestra el avatar con la inicial (fallback)
-                        <View style={styles.ownerAvatar}>
-                          <Text style={styles.ownerAvatarText}>{(event.ownerName||'?').charAt(0).toUpperCase()}</Text>
-                        </View>
-                      )}
-                      {/* --- FIN DE LA MODIFICACIÓN --- */}
-                      <View style={{ flex:1 }}>
-                        <TouchableOpacity
-                          activeOpacity={0.7}
-                          onPress={() => {
-                            // Preferimos el id real si está disponible
-                            let empresaIdTarget = event.rawEmpresaId || null;
-                            if (!empresaIdTarget && event.ownerName?.startsWith('Empresa #')) {
-                              empresaIdTarget = event.ownerName.replace('Empresa #','');
-                            }
-                            if (!empresaIdTarget) return; // No es una empresa identificable
+  <>
+    <View style={styles.eventsGrid}>
 
-                            if (ownEmpresaId && String(empresaIdTarget) === String(ownEmpresaId)) {
-                              // Es la propia empresa logueada
-                              navigation.navigate('Empresa');
-                            } else {
-                              // Cualquier otro usuario (sea empresa o usuario normal) ve el perfil público
-                              navigation.navigate('EmpresaScreenUser', { empresaId: empresaIdTarget });
-                            }
-                          }}
-                        >
-                          <Text style={[styles.ownerName, (event.rawEmpresaId || (event.ownerName?.startsWith('Empresa #'))) && { textDecorationLine: 'underline' }]}>{event.ownerName}</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.ownerLabel}>Organizador</Text>
-                      </View>
-                      {event.tag && (
-                        <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
-                      )}
-                    </View>
-                    <Image
-                      source={{
-                        uri: event.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
-                      }}
-                      style={styles.eventImage}
-                      resizeMode="cover"
-                    />
-                    {/* <Text style={styles.eventTitle}>{event.title}</Text>
-                    <Text style={styles.eventInfo}>{event.date}{event.time ? ` · ${event.time}` : ''} · {event.location}</Text> */}
-                    <Text style={styles.eventTitle}>{event.title}</Text>
-                                                          
-                    {event.time && event.time !== 'Hora no definida' && (
-                      <View style={styles.eventoInfo}>
-                        <Text style={styles.eventoInfoText}>📅 {event.date}  ⏰ {event.time}</Text>
-                      </View>
-                    )}
-                    <View style={styles.eventInfo}>
-                      <Text style={styles.eventoInfoText}>📍 {event.location}</Text>
-                    </View>
-                    <Text style={styles.eventPrice}>{event.price}</Text>
-                    <TouchableOpacity
-                      style={styles.reserveBtn}
-                      onPress={() => {
-                        if (hasEmpresa) {
-                          // Si es empresa: navegar a la pantalla de detalles (BuyScreen)
-                          navigation.navigate('Reservar/Comprar', {
-                            idEvento: event.id,
-                            idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined
-                          });
-                        } else {
-                          // Si es usuario: navegar a BuyScreen para ver detalles y poder guardar
-                          navigation.navigate('Reservar/Comprar', {
-                            idEvento: event.id,
-                            idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #','') : undefined
-                          });
-                        }
-                      }}
-                    >
-                      <Text style={styles.reserveText}>{hasEmpresa ? 'Ver detalles' : 'Ver detalles'}</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))
-              )}
-            </View>
+      {/* Loading inline */}
+      {loadingline && (
+        <View style={{ paddingVertical: 20, alignItems: 'center', width: '100%' }}>
+          <ActivityIndicator size="small" color="#4f46e5" />
+          <Text style={{ color: '#fff', marginTop: 5 }}>Cargando eventos...</Text>
+        </View>
+      )}
 
-            {filteredEvents.length > pageSize && (
-              <View style={styles.paginationBar}>
-                <TouchableOpacity onPress={goPrev} disabled={!canPrev} style={[styles.pageArrow, !canPrev && styles.pageArrowDisabled]}>
-                  <Text style={styles.pageArrowText}>{'<'}</Text>
-                </TouchableOpacity>
-                <Text style={styles.pageIndicator}>Página {page + 1} de {totalPages}</Text>
-                <TouchableOpacity onPress={goNext} disabled={!canNext} style={[styles.pageArrow, !canNext && styles.pageArrowDisabled]}>
-                  <Text style={styles.pageArrowText}>{'>'}</Text>
-                </TouchableOpacity>
+      {/* No hay eventos */}
+      {!loadingline && events.length === 0 && (
+        <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>
+          No hay eventos para mostrar.
+        </Text>
+      )}
+
+      {/* Lista de eventos */}
+      {!loadingline && events.map(event => (
+        <View key={event.id} style={styles.eventCard}>
+          <View style={styles.ownerRow}>
+            {event.ownerLogo ? (
+              <Image
+                source={{ uri: event.ownerLogo }}
+                style={styles.ownerAvatar}
+              />
+            ) : (
+              <View style={styles.ownerAvatar}>
+                <Text style={styles.ownerAvatarText}>{(event.ownerName || '?').charAt(0).toUpperCase()}</Text>
               </View>
             )}
-          </>
-        )}
+            <View style={{ flex: 1 }}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => {
+                  let empresaIdTarget = event.rawEmpresaId || null;
+                  if (!empresaIdTarget && event.ownerName?.startsWith('Empresa #')) {
+                    empresaIdTarget = event.ownerName.replace('Empresa #', '');
+                  }
+                  if (!empresaIdTarget) return;
+
+                  if (ownEmpresaId && String(empresaIdTarget) === String(ownEmpresaId)) {
+                    navigation.navigate('Empresa');
+                  } else {
+                    navigation.navigate('EmpresaScreenUser', { empresaId: empresaIdTarget });
+                  }
+                }}
+              >
+                <Text style={[styles.ownerName, (event.rawEmpresaId || event.ownerName?.startsWith('Empresa #')) && { textDecorationLine: 'underline' }]}>
+                  {event.ownerName}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.ownerLabel}>Organizador</Text>
+            </View>
+            {event.tag && (
+              <View style={styles.ownerChip}><Text style={styles.ownerChipText}>{event.tag}</Text></View>
+            )}
+          </View>
+
+          <Image
+            source={{
+              uri: event.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
+            }}
+            style={styles.eventImage}
+            resizeMode="cover"
+          />
+
+          <Text style={styles.eventTitle}>{event.title}</Text>
+
+          {event.time && event.time !== 'Hora no definida' && (
+            <View style={styles.eventoInfo}>
+              <Text style={styles.eventoInfoText}>📅 {event.date}  ⏰ {event.time}</Text>
+            </View>
+          )}
+
+          <View style={styles.eventInfo}>
+            <Text style={styles.eventoInfoText}>📍 {event.location}</Text>
+          </View>
+
+          <Text style={styles.eventPrice}>{event.price}</Text>
+
+          <TouchableOpacity
+            style={styles.reserveBtn}
+            onPress={() => {
+              navigation.navigate('Reservar/Comprar', {
+                idEvento: event.id,
+                idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #', '') : undefined
+              });
+            }}
+          >
+            <Text style={styles.reserveText}>Ver detalles</Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+
+    </View>
+  </>
+)}
+
+
+            {totalCount > events.length && (
+            <View style={styles.paginationBar}>
+              <TouchableOpacity
+                onPress={() => prevPage && fetchEventos(prevPage)}
+                disabled={!prevPage}
+                style={[styles.pageArrow, !prevPage && styles.pageArrowDisabled]}
+              >
+                <Text style={styles.pageArrowText}>{'<'}</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.pageIndicator}>
+                Página {currentPage} de {Math.ceil(totalCount / pageSize)}
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => nextPage && fetchEventos(nextPage)}
+                disabled={!nextPage}
+                style={[styles.pageArrow, !nextPage && styles.pageArrowDisabled]}
+              >
+                <Text style={styles.pageArrowText}>{'>'}</Text>
+              </TouchableOpacity>
+
+            </View>
+          )}
+
 
         {/* Testimonios eliminados */}
 
@@ -772,7 +776,7 @@ useEffect(() => {
               <Text key={i} style={styles.footerLink}>{l.title}</Text>
             ))}
           </View>
-          <Text style={styles.footerCopyright}>© 2025 RumbaCCS. Todos los derechos reservados.</Text>
+          <Text style={styles.footerCopyright}>© 2025 Tunel Holding. Todos los derechos reservados.</Text>
         </View>
       </ScrollView>
 

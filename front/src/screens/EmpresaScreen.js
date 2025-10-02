@@ -1,3 +1,4 @@
+  // ...existing code...
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -29,6 +30,58 @@ import { loginConFallback } from '../utils/auth';
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreen() {
+  // Estado y lógica para seguidores
+  const [seguidores, setSeguidores] = useState([]);
+  const [seguidoresModal, setSeguidoresModal] = useState(false);
+
+  // Función para obtener los seguidores de la empresa
+  const fetchSeguidores = async () => {
+    try {
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      if (!empresaId) return setSeguidores([]);
+      const res = await api.get(`/api/empresas/${empresaId}/seguidores/`);
+      setSeguidores(res.data || []);
+    } catch (e) {
+      setSeguidores([]);
+    }
+  };
+
+  // Modal para mostrar los seguidores
+  const renderSeguidoresModal = () => (
+    <Modal
+      visible={seguidoresModal}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setSeguidoresModal(false)}
+    >
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 8, right: 12, zIndex: 2 }} onPress={() => setSeguidoresModal(false)}>
+            <Text style={{ fontSize: 24, color: '#0ea5e9' }}>×</Text>
+          </TouchableOpacity>
+          <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Usuarios que te siguen</Text>
+          <ScrollView style={{ maxHeight: 300, width: '100%' }}>
+            {seguidores.length === 0 ? (
+              <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>No tienes seguidores aún.</Text>
+            ) : (
+              seguidores.map((seguidor, idx) => (
+                <View key={seguidor.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  {seguidor.avatar_url ? (
+                    <Image source={{ uri: seguidor.avatar_url }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
+                  ) : (
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Text style={{ fontSize: 20, color: '#6b7280' }}>👤</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 16, color: '#111827' }}>{seguidor.username || seguidor.nombre || 'Usuario'}</Text>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
@@ -46,6 +99,12 @@ export default function EmpresaScreen() {
 
   const [empresaData, setEmpresaData] = useState(null);
 
+  // Estado derivado para controlar UI cuando la empresa está pendiente o rechazada
+  const status = empresaData?.status;
+  const isPending = status === 'pending';
+  const isRejected = status === 'rejected';
+  const isBlocked = isPending || isRejected;
+
   useEffect(() => {
   const fetchEmpresa = async () => {
     try {
@@ -59,7 +118,6 @@ export default function EmpresaScreen() {
       const response = await api.get(`/api/empresas/${empresaId}/`);
       
       setEmpresaData(response.data);
-      console.log("Datos de empresa:", response.data);
    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
@@ -78,8 +136,8 @@ export default function EmpresaScreen() {
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
-    seguidores: empresaData?.seguidores || 0,
-    eventosPublicados: empresaData?.eventosPublicados || 0,
+    seguidores: empresaData?.total_seguidores || 0,
+    eventosPublicados: empresaData?.total_eventos || 0,
   }
 
 
@@ -140,7 +198,9 @@ useEffect(() => {
 
       const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
 
-      const eventosTransformados = res.data.map(ev => ({
+      const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
+
+      const eventosTransformados = resultadosRaw.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento
@@ -160,10 +220,6 @@ useEffect(() => {
         ownerName: ev.ownerName || `Empresa #${empresaId}`,
         empresaId: ev.empresaId || empresaId,
       }));
-
-      console.log("Status:", res.status);
-      console.log("Fechas:", eventosTransformados.map(ev => ev.fecha));
-      console.log("Imagenes: ", eventosTransformados.map(ev => ev.imagenes))
 
       setEventos(eventosTransformados);
    } catch (error) {
@@ -364,42 +420,59 @@ useEffect(() => {
         <View style={styles.datosContainer}>
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
-          <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
-          
+          {!isBlocked && (
+            <>
+              <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
+
+              {/* Botón para ver seguidores justo debajo del texto de seguidores */}
+              <TouchableOpacity
+                style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 12, alignItems: 'center', marginVertical: 10 }}
+                onPress={async () => {
+                  await fetchSeguidores();
+                  setSeguidoresModal(true);
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ver usuarios que te siguen</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
           <View style={styles.accionesRow}>
             {/* Botón de seguir eliminado */}
-            <TouchableOpacity
-              style={styles.clasificarButton}
-              activeOpacity={0.85}
-              onPress={async () => {
-                const next = !showRatingsPanel;
-                setShowRatingsPanel(next);
-                if (next && ratings.length === 0) {
-                  try {
-                    setRatingsLoading(true);
+            {!isBlocked && (
+              <TouchableOpacity
+                style={styles.clasificarButton}
+                activeOpacity={0.85}
+                onPress={async () => {
+                  const next = !showRatingsPanel;
+                  setShowRatingsPanel(next);
+                  if (next && ratings.length === 0) {
+                    try {
+                      setRatingsLoading(true);
 
-                    const empresaId = await AsyncStorage.getItem('empresaId');
-                    if (!empresaId) { setRatingsLoading(false); return; }
+                      const empresaId = await AsyncStorage.getItem('empresaId');
+                      if (!empresaId) { setRatingsLoading(false); return; }
 
-                    const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
+                      const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
 
-                    const data = await res.data;
-                    if (res.status >= 200 && res.status < 300) {
-                      setRatings(Array.isArray(data) ? data : (data.results || []));
-                    } else {
-                      console.log('Error ratings', data);
+                      const data = await res.data;
+                      if (res.status >= 200 && res.status < 300) {
+                        setRatings(Array.isArray(data) ? data : (data.results || []));
+                      } else {
+                        console.log('Error ratings', data);
+                      }
+                    } catch(e){
+                      console.log('Error fetch ratings', e.message);
+                    } finally {
+                      setRatingsLoading(false);
                     }
-                  } catch(e){
-                    console.log('Error fetch ratings', e.message);
-                  } finally {
-                    setRatingsLoading(false);
                   }
-                }
-              }}
-            >
-              <Text style={styles.clasificarStar}>★</Text>
-              <Text style={styles.clasificarText}>{showRatingsPanel ? 'Ver eventos' : 'Valoraciones y reseñas'}</Text>
-            </TouchableOpacity>
+                }}
+              >
+                <Text style={styles.clasificarStar}>★</Text>
+                <Text style={styles.clasificarText}>{showRatingsPanel ? 'Ver eventos' : 'Valoraciones y reseñas'}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
@@ -449,6 +522,40 @@ console.log("imagenes del evento",eventos.imagenes)
 
 
   const renderEventos = () => {
+    // Si la empresa está pendiente o rechazada, ocultamos la lista de eventos y mostramos un aviso claro
+    if (isBlocked) {
+      if (isRejected) {
+        const raw = empresaData?.rejection_reason || empresaData?.rejectionReason || empresaData?.verification_notes || '';
+        const lines = raw ? raw.split(/\r?\n|;|\.|\u2022|\u2013|\u2014/) .map(l => l.trim()).filter(Boolean) : [];
+        return (
+          <View style={[styles.eventosContainer, { alignItems: 'flex-start', paddingVertical: 20 }]}> 
+            <Text style={{ color: '#ef4444', fontSize: 18, fontWeight: '700' }}>Solicitud rechazada</Text>
+            <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'left', maxWidth: 520 }}>Tu solicitud fue rechazada por los siguientes motivos:</Text>
+            {lines.length > 0 ? (
+              <View style={{ marginTop: 12 }}>
+                {lines.map((ln, i) => (
+                  <View key={i} style={{ flexDirection: 'row', marginBottom: 6 }}>
+                    <Text style={{ color: '#fff', marginRight: 8 }}>•</Text>
+                    <Text style={{ color: '#e2e8f0', flex: 1 }}>{ln}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={{ color: '#94a3b8', marginTop: 12 }}>No se especificó un motivo. Contacta soporte para más detalles.</Text>
+            )}
+          </View>
+        );
+      }
+
+      // pending
+      return (
+        <View style={[styles.eventosContainer, { alignItems: 'center', paddingVertical: 40 }]}> 
+          <Text style={{ color: '#f59e0b', fontSize: 18, fontWeight: '700' }}>Esperando verificación</Text>
+          <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'center', maxWidth: 480 }}>Tu empresa está en proceso de revisión. Publicar eventos y ver reseñas estarán disponibles una vez que la verificación haya sido completada.</Text>
+        </View>
+      );
+    }
+
     if (showRatingsPanel) {
       return (
         <View style={styles.eventosContainer}>
@@ -509,6 +616,8 @@ console.log("imagenes del evento",eventos.imagenes)
         </View>
       );
     }
+
+
     return (
       <View style={styles.eventosContainer}>
         <View style={styles.eventosHeader}>
@@ -714,9 +823,9 @@ console.log("imagenes del evento",eventos.imagenes)
           </View>
         </View>
       </Modal>
-      {renderHeader()}
-       {renderNotificationsModal()}
-      
+  {renderHeader()}
+  {renderNotificationsModal()}
+  {renderSeguidoresModal()}
   <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
