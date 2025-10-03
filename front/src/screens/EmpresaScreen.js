@@ -106,6 +106,49 @@ export default function EmpresaScreen() {
   const isRejected = status === 'rejected';
   const isBlocked = isPending || isRejected;
 
+  const parseRejectionReasons = (text) => {
+    if (!text) return [];
+    // 1. Unificar saltos y sustituir separadores comunes por "\n"
+    let cleaned = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\u2022/g, '\n')   // bullet •
+      .replace(/•/g, '\n')
+      .replace(/;/g, '\n');
+
+    // 2. Si hay muchos '.' seguidos de espacio que separan frases, los convertimos provisionalmente
+    //    (solo si no hay ya varios saltos)
+    if (!cleaned.includes('\n')) {
+      cleaned = cleaned.replace(/\. +/g, '\n');
+    }
+
+    // 3. Split final
+    let parts = cleaned
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    // 4. Si todavía quedó todo en una sola línea, intentar dividir por punto final
+    if (parts.length <= 1) {
+      const dotParts = text
+        .split('.')
+        .map(s => s.trim())
+        .filter(Boolean);
+      if (dotParts.length > 1) parts = dotParts;
+    }
+
+    // 5. Eliminar duplicados accidentales
+    const unique = [];
+    const seen = new Set();
+    for (const p of parts) {
+      if (!seen.has(p.toLowerCase())) {
+        seen.add(p.toLowerCase());
+        unique.push(p);
+      }
+    }
+    return unique;
+  };
+
   useEffect(() => {
   const fetchEmpresa = async () => {
     try {
@@ -117,8 +160,11 @@ export default function EmpresaScreen() {
       }
 
       const response = await api.get(`/api/empresas/${empresaId}/`);
+
       
+      console.log("reject reason:", response.data.rejection_reason)
       setEmpresaData(response.data);
+      
    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
@@ -140,7 +186,6 @@ export default function EmpresaScreen() {
     seguidores: empresaData?.total_seguidores || 0,
     eventosPublicados: empresaData?.total_eventos || 0,
   }
-
 
 
 const handleUploadFoto = async (empresaId) => {
@@ -529,30 +574,109 @@ console.log("imagenes del evento",eventos.imagenes)
   const renderEventos = () => {
     // Si la empresa está pendiente o rechazada, ocultamos la lista de eventos y mostramos un aviso claro
     if (isBlocked) {
+      // if (isRejected) {
+      //   const raw = empresaData?.rejection_reason || '';
+      //   const lines = parseRejectionReasons(raw);
+
+      //   console.log('DEBUG rejection_reason RAW =>', raw);
+      //   console.log('DEBUG rejection_reason PARSED =>', lines);
+      //   // return (
+      //   //   <View style={[styles.eventosContainer, { alignItems: 'flex-start', paddingVertical: 20 }]}> 
+      //   //     <Text style={{ color: '#ef4444', fontSize: 18, fontWeight: '700' }}>Solicitud rechazada</Text>
+      //   //     <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'left', maxWidth: 520 }}>Tu solicitud fue rechazada por los siguientes motivos:</Text>
+      //   //     {lines.length > 0 ? (
+      //   //       <View style={{ marginTop: 12 }}>
+      //   //         {lines.map((ln, i) => (
+      //   //           <View key={i} style={{ flexDirection: 'row', marginBottom: 6 }}>
+      //   //             <Text style={{ color: '#fff', marginRight: 8 }}>•</Text>
+      //   //             <Text style={{ color: '#e2e8f0', flex: 1 }}>{ln}</Text>
+      //   //           </View>
+      //   //         ))}
+      //   //       </View>
+      //   //     ) : (
+      //   //       <Text style={{ color: '#94a3b8', marginTop: 12 }}>No se especificó un motivo. Contacta soporte para más detalles.</Text>
+      //   //     )}
+      //   //   </View>
+      //   // );
+      // return (
+      //     <View style={[styles.eventosContainer, { alignItems: 'flex-start', paddingVertical: 20 }]}>
+      //       <Text style={{ color: '#ef4444', fontSize: 18, fontWeight: '700' }}>Solicitud rechazada</Text>
+      //       <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'left', maxWidth: 520 }}>
+      //         Tu solicitud fue rechazada por los siguientes motivos:
+      //       </Text>
+
+      //       {lines.length > 0 ? (
+      //         <View style={{ marginTop: 12 }}>
+      //           {lines.map((ln, i) => (
+      //             <View key={i} style={{ flexDirection: 'row', marginBottom: 6 }}>
+      //               <Text style={{ color: '#fff', marginRight: 8 }}>•</Text>
+      //               <Text style={{ color: '#e2e8f0', flex: 1 }}>{ln}</Text>
+      //             </View>
+      //           ))}
+      //         </View>
+      //       ) : raw ? (
+      //         // Fallback: mostrar el texto entero si no se pudo segmentar
+      //         <Text style={{ color: '#e2e8f0', marginTop: 12 }}>{raw}</Text>
+      //       ) : (
+      //         <Text style={{ color: '#94a3b8', marginTop: 12 }}>
+      //           No se especificó un motivo. Contacta soporte para más detalles.
+      //         </Text>
+      //       )}
+      //     </View>
+      //   );
+      
+      // }
+
+
+
+      // pending
       if (isRejected) {
-        const raw = empresaData?.rejection_reason || empresaData?.rejectionReason || empresaData?.verification_notes || '';
-        const lines = raw ? raw.split(/\r?\n|;|\.|\u2022|\u2013|\u2014/) .map(l => l.trim()).filter(Boolean) : [];
+        const raw = empresaData?.rejection_reason || '';
+        const lines = parseRejectionReasons(raw);
+        const cleanLines = lines.length ? lines : (raw ? [raw] : []);
+
         return (
-          <View style={[styles.eventosContainer, { alignItems: 'flex-start', paddingVertical: 20 }]}> 
+          <View style={[styles.eventosContainer, { alignItems: 'flex-start', paddingVertical: 20 }]}>
             <Text style={{ color: '#ef4444', fontSize: 18, fontWeight: '700' }}>Solicitud rechazada</Text>
-            <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'left', maxWidth: 520 }}>Tu solicitud fue rechazada por los siguientes motivos:</Text>
-            {lines.length > 0 ? (
-              <View style={{ marginTop: 12 }}>
-                {lines.map((ln, i) => (
-                  <View key={i} style={{ flexDirection: 'row', marginBottom: 6 }}>
+            <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'left', maxWidth: 520 }}>
+              Tu solicitud fue rechazada por los siguientes motivos:
+            </Text>
+
+            {!raw && (
+              <Text style={{ color: '#94a3b8', marginTop: 12 }}>
+                No se especificó un motivo. Contacta soporte para más detalles.
+              </Text>
+            )}
+
+            {raw && cleanLines.length === 1 && (
+              <Text style={{ color: '#e2e8f0', marginTop: 12, maxWidth: 520 }}>
+                {cleanLines[0]}
+              </Text>
+            )}
+
+            {raw && cleanLines.length > 1 && (
+              <View style={{ marginTop: 12, width: '100%', maxWidth: 520 }}>
+                {cleanLines.map((ln, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      flexDirection: 'row',
+                      marginBottom: 6,
+                      alignItems: 'flex-start',
+                      width: '100%',
+                      maxWidth: 520
+                    }}
+                  >
                     <Text style={{ color: '#fff', marginRight: 8 }}>•</Text>
-                    <Text style={{ color: '#e2e8f0', flex: 1 }}>{ln}</Text>
+                    <Text style={{ color: '#e2e8f0', flexShrink: 1 }}>{ln}</Text>
                   </View>
                 ))}
               </View>
-            ) : (
-              <Text style={{ color: '#94a3b8', marginTop: 12 }}>No se especificó un motivo. Contacta soporte para más detalles.</Text>
             )}
           </View>
         );
       }
 
-      // pending
       return (
         <View style={[styles.eventosContainer, { alignItems: 'center', paddingVertical: 40 }]}> 
           <Text style={{ color: '#f59e0b', fontSize: 18, fontWeight: '700' }}>Esperando verificación</Text>

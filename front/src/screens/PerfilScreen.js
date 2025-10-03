@@ -32,6 +32,8 @@ export default function PerfilScreen({ navigation }) {
   // Estado para seguidores (usuario empresa)
   const [seguidores, setSeguidores] = useState([]);
   const [seguidoresModal, setSeguidoresModal] = useState(false);
+  const [mostrarEmpresasAbajo, setMostrarEmpresasAbajo] = useState(false);
+
 
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
   const fetchEmpresasSeguidas = async () => {
@@ -59,62 +61,95 @@ export default function PerfilScreen({ navigation }) {
   // Normalizar posibles valores no-array que puedan venir de la API
   const empresasArray = Array.isArray(empresasSeguidas) ? empresasSeguidas : [];
 
+  // contador derivado
+const totalEmpresasSeguidas = Array.isArray(empresasSeguidas) ? empresasSeguidas.length : 0;
+
+console.log("total empresas seguidas",totalEmpresasSeguidas)
+
   
-  useEffect(() => {
+//   useEffect(() => {
     
-  // Función que lee el nombre guardado en AsyncStorage
-  const fetchUserName = async () => {
-    try {
-      const name = await AsyncStorage.getItem('userName');
+//   // Función que lee el nombre guardado en AsyncStorage
+//   const fetchUserName = async () => {
+//     try {
+//       const name = await AsyncStorage.getItem('userName');
       
-      const empresaId = await AsyncStorage.getItem('empresaId');
-      const token = await AsyncStorage.getItem('accessToken');
-      setHasEmpresa(!!(empresaId && empresaId !== ''));
-      setIsLogged(!!token);
+//       const empresaId = await AsyncStorage.getItem('empresaId');
+//       const token = await AsyncStorage.getItem('accessToken');
+//       setHasEmpresa(!!(empresaId && empresaId !== ''));
+//       setIsLogged(!!token);
 
-      if (name) {
-        setUserName(name);
-      } else {
-        setUserName('');
-      }
-      // Actualizar contador de empresas seguidas cuando leemos el user
-      fetchEmpresasSeguidas();
-    } catch (error) {
-      console.log('Error al leer userName:', error);
-      setUserName('');
-    }
-  };
-  // Suscribirse al evento 'focus' de React Navigation:
-  // cada vez que la pantalla vuelva al frente, se ejecuta fetchUserName
-  const focusListener = navigation.addListener('focus', fetchUserName);
+//       if (name) {
+//         setUserName(name);
+//       } else {
+//         setUserName('');
+//       }
+//       // Actualizar contador de empresas seguidas cuando leemos el user
+//       fetchEmpresasSeguidas();
+//     } catch (error) {
+//       console.log('Error al leer userName:', error);
+//       setUserName('');
+//     }
+//   };
+//   // Suscribirse al evento 'focus' de React Navigation:
+//   // cada vez que la pantalla vuelva al frente, se ejecuta fetchUserName
+//   const focusListener = navigation.addListener('focus', fetchUserName);
 
-  // Llamada inicial al montar la pantalla
-  fetchUserName();
+//   // Llamada inicial al montar la pantalla
+//   fetchUserName();
 
-  // También actualizar el contador cada vez que la pantalla gana foco
-  navigation.addListener('focus', fetchEmpresasSeguidas);
+//   // También actualizar el contador cada vez que la pantalla gana foco
+//   navigation.addListener('focus', fetchEmpresasSeguidas);
 
-  // Limpiar el listener cuando el componente se desmonta
-  return () => {
-    if (focusListener) {
-      focusListener(); // quita la suscripción
-    }
-  };
-}, [navigation]);
+//   // Limpiar el listener cuando el componente se desmonta
+//   return () => {
+//     if (focusListener) {
+//       focusListener(); // quita la suscripción
+//     }
+//   };
+// }, [navigation]);
 
-// RN: envío simple a tu endpoint DRF
-// const uploadAvatar = async (uri, name, type, token) => {
-//   const formData = new FormData();
-//   formData.append('file', { uri, name, type });
+// --- CORRECCIÓN: Usar useFocusEffect para cargar todos los datos de la pantalla ---
+ 
+useFocusEffect(
+    React.useCallback(() => {
+      const loadScreenData = async () => {
+        try {
+          // 1. Obtener datos de la sesión desde AsyncStorage
+          const name = await AsyncStorage.getItem('userName');
+          const empresaId = await AsyncStorage.getItem('empresaId');
+          const token = await AsyncStorage.getItem('accessToken');
+          const userId = await AsyncStorage.getItem('userId');
 
-//   const res = await api.post(`/api/usuarios/upload_avatar/`, formData, {
-//     headers: {
-//       'Authorization': `Bearer ${token}`, // o 'Token <token>' dependiendo de tu auth en DRF
-//       'Content-Type': 'multipart/form-data',
-//     },
-//   });
-//   return res.data;
-// };
+          // 2. Actualizar el estado del componente
+          setUserName(name || '');
+          setHasEmpresa(!!(empresaId && empresaId !== ''));
+          setIsLogged(!!token);
+
+          // 3. Si hay un usuario logueado, cargar sus datos asociados (empresas seguidas)
+          if (userId) {
+            await fetchEmpresasSeguidas();
+          } else {
+            setEmpresasSeguidas([]); // Limpiar si no hay usuario
+          }
+
+        } catch (error) {
+          console.log('Error al cargar los datos del perfil:', error);
+          // Limpiar estado en caso de error
+          setUserName('');
+          setHasEmpresa(false);
+          setIsLogged(false);
+          setEmpresasSeguidas([]);
+        }
+      };
+
+      loadScreenData(); // Ejecutar la función de carga
+
+      // No se necesita una función de limpieza aquí si solo estamos cargando datos.
+    }, []) // El array vacío asegura que la lógica se define una vez.
+  );
+
+
 
  const handleLogout = async () => {
   await Promise.all([
@@ -189,8 +224,12 @@ export default function PerfilScreen({ navigation }) {
         style={[styles.sectionButton, styles.blue, selectedSection === 'empresas' && styles.sectionButtonActive]}
         onPress={async () => {
           try {
-            const res = await api.get('/api/empresas-seguidas/');
-            setEmpresasSeguidas(res.data || []);
+            const userId = await AsyncStorage.getItem('userId');
+            const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
+            const empresasArray = res?.data?.empresas && Array.isArray(res.data.empresas)
+              ? res.data.empresas
+              : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.results) ? res.data.results : []));
+            setEmpresasSeguidas(empresasArray || []);
           } catch (e) {
             setEmpresasSeguidas([]);
           }
@@ -392,16 +431,11 @@ export default function PerfilScreen({ navigation }) {
                   return;
                 }
 
-                // Limpiar datos de sesión del usuario
-                await Promise.all([
-                  AsyncStorage.removeItem('userName'),
-                  AsyncStorage.removeItem('userEmail'),
-                  AsyncStorage.removeItem('userId'),
-                ]);
-
-                // Marcar que ahora estamos en modo empresa y actualizar userKind
+    
+                // Nuevo: marcar modo empresa sin borrar identidad usuario
+                await AsyncStorage.setItem('sessionMode', 'empresa');
                 await AsyncStorage.setItem('isEmpresaAccount', 'true');
-                await AsyncStorage.setItem('userKind', 'empresa');
+                await AsyncStorage.setItem('isUserAccount', 'true'); // sigue siendo un user con empresa vinculada
 
                 navigation.navigate('Empresa', { empresaId });
               } catch (e) {
@@ -432,16 +466,7 @@ export default function PerfilScreen({ navigation }) {
         {!hasEmpresa && (
           <>
             <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>{empresasArray.length}</Text></Text>
-            <TouchableOpacity
-              style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 18, marginBottom: 8, alignItems: 'center', alignSelf: 'center' }}
-              onPress={async () => {
-                await fetchEmpresasSeguidas();
-                setEmpresasModal(true);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ver empresas que sigues</Text>
-            </TouchableOpacity>
+
             {/* Modal lista de empresas seguidas */}
             <Modal
               visible={empresasModal}
@@ -486,27 +511,8 @@ export default function PerfilScreen({ navigation }) {
           
         {hasEmpresa && (
           <>
-            <Text style={styles.userStats}>Empresas que sigues: <Text style={styles.highlight}>{seguidores.length}</Text></Text>
-            <TouchableOpacity
-              style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 18, marginBottom: 8, alignItems: 'center', alignSelf: 'center' }}
-              onPress={async () => {
-                // Reuse the same endpoint to fetch seguidores; normalize if needed
-                try {
-                  const userId = await AsyncStorage.getItem('userId');
-                  const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
-                  const seguidoresArray = res?.data?.empresas && Array.isArray(res.data.empresas)
-                    ? res.data.empresas
-                    : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.results) ? res.data.results : []));
-                  setSeguidores(seguidoresArray || []);
-                } catch (e) {
-                  setSeguidores([]);
-                }
-                setSeguidoresModal(true);
-              }}
-              activeOpacity={0.85}
-            >
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ver empresas que sigues</Text>
-            </TouchableOpacity>
+            <Text style={styles.userStats}>Empresas que sigues: <Text style={styles.highlight}>{totalEmpresasSeguidas}</Text></Text>
+            
             {/* Modal lista de seguidores */}
             <Modal
               visible={seguidoresModal}

@@ -88,16 +88,6 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username','phone']
     
-    # def delete(self, *args, **kwargs):
-    #     if self.avatar_path:
-    #         try:
-    #             supabase.storage.from_(settings.SUPABASE_BUCKET).remove([self.avatar_path])
-    #         except Exception:
-    #             pass
-    #     super().delete(*args, **kwargs)
-
-    # def __str__(self):
-    #     return self.username
 
 
 class EmailVerification(models.Model):

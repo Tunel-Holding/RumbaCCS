@@ -146,6 +146,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "total_eventos",
             "is_following",
             "status",
+            "rejection_reason",
+            "verification_notes",
             "eventos",
         ]
         read_only_fields = [
@@ -155,6 +157,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "fecha_creacion",
             "activo",
             "status",
+            "rejection_reason",
+            "verification_notes",
         ]
 
     def get_is_following(self, obj):

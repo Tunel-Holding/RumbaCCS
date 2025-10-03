@@ -13,41 +13,6 @@ import * as Location from 'expo-location';
 
 const { width } = Dimensions.get('window');
 
-/*
-Ejemplo de función para obtener eventos paginados, filtrados y con búsqueda desde el backend
-Puedes usarla cuando el backend soporte estos parámetros:
-
-const fetchEventos = async ({
-  page = 0,
-  pageSize = 10,
-  search = '',
-  categoria = '',
-  fecha = '',
-} = {}) => {
-  try {
-    const params = {
-      limit: pageSize,
-      offset: page * pageSize,
-    };
-    if (search) params.search = search;
-    if (categoria) params.categoria = categoria;
-    if (fecha) params.fecha = fecha;
-
-    const res = await api.get('/api/eventos-publicos/', { params });
-    // Si el backend usa DRF, los datos estarán en res.data.results y el total en res.data.count
-    const eventos = res.data.results || res.data;
-    const total = res.data.count || eventos.length;
-
-    return { eventos, total };
-  } catch (error) {
-    console.error('Error al obtener eventos:', error);
-    return { eventos: [], total: 0 };
-  }
-};
-
-
-const { eventos, total } = await fetchEventos({ page: 1, search: 'concierto', categoria: 'Festival' });
-*/
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -94,6 +59,7 @@ export default function HomeScreen() {
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
   const [empresaData, setEmpresaData] = useState(null);
   const [isEmpresaAccount, setIsEmpresaAccount] = useState(false); // <-- NUEVO ESTADO
+  const [isUserAccount, setIsUserAccount] = useState(false); // Estado para saber si es cuenta de usuario
   const [hasMore, setHasMore] = useState(true);      // CAMBIO: controla si hay más páginas en backend
   const [nextPage, setNextPage] = useState(null);
   const [prevPage, setPrevPage] = useState(null);
@@ -138,9 +104,12 @@ export default function HomeScreen() {
       const checkLoginAndRefresh = async () => {
         const token = await AsyncStorage.getItem('accessToken');
         const isEmpresaAcc = await AsyncStorage.getItem('isEmpresaAccount'); // Leemos el valor guardado
+        const isUserAcc = await AsyncStorage.getItem('isUserAccount'); // <-- AÑADE ESTA LÍNEA
         
         setIsLogged(!!token); // Primero, actualiza el estado de login
         setIsEmpresaAccount(isEmpresaAcc === 'true'); // Actualizamos el estado de tipo de cuenta
+        setIsUserAccount(isUserAcc === 'true');
+       
 
         if (token) {
           console.log("HomeScreen en foco y logueado, actualizando datos...");
@@ -150,7 +119,8 @@ export default function HomeScreen() {
           setEmpresaData(null);
           setHasEmpresa(false);
           setOwnEmpresaId(null);
-          setIsEmpresaAccount(false); // Aseguramos limpiar este estado también
+          setIsEmpresaAccount(false); // Aseguramos limpiar este estado 
+          setIsUserAccount(false);
         }
       };
       checkLoginAndRefresh();
@@ -165,6 +135,8 @@ export default function HomeScreen() {
     // ... (tus otros AsyncStorage.removeItem)
     await AsyncStorage.removeItem('empresaId');
     await AsyncStorage.removeItem('isEmpresaAccount'); // Limpiamos el tipo de cuenta
+    await AsyncStorage.removeItem('userId');
+    await AsyncStorage.removeItem('isUserAccount');
     await AsyncStorage.clear(); // Opcional: clear() ya limpia todo
     setIsLogged(false);
     setIsEmpresaAccount(false); // Limpiamos el estado
@@ -194,32 +166,62 @@ const handleLogin = async () => {
 
     // --- LÓGICA DE DIFERENCIACIÓN DE CUENTAS ---
     // (Tu lógica existente se mantiene aquí)
+     // 1. Limpiamos el estado anterior para evitar datos mezclados
+    await AsyncStorage.clear();
+
+    // 2. Determinamos el tipo de cuenta y los datos a guardar
     if (resultado.data?.empresa) {
-      console.log("Es una cuenta de Empresa:", resultado.data.empresa);
-      setEmpresaData(resultado.data.empresa);
+      // --- CASO: Cuenta de Empresa Pura ---
+      console.log("Es una cuenta de Empresa Pura");
+      const empresa = resultado.data.empresa;
+      
+      // Guardamos todos los datos de la sesión de empresa
+      await AsyncStorage.setItem('accessToken', resultado.data.access);
+      await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
+      await AsyncStorage.setItem('empresaId', empresa.id.toString());
+      await AsyncStorage.setItem('isEmpresaAccount', 'true');
+      await AsyncStorage.setItem('isUserAccount', 'false');
+
+      // Actualizamos el estado del componente
+      setEmpresaData(empresa);
       setHasEmpresa(true);
       setIsEmpresaAccount(true);
-      await AsyncStorage.setItem('isEmpresaAccount', 'true');
-    } else {
-      console.log("Es una cuenta de Usuario.");
+      setIsUserAccount(false);
 
-      const userId = resultado.data.user.id; // Asignamos userId para uso posterior
+    } else if (resultado.data?.user) {
+      // --- CASO: Cuenta de Usuario (con o sin empresa asociada) ---
+      console.log("Es una cuenta de Usuario");
+      const userData = resultado.data.user;
 
-      await AsyncStorage.setItem("userId", userId.toString());
-      setIsEmpresaAccount(false);
+      // Guardamos todos los datos de la sesión de usuario
+      await AsyncStorage.setItem('accessToken', resultado.data.access);
+      await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
+      await AsyncStorage.setItem('userId', userData.id.toString());
+      await AsyncStorage.setItem('userName', userData.username);
+      await AsyncStorage.setItem('isUserAccount', 'true');
+      await AsyncStorage.setItem('isEmpresaAccount', 'false');
+
+      // Si tiene empresa asociada, guardamos también su ID
       if (resultado.data?.empresa_id) {
         console.log("Usuario con empresa vinculada (ID):", resultado.data.empresa_id);
+        await AsyncStorage.setItem('empresaId', resultado.data.empresa_id.toString());
         setHasEmpresa(true);
       } else {
         console.log("Usuario sin empresa vinculada.");
         setHasEmpresa(false);
       }
-      setEmpresaData(null);
-      await AsyncStorage.setItem('isEmpresaAccount', 'false');
+      
+      // Actualizamos el estado del componente
+      setEmpresaData(null); // Una cuenta de usuario no gestiona directamente los datos de la empresa
+      setIsUserAccount(true);
+      setIsEmpresaAccount(false);
     }
 
+    // 3. Finalizamos el flujo de login
     setIsLogged(true);
     setLoginVisible(false);
+    // Alert.alert('Login correcto', `Bienvenido/a`); // Opcional: puedes quitar el alert para un UX más fluido
+
   } finally {
     // Este bloque se ejecuta SIEMPRE, tanto si hay éxito como si hay error.
     setLoginLoading(false);
@@ -576,14 +578,14 @@ const filteredEvents = fuente.filter(e => {
                 <TouchableOpacity 
                   // Redirige a 'Empresa' si es una cuenta de empresa, si no, a 'Perfil'.
                   onPress={() => {
-                    if (isEmpresaAccount) {
+                    if (isEmpresaAccount && !isUserAccount) {
                       navigation.navigate('Empresa');
                     } else {
                       navigation.navigate('Perfil');
                     }
                   }}
                 >
-                  {isEmpresaAccount && empresaData?.logo ? (
+                  {!isUserAccount && isEmpresaAccount && empresaData?.logo ? (
                     <Image
                       source={{ uri: empresaData.logo }}
                       style={{ width: 32, height: 32, borderRadius: 100, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}

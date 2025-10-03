@@ -43,6 +43,10 @@ class UserPublicSerializer(serializers.ModelSerializer):
             'id', 'email', 'username', 'phone', 'birthday', 'region', 'gender',
             'is_staff', 'is_active'
         ]
+    
+    @property
+    def total_empresas_seguidas(self):
+        return self.empresas_que_sigue.count()
 
 class RegisterSerializer(serializers.ModelSerializer):
     
