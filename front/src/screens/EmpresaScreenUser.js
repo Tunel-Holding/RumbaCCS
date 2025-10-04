@@ -505,6 +505,23 @@ useEffect(() => {
         <View style={styles.datosContainer}>
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
+          {/* Redes sociales debajo del RIF */}
+          {empresaData?.redes_sociales && empresaData.redes_sociales.length > 0 && (
+            <View style={{ marginTop: 6 }}>
+              {empresaData.redes_sociales.map((r, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => {
+                    const href = r.url;
+                    if (href) Linking.openURL(href).catch(() => {});
+                  }}
+                  style={{ paddingVertical: 4 }}
+                >
+                  <Text style={{ color: '#60a5fa' }}>{r.tipo} — {r.url}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
           <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
           {!isEmpresaAccount && (

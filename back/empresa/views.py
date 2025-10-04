@@ -38,7 +38,7 @@ from django.contrib.auth.hashers import make_password
 import jwt
 import os
 import uuid
-
+import requests
 from rest_framework.authentication import BaseAuthentication
 from rest_framework import exceptions
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -61,6 +61,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from .services import asignar_empresa_por_menor_carga, NoStaffAvailable, validate_image_with_sightengine
 from .notifications import notificar_asignacion_empresa
+from .models import EmpresaRedSocial
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError as DjangoValidationError
+from .models import EmpresaRedSocial
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -146,17 +152,33 @@ class EmpresaValidarPinView(generics.CreateAPIView):
             **empresa_data
         )
         # Guardar redes sociales
-        from .models import EmpresaRedSocial
+        
+        url_validator = URLValidator()
         for red in redes_sociales:
-            # Espera que cada elemento sea un dict: {'tipo': ..., 'url': ...}
+            # Puede ser string (url) o dict {'tipo':..., 'url':...}
+            tipo = 'instagram'
+            url = ''
             if isinstance(red, dict):
                 tipo = red.get('tipo', 'instagram')
                 url = red.get('url', '')
             else:
-                tipo = 'instagram'
                 url = red
-            if url:
-                EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
+
+            if not url:
+                continue
+
+            # Normalizar (anteponer https:// si es necesario)
+            url = url.strip()
+            if not url.lower().startswith('http://') and not url.lower().startswith('https://'):
+                url = 'https://' + url
+
+            try:
+                url_validator(url)
+            except DjangoValidationError:
+                # ignorar urls inválidas
+                continue
+
+            EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
 
         # 🔹 Asignación automática al staff con menor carga
         try:
@@ -293,17 +315,30 @@ class EmpresaViewSet(ModelViewSet):
         else:
             empresa = serializer.save(usuario=real_obj)
         # Guardar redes sociales
-        from .models import EmpresaRedSocial
+        
+        url_validator = URLValidator()
         for red in redes:
-            # Espera que cada elemento sea un dict: {'tipo': ..., 'url': ...}
+            tipo = 'instagram'
+            url = ''
             if isinstance(red, dict):
                 tipo = red.get('tipo', 'instagram')
                 url = red.get('url', '')
             else:
-                tipo = 'instagram'
                 url = red
-            if url:
-                EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
+
+            if not url:
+                continue
+            # Normalizar
+            url = url.strip()
+            if not url.lower().startswith('http://') and not url.lower().startswith('https://'):
+                url = 'https://' + url
+
+            try:
+                url_validator(url)
+            except DjangoValidationError:
+                continue
+
+            EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
 
         # 🔹 Aquí añadimos la asignación automática
         try:
@@ -443,11 +478,31 @@ class EventoViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
 
-        # Detecta flujo: user con empresa asociada o empresa login directo
-        if hasattr(user, "empresa"):  # user normal con empresa
+        # Detecta flujo: user con empresa asociada, AuthEntity o empresa login directo
+        empresa_id = None
+        # AuthEntity wrapper (tiene .kind y .obj)
+        if hasattr(user, 'kind') and hasattr(user, 'obj'):
+            real_obj = getattr(user, 'obj')
+            if hasattr(real_obj, 'empresa'):
+                empresa_id = real_obj.empresa.id
+            else:
+                empresa_id = getattr(real_obj, 'id', None)
+        elif hasattr(user, 'empresa'):
+            # Usuario normal con OneToOne a Empresa
             empresa_id = user.empresa.id
-        else:  # si el usuario es la empresa misma
-            empresa_id = user.id
+        else:
+            # Posiblemente el usuario es directamente una Empresa
+            empresa_id = getattr(user, 'id', None)
+
+        # Validar que la empresa exista y esté verificada
+        try:
+            empresa = Empresa.objects.get(id=empresa_id)
+        except Exception:
+            raise ValidationError({"detail": "Empresa no encontrada."})
+
+        if not getattr(empresa, 'company_verified', False):
+            # Bloqueamos la creación si la empresa no está verificada
+            raise PermissionDenied("Empresa no verificada. No puede crear eventos hasta ser verificada.")
 
         serializer.save(empresa_id=empresa_id)
         print("CREANDO EVENTO PARA EMPRESA ID:", empresa_id)
@@ -570,7 +625,7 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
         Envía la imagen a Sightengine y valida que sea segura.
         Retorna True si la imagen es válida, False si no.
         """
-        import requests
+        
 
         api_user =  settings.SIGHTENGINE_API_USER
         api_secret = settings.SIGHTENGINE_API_SECRET

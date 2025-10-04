@@ -9,6 +9,20 @@ from django.db.models import Avg, Count
 from .models import Empresa, Evento2, Rating, EmpresaEvento, EventoImagen
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.core.validators import URLValidator
+from django.core.exceptions import ValidationError as DjangoValidationError
+        
+def _normalize_url(url: str) -> str:
+    """Normaliza una URL: si no tiene esquema, antepone https://"""
+    if not url:
+        return url
+    url = url.strip()
+    if not url:
+        return url
+    lower = url.lower()
+    if lower.startswith('http://') or lower.startswith('https://'):
+        return url
+    return 'https://' + url
 
 class EventoImagenSerializer(serializers.ModelSerializer):
     class Meta:
@@ -26,6 +40,7 @@ class EventoSerializer(serializers.ModelSerializer):
     )
     imagenes = EventoImagenSerializer(many=True, read_only=True)
     empresa = serializers.PrimaryKeyRelatedField(read_only=True)
+    empresa_redes = serializers.SerializerMethodField()
     edad_minima = serializers.IntegerField()
     capacidad = serializers.IntegerField()
     precio = serializers.DecimalField(max_digits=10, decimal_places=2)
@@ -54,6 +69,7 @@ class EventoSerializer(serializers.ModelSerializer):
             "actualizado_en",
             "latitude",
             "longitude",
+            "empresa_redes",
         ]
 
     def get_distance(self, obj):
@@ -67,12 +83,21 @@ class EventoSerializer(serializers.ModelSerializer):
             print(f'{field} -> valor: {value!r}, tipo: {type(value)}')
         return super().validate(attrs)
     
+    def get_empresa_redes(self, obj):
+        try:
+            empresa = getattr(obj, 'empresa', None)
+            if not empresa:
+                return []
+            return [{'tipo': r.tipo, 'url': r.url} for r in empresa.redes.all()]
+        except Exception:
+            return []
+    
 
 # Nuevo serializer para redes sociales
 class EmpresaRedSocialSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmpresaRedSocial
-        fields = ['url']
+        fields = ['tipo', 'url']
 
 class EmpresaStaffSerializer(serializers.ModelSerializer):
     assigned_to = serializers.StringRelatedField(read_only=True)
@@ -202,7 +227,9 @@ class EmpresaSerializer(serializers.ModelSerializer):
         return agg.get('count') or 0
 
     def get_redes_sociales(self, obj):
-        return [r.url for r in obj.redes.all()]
+        # Devuelve una lista de objetos con tipo y url para que el frontend pueda
+        # renderizar hipervínculos fácilmente.
+        return [{'tipo': r.tipo, 'url': r.url} for r in obj.redes.all()]
     
     # def validate(self, attrs):
     #     user = self.context["request"].user
@@ -216,7 +243,8 @@ class EmpresaSerializer(serializers.ModelSerializer):
     
 
 class EmpresaRegistroSerializer(serializers.ModelSerializer):
-    redes_sociales = serializers.ListField(child=serializers.URLField(), write_only=True, required=False)
+    # Aceptamos una lista que puede contener strings (urls) o dicts {"tipo":..., "url":...}
+    redes_sociales = serializers.ListField(child=serializers.JSONField(), write_only=True, required=False)
     # Campos para crear el usuario
     # email = serializers.EmailField(write_only=True)
     # password = serializers.CharField(write_only=True)
@@ -243,10 +271,34 @@ class EmpresaRegistroSerializer(serializers.ModelSerializer):
         ]
 
     def create(self, validated_data):
+
         redes = validated_data.pop('redes_sociales', [])
         empresa = Empresa.objects.create(**validated_data)
-        for url in redes:
-            EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo='instagram') # Puedes adaptar el tipo según el frontend
+
+        url_validator = URLValidator()
+        for red in redes:
+            tipo = 'instagram'
+            url = ''
+            if isinstance(red, str):
+                url = red
+            elif isinstance(red, dict):
+                tipo = red.get('tipo', 'instagram')
+                url = red.get('url', '')
+
+            # normalizar antes de validar
+            url = _normalize_url(url)
+
+            # validar url antes de crear
+            if not url:
+                continue
+            try:
+                url_validator(url)
+            except DjangoValidationError:
+                # ignoramos entradas inválidas; podríamos recolectarlas y devolver errores si se prefiere
+                continue
+
+            EmpresaRedSocial.objects.create(empresa=empresa, url=url, tipo=tipo)
+
         return empresa
 
 class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -284,6 +336,7 @@ class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
         
         
 class EmpresaPublicSerializer(serializers.ModelSerializer):
+    redes_sociales = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
     total_seguidores = serializers.SerializerMethodField()
     total_eventos = serializers.SerializerMethodField()
@@ -297,6 +350,7 @@ class EmpresaPublicSerializer(serializers.ModelSerializer):
             "descripcion",
             "logo",
             "rif",
+            "redes_sociales",
             "lugar",
             "telefono",
             "email_contacto",
@@ -331,8 +385,15 @@ class EmpresaPublicSerializer(serializers.ModelSerializer):
     def get_total_eventos(self, obj):
         return obj.eventos.count()
 
+    def get_redes_sociales(self, obj):
+        try:
+            return [{'tipo': r.tipo, 'url': r.url} for r in obj.redes.all()]
+        except Exception:
+            return []
+
 class EventoPublicSerializer(serializers.ModelSerializer):
     imagenes = EventoImagenSerializer(many=True, read_only=True)
+    empresa_redes = serializers.SerializerMethodField()
     
     class Meta:
         model = Evento2
@@ -348,8 +409,18 @@ class EventoPublicSerializer(serializers.ModelSerializer):
             "precio",
             "moneda",
             "imagenes",
+            "empresa_redes",
             "fecha_evento",
         ]
+
+    def get_empresa_redes(self, obj):
+        try:
+            empresa = getattr(obj, 'empresa', None)
+            if not empresa:
+                return []
+            return [{'tipo': r.tipo, 'url': r.url} for r in empresa.redes.all()]
+        except Exception:
+            return []
 
 class RatingSerializer(serializers.ModelSerializer):
     usuario = serializers.PrimaryKeyRelatedField(read_only=True)  # se asigna desde la vista
@@ -392,7 +463,18 @@ class EmpresaEventoSerializer(serializers.ModelSerializer):
         imagenes_temp = validated_data.pop("imagenesTemp", [])
         evento_data = validated_data.pop("evento_data")
 
+        # Verificar que la empresa (si se proporcionó) esté verificada.
+        empresa = validated_data.get('empresa')
+        if empresa is not None and not getattr(empresa, 'company_verified', False):
+            raise ValidationError({"detail": "Empresa no verificada. No puede crear eventos hasta ser verificada."})
+
         # 1️⃣ Crear el Evento2
+        # Si la columna 'promote' existe en la base de datos pero no está
+        # definida en el modelo (esquema fuera de sincronía), pasar un valor
+        # por defecto evita IntegrityError por NOT NULL.
+        if 'promote' not in evento_data:
+            evento_data['promote'] = False
+
         evento = Evento2.objects.create(**evento_data)
 
         # 2️⃣ Reasignar las imágenes temporales al evento

@@ -597,6 +597,16 @@ if (loading) {
                   {eventDetails.empresa}
                 </Text>
               </TouchableOpacity>
+              {/* Mostrar links de la empresa (si vienen) */}
+              {eventDetails.empresa_redes && eventDetails.empresa_redes.length > 0 && (
+                <View style={{ marginTop: 6 }}>
+                  {eventDetails.empresa_redes.map((r, i) => (
+                    <TouchableOpacity key={i} onPress={() => r.url && Linking.openURL(r.url)} style={{ paddingVertical: 4 }}>
+                      <Text style={{ color: COLORS.primary }}>{r.tipo} — {r.url}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           )}
         </View>
