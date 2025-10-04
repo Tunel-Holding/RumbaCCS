@@ -298,7 +298,6 @@ export default function BuyScreen() {
           // Update UI immediately
           setIsSaved(true);
           setSavedId(res.data.id);
-          alert('Evento guardado correctamente');
           setRefreshSaved(r => r + 1); // fuerza recarga en background
         } else {
           alert('Error al guardar: ' + JSON.stringify(res?.data));

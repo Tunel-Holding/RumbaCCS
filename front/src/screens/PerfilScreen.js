@@ -4,7 +4,7 @@ import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarModal from '../components/CalendarModal';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, ActivityIndicator, StatusBar } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 
 
@@ -33,10 +33,13 @@ export default function PerfilScreen({ navigation }) {
   const [seguidores, setSeguidores] = useState([]);
   const [seguidoresModal, setSeguidoresModal] = useState(false);
   const [mostrarEmpresasAbajo, setMostrarEmpresasAbajo] = useState(false);
+  const [loading, setLoading] = useState(false);
 
 
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
   const fetchEmpresasSeguidas = async () => {
+    setLoadingEmpresas(true);
+    
     try {
       const userId = await AsyncStorage.getItem('userId');
       if (!userId) {
@@ -55,6 +58,9 @@ export default function PerfilScreen({ navigation }) {
     } catch (e) {
       console.log('Error al cargar empresas seguidas:', e);
       setEmpresasSeguidas([]);
+    } finally {
+      
+      setLoadingEmpresas(false);
     }
   };
 
@@ -66,54 +72,11 @@ const totalEmpresasSeguidas = Array.isArray(empresasSeguidas) ? empresasSeguidas
 
 console.log("total empresas seguidas",totalEmpresasSeguidas)
 
-  
-//   useEffect(() => {
-    
-//   // Función que lee el nombre guardado en AsyncStorage
-//   const fetchUserName = async () => {
-//     try {
-//       const name = await AsyncStorage.getItem('userName');
-      
-//       const empresaId = await AsyncStorage.getItem('empresaId');
-//       const token = await AsyncStorage.getItem('accessToken');
-//       setHasEmpresa(!!(empresaId && empresaId !== ''));
-//       setIsLogged(!!token);
-
-//       if (name) {
-//         setUserName(name);
-//       } else {
-//         setUserName('');
-//       }
-//       // Actualizar contador de empresas seguidas cuando leemos el user
-//       fetchEmpresasSeguidas();
-//     } catch (error) {
-//       console.log('Error al leer userName:', error);
-//       setUserName('');
-//     }
-//   };
-//   // Suscribirse al evento 'focus' de React Navigation:
-//   // cada vez que la pantalla vuelva al frente, se ejecuta fetchUserName
-//   const focusListener = navigation.addListener('focus', fetchUserName);
-
-//   // Llamada inicial al montar la pantalla
-//   fetchUserName();
-
-//   // También actualizar el contador cada vez que la pantalla gana foco
-//   navigation.addListener('focus', fetchEmpresasSeguidas);
-
-//   // Limpiar el listener cuando el componente se desmonta
-//   return () => {
-//     if (focusListener) {
-//       focusListener(); // quita la suscripción
-//     }
-//   };
-// }, [navigation]);
-
-// --- CORRECCIÓN: Usar useFocusEffect para cargar todos los datos de la pantalla ---
  
 useFocusEffect(
     React.useCallback(() => {
       const loadScreenData = async () => {
+        setLoading(true);
         try {
           // 1. Obtener datos de la sesión desde AsyncStorage
           const name = await AsyncStorage.getItem('userName');
@@ -140,6 +103,8 @@ useFocusEffect(
           setHasEmpresa(false);
           setIsLogged(false);
           setEmpresasSeguidas([]);
+        } finally {
+          setLoading(false);
         }
       };
 
@@ -223,17 +188,8 @@ useFocusEffect(
       <TouchableOpacity
         style={[styles.sectionButton, styles.blue, selectedSection === 'empresas' && styles.sectionButtonActive]}
         onPress={async () => {
-          try {
-            const userId = await AsyncStorage.getItem('userId');
-            const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
-            const empresasArray = res?.data?.empresas && Array.isArray(res.data.empresas)
-              ? res.data.empresas
-              : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.results) ? res.data.results : []));
-            setEmpresasSeguidas(empresasArray || []);
-          } catch (e) {
-            setEmpresasSeguidas([]);
-          }
           setSelectedSection('empresas');
+          
         }}
         activeOpacity={0.8}
       >
@@ -251,6 +207,9 @@ useFocusEffect(
   // Estado para comentarios relacionados a empresas
   const [comentarios, setComentarios] = useState([]);
   const [loadingComentarios, setLoadingComentarios] = useState(false);
+
+  // Estado para empresas seguidas
+  const [loadingEmpresas, setLoadingEmpresas] = useState(false);
 
   // Función para cargar eventos guardados desde el backend
   const fetchGuardados = async () => {
@@ -297,6 +256,9 @@ useFocusEffect(
     if (selectedSection === 'comentarios') {
       fetchComentarios();
     }
+    if (selectedSection === 'empresas') {
+      fetchEmpresasSeguidas();
+    }
   }, [selectedSection]);
 
   // Llama a fetchGuardados cuando el usuario regresa a la pantalla de guardados
@@ -307,6 +269,9 @@ useFocusEffect(
       }
       if (selectedSection === 'comentarios') {
         fetchComentarios();
+      }
+      if (selectedSection === 'empresas') {
+        fetchEmpresasSeguidas();
       }
     }, [selectedSection])
   );
@@ -395,6 +360,17 @@ useFocusEffect(
       return () => setMostrarEmpresasAbajo(false);
     }, [])
   );
+  if (loading) {
+      return (
+        <View style={[styles.container, { backgroundColor: '#0f172a', flex: 1 }]}> 
+          <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#00ff00" /> 
+            <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+          </View>
+        </View>
+      );
+    }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -661,7 +637,13 @@ useFocusEffect(
       {selectedSection === 'empresas' && (
         <View style={[styles.sectionContent, { padding: 16, backgroundColor: 'transparent', margin: 0 }]}> 
           <Text style={styles.sectionTitle}>Empresas que sigues</Text>
-          {empresasSeguidas.length === 0 ? (
+          {loadingEmpresas ? (
+
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#7c3aed" />
+              <Text style={{ color: '#9ca3af', marginTop: 8 }}>Cargando empresas...</Text>
+            </View>
+          ) : empresasSeguidas.length === 0 ? (
             <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>
               Aún no sigues ninguna empresa
             </Text>

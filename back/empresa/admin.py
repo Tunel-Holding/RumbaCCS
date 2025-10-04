@@ -4,7 +4,7 @@ from django.utils import timezone
 from django import forms
 from django.contrib.admin.helpers import ActionForm
 from httpx import request
-from .models import Empresa
+from .models import Empresa, Evento2
 from .notifications import notificar_asignacion_empresa, notificar_cambio_status
 
 class EmpresasAsignadasFilter(admin.SimpleListFilter):
@@ -120,3 +120,48 @@ class EmpresaAdmin(admin.ModelAdmin):
 
     exclude = ('seguidores',)
 
+@admin.register(Evento2)
+class Evento2Admin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "titulo",
+        "fecha_evento",
+        "promote",
+        "categoria",
+        "empresa",
+    )
+    list_filter = ("promote", "want_promote")
+    search_fields = ("titulo", "ubicacion", "empresa__nombre")
+    ordering = ("fecha_evento",)
+
+    # Esto permite editar promote directamente desde la lista
+    list_editable = ("promote",)
+
+    # Campos que se pueden editar en el formulario del admin
+    fields = (
+        "titulo",
+        "descripcion",
+        "fecha_evento",
+        "ubicacion",
+        "categoria",
+        "empresa",
+        "promote",
+    )
+    # 🔑 Filtrar solo eventos futuros
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.filter(fecha_evento__gte=timezone.now())
+    
+    # 🔧 Acción personalizada
+    @admin.action(description="Marcar como promovidos")
+    def make_promoted(self, request, queryset):
+        updated = queryset.update(promote=True)
+        self.message_user(request, f"{updated} evento(s) marcados como promovidos.")
+
+    @admin.action(description="Quitar de promovidos")
+    def remove_promoted(self, request, queryset):
+        updated = queryset.update(promote=False)
+        self.message_user(request, f"{updated} evento(s) desmarcados como promovidos.")
+
+    # Registrar las acciones
+    actions = ["make_promoted", "remove_promoted"]

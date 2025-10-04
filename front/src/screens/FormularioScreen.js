@@ -452,8 +452,34 @@ const handleValidarPin = async () => {
     });
 
   } catch (error) {
-    console.error("Error al validar PIN:", error);
     setCargando(false);
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+
+    // Flujo esperado: PIN inválido / expirado
+    if (status === 400 || status === 401) {
+      const msg = (data?.detail || data?.message || '').toString().toLowerCase();
+      if (
+        data?.code === 'PIN_INVALID' ||
+        data?.error === 'PIN_INVALID' ||
+        data?.errors?.pin ||
+        /pin.*(inválid|invalid|incorrect|expir)/i.test(msg) ||
+        /c[oó]digo/.test(msg)
+      ) {
+        setPinError(true);
+        return; // no console.error
+      }
+    }
+
+    // Error de red
+    if (!status) {
+      Alert.alert('Error de red', 'No se pudo validar el PIN. Revisa tu conexión.');
+      return;
+    }
+
+    // Error inesperado
+    console.error("Error inesperado al validar PIN:", error);
+    Alert.alert('Error', data?.detail || 'Ocurrió un error inesperado al validar el PIN.');
     setPinError(true);
   }
 };
@@ -506,7 +532,6 @@ const handleValidarPin = async () => {
                     onPress={async () => {
                       try {
                         const res = await api.post('/api/reenviar-pin-empresa/', { email: correo });
-                        Alert.alert('PIN reenviado', res?.data?.detail || 'Revisa tu correo');
                         setPinError(false);
                         setPinDigits(['','','','','','']);
                         const t2 = setTimeout(() => setPinResendAvailable(true), 60000);

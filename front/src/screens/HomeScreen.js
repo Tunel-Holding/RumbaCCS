@@ -47,6 +47,7 @@ export default function HomeScreen() {
   }, [events]);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [eventoPromoted, setEventoPromoted] = useState(null);
   const [loginVisible, setLoginVisible] = useState(false);
   const [user, setUser] = useState('');
   const [pass, setPass] = useState('');
@@ -77,6 +78,7 @@ export default function HomeScreen() {
 
   // --- FUNCIÓN PARA RECARGAR DATOS DE LA EMPRESA ---
   const refreshEmpresaData = useCallback(async () => {
+    setLoading(true);
     const token = await AsyncStorage.getItem('accessToken');
     const empresaId = await AsyncStorage.getItem('empresaId');
     
@@ -96,12 +98,14 @@ export default function HomeScreen() {
     } else {
       setEmpresaData(null); // Limpiamos si no hay ID o token
     }
+    setLoading(false);
   }, []);
 
   // --- EFECTO PARA RECARGAR DATOS CUANDO LA PANTALLA ESTÁ EN FOCO ---
   useFocusEffect(
     useCallback(() => {
       const checkLoginAndRefresh = async () => {
+        setLoading(true);
         const token = await AsyncStorage.getItem('accessToken');
         const isEmpresaAcc = await AsyncStorage.getItem('isEmpresaAccount'); // Leemos el valor guardado
         const isUserAcc = await AsyncStorage.getItem('isUserAccount'); // <-- AÑADE ESTA LÍNEA
@@ -124,6 +128,7 @@ export default function HomeScreen() {
         }
       };
       checkLoginAndRefresh();
+      setLoading(false);
     }, [refreshEmpresaData])
   );
 
@@ -451,15 +456,127 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
   }
 };
 
+ // tu función fetchPromotedEventos (la que ya tienes)
+  const fetchPromotedEventos = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get("/api/eventos-publicos/promoted/", { timeout: 15000 });
+      const resultadosRaw = Array.isArray(res.data) ? res.data : [];
+
+      const eventosTransformados = resultadosRaw.map(ev => ({
+        id: ev.id,
+        rawEmpresaId: ev.empresa,
+        title: ev.titulo,
+        date: ev.fecha_evento
+          ? new Date(ev.fecha_evento).toLocaleDateString()
+          : ev.creado_en
+          ? new Date(ev.creado_en).toLocaleDateString()
+          : "Fecha no definida",
+        time: ev.fecha_evento
+          ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : null,
+        location: ev.ubicacion || "Ubicación no definida",
+        price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+        type: Array.isArray(ev.categoria) ? ev.categoria : ev.categoria ? [ev.categoria] : ["Sin categoría"],
+        tag: Array.isArray(ev.categoria) ? ev.categoria[0] : ev.categoria || "Sin categoría",
+        imagenes: ev.imagenes,
+        image: ev.imagen || "https://storage.googleapis.com/.../placeholder.png",
+        ownerName: `Empresa #${ev.empresa}`, // puedes enriquecer con companyCache si quieres
+        ownerLogo: null,
+      }));
+
+      setEventoPromoted(eventosTransformados);
+    } catch (error) {
+      console.error("Error cargando eventos promovidos:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+// 🔑 Llamar al fetch al montar el componente
+  useEffect(() => {
+    fetchPromotedEventos();
+  }, []);
+// const fetchPromotedEventos = async () => {
+//   setLoading(true);
+
+//   // Cancelar request anterior si existe
+//   if (searchCancelToken.current) {
+//     searchCancelToken.current.cancel("Nueva búsqueda, cancelando anterior");
+//   }
+//   searchCancelToken.current = axios.CancelToken.source();
+
+//   try {
+//     const res = await api.get("/api/eventos-publicos/promoted/", {
+//       timeout: 15000,
+//       cancelToken: searchCancelToken.current.token,
+//     });
+
+//     const resultadosRaw = Array.isArray(res.data) ? res.data : [];
+
+//     const eventosTransformados = resultadosRaw.map(ev => ({
+//       id: ev.id,
+//       rawEmpresaId: ev.empresa,
+//       title: ev.titulo,
+//       date: ev.fecha_evento
+//         ? new Date(ev.fecha_evento).toLocaleDateString()
+//         : ev.creado_en
+//         ? new Date(ev.creado_en).toLocaleDateString()
+//         : "Fecha no definida",
+//       time: ev.fecha_evento
+//         ? new Date(ev.fecha_evento).toLocaleTimeString([], {
+//             hour: "2-digit",
+//             minute: "2-digit",
+//           })
+//         : null,
+//       location: ev.ubicacion || "Ubicación no definida",
+//       price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+//       type: Array.isArray(ev.categoria) ? ev.categoria : ev.categoria ? [ev.categoria] : ["Sin categoría"],
+//       tag: Array.isArray(ev.categoria) ? ev.categoria[0] : ev.categoria || "Sin categoría",
+//       imagenes: ev.imagenes,
+//       image: ev.imagen || "https://storage.googleapis.com/.../placeholder.png",
+//       ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
+//       ownerLogo: companyCache[ev.empresa]?.logo || null,
+//     }));
+
+//     setEventoPromoted(eventosTransformados);
+
+//     // Actualización de empresas
+//     const idsPendientes = [
+//       ...new Set(eventosTransformados.map(ev => ev.rawEmpresaId).filter(id => id && !companyCache[id])),
+//     ];
+//     if (idsPendientes.length) {
+//       const resp = await api.get("/api/public/empresas/bulk/", {
+//         params: { ids: idsPendientes.join(",") },
+//         timeout: 15000,
+//       });
+//       const empresas = Array.isArray(resp.data) ? resp.data : [];
+//       const nuevosDatosEmpresa = {};
+//       empresas.forEach(emp => (nuevosDatosEmpresa[emp.id] = { nombre: emp.nombre, logo: emp.logo }));
+//       idsPendientes.forEach(id => {
+//         if (!nuevosDatosEmpresa[id]) nuevosDatosEmpresa[id] = { nombre: `Empresa #${id}`, logo: null };
+//       });
+//       setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
+//       setEventoPromoted(prev =>
+//         prev.map(ev =>
+//           ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
+//             ? { ...ev, ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre, ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo }
+//             : ev
+//         )
+//       );
+//     }
+//   } catch (error) {
+//     if (!axios.isCancel(error)) console.error(error);
+//   } finally {
+//     setLoading(false);
+//   }
+// };
 
 // --- FUNCIONES DE NAVEGACION / INFINITE SCROLL (CAMBIO: loadMore pide la siguiente página) ---
-const loadMore = async () => {
-  if (loading || !hasMore) return;
-  const nextPage = page + 1;
-  setPage(nextPage);
-  await fetchEventos(nextPage, true); // append = true
-  // opcional: scroll arriba/bajar con scrollRef
-};
+
+
+
 
 
   // Footer links
@@ -470,22 +587,6 @@ const loadMore = async () => {
     { title: 'API para desarrolladores' }
   ];
 
-  // const fuente = filter === 'nearby' ? events /* placeholder: luego lista filtrada por distancia */ : events;
-  // const filteredEvents = fuente.filter(e => {
-  //   const categorias = Array.isArray(e.type) ? e.type : [e.type];
-  //   const matchesFilter = filter === 'all' || filter === 'nearby' || categorias.includes(filter);
-  //   const rawQuery = search.trim();
-  //   if (!rawQuery) return matchesFilter; // sin búsqueda textual
-
-  //   const qTokens = normalizeText(rawQuery).split(/\s+/).filter(Boolean);
-  //   if (!qTokens.length) return matchesFilter;
-
-  //   const fields = [e.title || '', e.location || '', categorias.join(' '), e.ownerName || ''];
-
-  //   // Cada token debe hacer match aprox en algún campo
-  //   const allTokens = qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
-  //   return matchesFilter && allTokens;
-  // });
 
   // --- estados extra ---
 const [nearbyEvents, setNearbyEvents] = useState([]);
@@ -603,40 +704,49 @@ const filteredEvents = fuente.filter(e => {
 
         {/* Hero: carrusel de fotos de eventos publicados (hasta 3) */}
         <View style={styles.heroSection}>
-          <ScrollView
-            ref={heroScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.heroCarousel}
-            contentContainerStyle={{ paddingHorizontal: 0 }}
-            snapToInterval={width}
-            decelerationRate={'fast'}
-            onMomentumScrollEnd={(e) => {
-              const x = e.nativeEvent.contentOffset.x;
-              const w = width; // full-bleed card width
-              const idx = Math.round(x / w);
-              setCurrentHeroIndex(idx);
-            }}
-          >
-            { (events && events.length > 0 ? events.slice(0,3) : [null,null,null]).map((ev, idx) => {
-                const uri = ev?.imagenes?.[0]?.url || ev?.image || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png';
-                return (
-                  <TouchableOpacity key={idx} activeOpacity={0.9} style={styles.heroCard} onPress={() => {
-                    if (ev && ev.id) {
-                      navigation.navigate('Reservar/Comprar', { idEvento: ev.id, idEmpresa: ev.rawEmpresaId });
-                    }
-                  }}>
-                    <Image source={{ uri }} style={styles.heroCardImage} resizeMode="cover" />
-                    <View style={styles.heroCardOverlay} />
-                    <View style={styles.heroCardText}>
-                      <Text style={styles.heroCardTitle}>{ev?.title || 'Próximo evento'}</Text>
-                      {ev?.location ? <Text style={styles.heroCardLocation}>📍 {ev.location}</Text> : null}
-                    </View>
-                  </TouchableOpacity>
-                );
-            })}
-          </ScrollView>
-        </View>
+        <ScrollView
+          ref={heroScrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.heroCarousel}
+          contentContainerStyle={{ paddingHorizontal: 0 }}
+          snapToInterval={width}
+          decelerationRate={'fast'}
+          onMomentumScrollEnd={(e) => {
+            const x = e.nativeEvent.contentOffset.x;
+            const w = width;
+            const idx = Math.round(x / w);
+            setCurrentHeroIndex(idx);
+          }}
+        >
+          {(eventoPromoted && eventoPromoted.length > 0 
+            ? eventoPromoted.slice(0,10) 
+            : Array(10).fill(null)
+          ).map((ev, idx) => {
+            const uri = ev?.imagenes?.[0]?.url || ev?.image || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png';
+            return (
+              <TouchableOpacity
+                key={idx}
+                activeOpacity={0.9}
+                style={styles.heroCard}
+                onPress={() => {
+                  if (ev && ev.id) {
+                    navigation.navigate('Reservar/Comprar', { idEvento: ev.id, idEmpresa: ev.rawEmpresaId });
+                  }
+                }}
+              >
+                <Image source={{ uri }} style={styles.heroCardImage} resizeMode="cover" />
+                <View style={styles.heroCardOverlay} />
+                <View style={styles.heroCardText}>
+                  <Text style={styles.heroCardTitle}>{ev?.title || 'Próximo evento'}</Text>
+                  {ev?.location ? <Text style={styles.heroCardLocation}>📍 {ev.location}</Text> : null}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
+
 
         {/* Buscador */}
         <TextInput
