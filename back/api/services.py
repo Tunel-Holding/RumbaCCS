@@ -8,7 +8,7 @@ supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_ROLE_K
 
 
 def upload_user_profile_picture(file, user_id):
-    bucket = "usuarios"  # 👈 crea este bucket en Supabase (o usa el mismo con carpeta distinta)
+    bucket = "usuarios"
     ext = file.name.split(".")[-1]
     filename = f"user_{user_id}/profile/profile_{uuid.uuid4()}.{ext}"
 
@@ -16,15 +16,23 @@ def upload_user_profile_picture(file, user_id):
     supabase.storage.from_(bucket).upload(filename, file_bytes)
 
     public_url = supabase.storage.from_(bucket).get_public_url(filename)
-    return public_url
+    return {
+        "path": filename,
+        "public_url": public_url,
+    }
 
 
-def delete_user_profile_picture(public_url):
-    if not public_url:
+def delete_user_profile_picture(file_path):
+    """
+    Elimina una imagen del bucket 'usuarios' usando su ruta interna.
+    Ejemplo de file_path: 'user_15/profile/profile_1234.jpg'
+    """
+    if not file_path:
         return
 
-    path = urlparse(public_url).path
-    # Busca la parte después de "/usuarios/"
-    if "usuarios/" in path:
-        file_path = path.split("usuarios/", 1)[1]
-        supabase.storage.from_("usuarios").remove([file_path])
+    bucket = "usuarios"
+
+    try:
+        supabase.storage.from_(bucket).remove([file_path])
+    except Exception as e:
+        print(f"Error al eliminar imagen de Supabase: {e}")

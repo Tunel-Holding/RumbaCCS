@@ -34,6 +34,8 @@ export default function EmpresaScreen() {
   // Estado y lógica para seguidores
   const [seguidores, setSeguidores] = useState([]);
   const [seguidoresModal, setSeguidoresModal] = useState(false);
+  const [empresaReady, setEmpresaReady] = useState(false);
+
 
   // Función para obtener los seguidores de la empresa
   const fetchSeguidores = async () => {
@@ -162,7 +164,7 @@ export default function EmpresaScreen() {
       const response = await api.get(`/api/empresas/${empresaId}/`);
 
       
-      console.log("reject reason:", response.data.rejection_reason)
+      console.log("Datos de empresa:", response.data);
       setEmpresaData(response.data);
       
    } catch (error) {
@@ -178,6 +180,13 @@ export default function EmpresaScreen() {
 
   fetchEmpresa();
 }, []);
+
+useEffect(() => {
+  if (empresaData && empresaData.id) {
+    setEmpresaReady(true);
+  }
+}, [empresaData]);
+
 
   // Datos de empresa con valores por defecto si no hay datos
   const empresaData1 = {
@@ -529,44 +538,53 @@ useEffect(() => {
     </View>
   );
 
-  // Redes sociales dinámicas (front-only)
-  const redes = [
-    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: empresaData?.instagram || null },
-    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: empresaData?.twitter || null },
-    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: empresaData?.facebook || null },
-    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: empresaData?.tiktok || null },
-    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: empresaData?.youtube || null },
-    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: empresaData?.whatsapp || null },
-    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: empresaData?.website || null },
-  ];
-
   const openRedSocial = (item) => {
     if (item.url) {
       Linking.openURL(item.url).catch(err => console.log('No se pudo abrir', err));
     }
   };
 
-  const renderSocialCircles = () => {
-    const hasAny = redes.some(r => !!r.url);
-    if (!hasAny) return null;
-    return (
-      <View style={styles.socialStripContainer}>
-        <Text style={styles.socialStripTitle}>Redes sociales</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {redes.filter(r => r.url).map(r => (
-            <TouchableOpacity
-              key={r.id}
-              style={[styles.socialCircle, { borderColor: r.color }]}
-              activeOpacity={0.75}
-              onPress={() => openRedSocial(r)}
-            >
-              <Text style={styles.socialIcon}>{r.icon}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
+  tsx
+const renderSocialCircles = () => {
+  if (!empresaReady) return null;
+  
+
+  const redesMap = {};
+  empresaData.redes_sociales.forEach(red => {
+    const key = red.tipo === 'x' ? 'twitter' : red.tipo;
+    redesMap[key] = red.url;
+  });
+
+  const redes = [
+    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap?.instagram || null },
+    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap?.twitter || null },
+    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap?.facebook || null },
+    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap?.tiktok || null },
+    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap?.youtube || null },
+    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap?.whatsapp || null },
+    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap?.website || null },
+  ];
+
+  const hasAny = redes.some(r => !!r.url);
+  if (!hasAny) return null;
+
+  return (
+    <View style={styles.socialStripContainer}>
+      <Text style={styles.socialStripTitle}>Redes sociales</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {redes.filter(r => r.url).map(r => (
+          <TouchableOpacity
+            key={r.id}
+            style={[styles.socialCircle, { borderColor: r.color }]}
+            activeOpacity={0.75}
+            onPress={() => Linking.openURL(r.url)}
+          >
+            <Text style={styles.socialIcon}>{r.icon}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );}
 
 console.log("imagenes del evento",eventos.imagenes)
 

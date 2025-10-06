@@ -61,7 +61,6 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from .services import asignar_empresa_por_menor_carga, NoStaffAvailable, validate_image_with_sightengine
 from .notifications import notificar_asignacion_empresa
-from .models import EmpresaRedSocial
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import EmpresaRedSocial
@@ -256,11 +255,7 @@ class EmpresaViewSet(ModelViewSet):
 
     queryset = Empresa.objects.all()
 
-    # def get_permissions(self):
-    #     # 🔒 protege solo acciones que modifican
-    #     if self.action in ['create', 'update', 'partial_update', 'destroy', 'seguir', 'dejar_de_seguir']:
-    #         return [IsAuthenticated()]
-    #     return [AllowAny()]
+    
     
     @action(detail=True, methods=["post"], url_path="upload-foto")
     def upload_foto(self, request, pk=None):
@@ -516,29 +511,6 @@ class TempImageUploadView(APIView):
             return Response(serializer.validated_data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-# class EventoImagenViewSet(viewsets.ModelViewSet):
-#     queryset = EventoImagen.objects.all()
-#     serializer_class = EventoImagenSerializer
-#     parser_classes = [MultiPartParser, FormParser]
-
-#     def create(self, request, *args, **kwargs):
-#         evento_id = kwargs.get('evento_pk')
-#         file = request.data.get("file")
-#         if not file:
-#             return Response({"error": "No se subió archivo"}, status=400)
-
-#         try:
-#             evento = Evento2.objects.get(id=evento_id)
-#         except Evento2.DoesNotExist:
-#             return Response({"error": "Evento no encontrado"}, status=404)
-
-#         try:
-#             empresa_id = evento.empresa_id  # suponiendo que tu evento tiene FK a Empresa
-#             path, url = upload_image_to_supabase(file, empresa_id, evento_id)
-#             evento.imagenes.create(path=path, url=url)
-#             return Response({"url": url}, status=201)
-#         except Exception as e:
-#             return Response({"error": str(e)}, status=500)
 
 class EventoImagenViewSet(viewsets.ModelViewSet):
     queryset = EventoImagen.objects.all()

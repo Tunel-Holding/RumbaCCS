@@ -67,6 +67,26 @@ export default function FormularioScreen({ navigation, route }) {
 
   const pollitoAnim = useRef(new Animated.Value(0)).current;
   
+  const normalizeSocialLink = (platform, input) => {
+  const baseUrls = {
+    instagram: 'https://instagram.com/',
+    facebook: 'https://facebook.com/',
+    tiktok: 'https://tiktok.com/@',
+    x: 'https://x.com/',
+    youtube: 'https://youtube.com/',
+    whatsapp: 'https://wa.me/' // si usas número
+  };
+
+  // Si el input ya es un enlace completo, lo dejamos tal cual
+  if (input.startsWith('http://') || input.startsWith('https://')) {
+    return input;
+  }
+
+  // Si es solo username, lo normalizamos
+  const cleanInput = input.trim().replace(/^@/, '');
+  return `${baseUrls[platform]}${cleanInput}`;
+};
+
 
   // Si viene de perfil empresa
   const empresaId = route?.params?.empresaId || null;
@@ -170,6 +190,7 @@ const handleEnviar = async () => {
           }
         });
       }
+      console.log("Redes sociales a enviar:", redesSocialesArr);
       const empresaData = {
         nombre,
         rif: rifFormateado,
@@ -181,6 +202,8 @@ const handleEnviar = async () => {
         email: correo,
         password: password,
       };
+
+      console.log("Datos a enviar para registro de empresa:", empresaData);
 
       const res = await api.post('/api/registro-empresa/', empresaData);
       const data = res.data;
@@ -799,7 +822,10 @@ const handleValidarPin = async () => {
                             placeholder={`Enlace o usuario de ${opt.label}`}
                             placeholderTextColor="#888"
                             value={socialLinks[opt.key]}
-                            onChangeText={txt => setSocialLinks(prev => ({ ...prev, [opt.key]: txt }))}
+                            onChangeText={txt => {
+                              const normalized = normalizeSocialLink(opt.key, txt);
+                              setSocialLinks(prev => ({ ...prev, [opt.key]: normalized }));
+                            }}
                             autoCapitalize='none'
                             onFocus={() => scrollToField(`social_${opt.key}`)}
                             returnKeyType='done'

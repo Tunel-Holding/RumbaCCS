@@ -6,6 +6,7 @@ import CalendarModal from '../components/CalendarModal';
 import HamburgerMenu from '../components/HamburgerMenu';
 import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, ActivityIndicator } from 'react-native';
 import { SvgXml } from 'react-native-svg';
+import * as ImagePicker from 'expo-image-picker';
 
 
 // SVGs originales
@@ -33,6 +34,7 @@ export default function PerfilScreen({ navigation }) {
   const [seguidores, setSeguidores] = useState([]);
   const [seguidoresModal, setSeguidoresModal] = useState(false);
   const [mostrarEmpresasAbajo, setMostrarEmpresasAbajo] = useState(false);
+  const [userData, setUserData] = useState(null); // Datos del usuario logueado
 
 
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
@@ -67,50 +69,56 @@ const totalEmpresasSeguidas = Array.isArray(empresasSeguidas) ? empresasSeguidas
 console.log("total empresas seguidas",totalEmpresasSeguidas)
 
   
-//   useEffect(() => {
-    
-//   // Función que lee el nombre guardado en AsyncStorage
-//   const fetchUserName = async () => {
-//     try {
-//       const name = await AsyncStorage.getItem('userName');
-      
-//       const empresaId = await AsyncStorage.getItem('empresaId');
-//       const token = await AsyncStorage.getItem('accessToken');
-//       setHasEmpresa(!!(empresaId && empresaId !== ''));
-//       setIsLogged(!!token);
+const handleUploadAvatar = async (userId) => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    quality: 0.8,
+  });
 
-//       if (name) {
-//         setUserName(name);
-//       } else {
-//         setUserName('');
-//       }
-//       // Actualizar contador de empresas seguidas cuando leemos el user
-//       fetchEmpresasSeguidas();
-//     } catch (error) {
-//       console.log('Error al leer userName:', error);
-//       setUserName('');
-//     }
-//   };
-//   // Suscribirse al evento 'focus' de React Navigation:
-//   // cada vez que la pantalla vuelva al frente, se ejecuta fetchUserName
-//   const focusListener = navigation.addListener('focus', fetchUserName);
+  if (result.canceled) return false;
 
-//   // Llamada inicial al montar la pantalla
-//   fetchUserName();
+  const file = {
+    uri: result.assets[0].uri,
+    name: "avatar.jpg",
+    type: "image/jpeg",
+  };
 
-//   // También actualizar el contador cada vez que la pantalla gana foco
-//   navigation.addListener('focus', fetchEmpresasSeguidas);
+  const formData = new FormData();
+  formData.append("file", file);
 
-//   // Limpiar el listener cuando el componente se desmonta
-//   return () => {
-//     if (focusListener) {
-//       focusListener(); // quita la suscripción
-//     }
-//   };
-// }, [navigation]);
+  console.log("Subiendo avatar para userId:", userId);
 
-// --- CORRECCIÓN: Usar useFocusEffect para cargar todos los datos de la pantalla ---
- 
+  try {
+    const response = await api.post(
+      `/api/usuarios/${userId}/upload-avatar/`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Accept: "application/json",
+        },
+      }
+    );
+
+    // Limpiamos el '?' al final de la URL que viene de Supabase
+    const cleanAvatarUrl = response.data.avatar_url.replace(/\?$/, "");
+
+    console.log("Avatar subido:", cleanAvatarUrl);
+
+    setUserData((prev) => ({
+      ...prev,
+      avatar_url: cleanAvatarUrl,
+      avatar_path: response.data.avatar_path,
+    }));
+
+    return true;
+  } catch (error) {
+    console.log("Error al subir avatar:", error.response?.data || error.message);
+    Alert.alert("Error", "No se pudo subir la imagen.");
+    return false;
+  }
+};
+
 useFocusEffect(
     React.useCallback(() => {
       const loadScreenData = async () => {
@@ -120,6 +128,12 @@ useFocusEffect(
           const empresaId = await AsyncStorage.getItem('empresaId');
           const token = await AsyncStorage.getItem('accessToken');
           const userId = await AsyncStorage.getItem('userId');
+
+          if (userId) {
+            const userResponse = await api.get(`/api/usuarios/${userId}/`);
+            console.log("datos user", userResponse.data);
+            setUserData(userResponse.data);
+          }
 
           // 2. Actualizar el estado del componente
           setUserName(name || '');
@@ -449,15 +463,32 @@ useFocusEffect(
 
       {/* Perfil principal móvil */}
       <View style={styles.profileContainer}>
-        <TouchableOpacity onPress={() => setProfilePicModal(true)} activeOpacity={0.7}>
-          <Image
+        <TouchableOpacity
+                    style={styles.profileImage}
+                    onPress={async () => { // <-- Convertir a async
+                      const success = await handleUploadAvatar(userData.id); // <-- Esperar el resultado
+                      if (!success) {
+                        Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
+                      }
+                      // No es necesario navegar, la imagen se actualiza sola con setEmpresaData
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    {userData?.avatar_url ? (
+                    <Image
+                      source={{ uri: userData.avatar_url }}
+                      style={{ width: '100%', height: '100%', borderRadius: 100 }}
+                    />
+                  ) : (
+                    <Image
             source={{ uri: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png' }}
             style={styles.profileImage}
           />
-        </TouchableOpacity>
+                  )}
+                </TouchableOpacity>
         <Text style={styles.userName}>{userName ? userName : 'Usuario'}</Text>
         {/* Botón cerrar sesión si hay usuario logueado */}
-  {userName ? (
+          {userName ? (
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
             <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
           </TouchableOpacity>
@@ -975,6 +1006,20 @@ const styles = StyleSheet.create({
     elevation: 4,
     backgroundColor: '#c7d2fe', // Un poco más oscuro para el efecto
   },
+  fotoContainer: {
+      alignItems: 'center',
+    },
+    fotoPerfil: {
+      width: 128,
+      height: 128,
+      borderRadius: 64,
+      backgroundColor: '#374151',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 4,
+      borderColor: '#6b7280',
+      marginBottom: 16,
+    },
   eventoInfoText: { color: '#ffffff', fontSize: 14 },
   eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
   eventInfo: { color: '#fff', marginBottom: 4 },

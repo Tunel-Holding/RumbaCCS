@@ -568,27 +568,111 @@ useEffect(() => {
     }
   };
 
-  const renderSocialCircles = () => {
-    const hasAny = redes.some(r => !!r.url);
-    if (!hasAny) return null;
-    return (
-      <View style={styles.socialStripContainer}>
-        <Text style={styles.socialStripTitle}>Redes sociales</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {redes.filter(r => r.url).map(r => (
-            <TouchableOpacity
-              key={r.id}
-              style={[styles.socialCircle, { borderColor: r.color }]}
-              activeOpacity={0.75}
-              onPress={() => openRedSocial(r)}
-            >
-              <Text style={styles.socialIcon}>{r.icon}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
+  // const renderSocialCircles = () => {
+  //   const hasAny = redes.some(r => !!r.url);
+  //   if (!hasAny) return null;
+  //   return (
+  //     <View style={styles.socialStripContainer}>
+  //       <Text style={styles.socialStripTitle}>Redes sociales</Text>
+  //       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+  //         {redes.filter(r => r.url).map(r => (
+  //           <TouchableOpacity
+  //             key={r.id}
+  //             style={[styles.socialCircle, { borderColor: r.color }]}
+  //             activeOpacity={0.75}
+  //             onPress={() => openRedSocial(r)}
+  //           >
+  //             <Text style={styles.socialIcon}>{r.icon}</Text>
+  //           </TouchableOpacity>
+  //         ))}
+  //       </ScrollView>
+  //     </View>
+  //   );
+  // };
+
+const renderSocialCircles = () => {
+  if (!empresaReady) return null;
+
+  const arr = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
+
+  if (!arr.length) {
+    // Fallback: intentar detectar campos directos en empresaData (por si el backend los expone así)
+    const directKeys = ['instagram','facebook','tiktok','youtube','whatsapp','website','x','twitter'];
+    const fallbackMap = {};
+    directKeys.forEach(k => {
+      if (empresaData?.[k]) fallbackMap[k] = empresaData[k];
+    });
+    if (Object.keys(fallbackMap).length === 0) return null;
+  }
+
+  const redesMap = {};
+
+  const normalizeUrl = (u) => {
+    if (!u) return null;
+    let url = u.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url.replace(/^\/+/, '');
+    }
+    return url;
   };
+
+  arr.forEach(red => {
+    const tipoRaw = (red?.tipo || red?.platform || red?.nombre || '').toString().toLowerCase().trim();
+    let key = tipoRaw;
+    if (['ig','insta'].includes(key)) key = 'instagram';
+    if (['x','twitter'].includes(key)) key = 'twitter';
+    if (['fb','face'].includes(key)) key = 'facebook';
+    if (['tt','tik_tok','tiktoc'].includes(key)) key = 'tiktok';
+    if (['yt','you_tube'].includes(key)) key = 'youtube';
+    if (['wa','wasap','whats','whatsapp'].includes(key)) key = 'whatsapp';
+    if (['web','site','pagina','website'].includes(key)) key = 'website';
+
+    const rawUrl = red?.url || red?.link || red?.enlace || red?.full_url;
+    const finalUrl = normalizeUrl(rawUrl);
+    if (key && finalUrl) {
+      redesMap[key] = finalUrl;
+    }
+  });
+
+  // Merge fallback direct fields
+  ['instagram','twitter','facebook','tiktok','youtube','whatsapp','website'].forEach(k => {
+    if (!redesMap[k] && empresaData?.[k]) {
+      const u = normalizeUrl(empresaData[k]);
+      if (u) redesMap[k] = u;
+    }
+  });
+
+  const redes = [
+    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap.instagram },
+    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap.twitter },
+    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap.facebook },
+    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap.tiktok },
+    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap.youtube },
+    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap.whatsapp },
+    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap.website },
+  ];
+
+  const visibles = redes.filter(r => !!r.url);
+  if (!visibles.length) return null;
+
+  return (
+    <View style={styles.socialStripContainer}>
+      <Text style={styles.socialStripTitle}>Redes sociales</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {visibles.map(r => (
+          <TouchableOpacity
+            key={r.id}
+            style={[styles.socialCircle, { borderColor: r.color }]}
+            activeOpacity={0.75}
+            onPress={() => Linking.openURL(r.url)}
+          >
+            <Text style={styles.socialIcon}>{r.icon}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
 
   const renderEventos = () => (
     <View style={styles.eventosContainer}>

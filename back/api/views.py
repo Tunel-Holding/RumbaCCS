@@ -123,10 +123,10 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             "total": usuario.total_empresas_seguidas
         }, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], url_path="upload-foto")
-    def upload_foto(self, request, pk=None):
+    @action(detail=True, methods=["post"], url_path="upload-avatar")
+    def upload_avatar(self, request, pk=None):
         usuario = self.get_object()
-        file = request.data.get("file")
+        file = request.FILES.get("file")  # ✅ usar FILES
 
         if not file:
             return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
@@ -135,18 +135,27 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             return Response({"error": "La imagen no pasó la validación de contenido."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        file.seek(0)  # rebobinar para reutilizar el archivo
+        file.seek(0)
 
-        # Si ya tiene foto, eliminarla primero
-        if usuario.foto:  # o usuario.avatar, según tu modelo
-            delete_user_profile_picture(usuario.foto)
+        # Si ya tiene avatar, eliminarlo antes
+        if usuario.avatar_path:
+            delete_user_profile_picture(usuario.avatar_path)
 
-        # Subir nueva
-        public_url = upload_user_profile_picture(file, usuario.id)
-        usuario.foto = public_url
+        # Subir nueva imagen
+        result = upload_user_profile_picture(file, usuario.id)
+
+        # Guardar relación
+        usuario.avatar_url = result["public_url"]
+        usuario.avatar_path = result["path"]
         usuario.save()
 
-        return Response({"foto": public_url}, status=status.HTTP_200_OK)
+        return Response(
+            {
+                "avatar_url": usuario.avatar_url,
+                "avatar_path": usuario.avatar_path
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 class FinalizeRegisterView(APIView):

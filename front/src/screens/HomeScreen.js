@@ -58,6 +58,7 @@ export default function HomeScreen() {
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
   const [empresaData, setEmpresaData] = useState(null);
+  const [userData, setUserData] = useState(null); // Estado para datos del usuario
   const [isEmpresaAccount, setIsEmpresaAccount] = useState(false); // <-- NUEVO ESTADO
   const [isUserAccount, setIsUserAccount] = useState(false); // Estado para saber si es cuenta de usuario
   const [hasMore, setHasMore] = useState(true);      // CAMBIO: controla si hay más páginas en backend
@@ -105,6 +106,13 @@ export default function HomeScreen() {
         const token = await AsyncStorage.getItem('accessToken');
         const isEmpresaAcc = await AsyncStorage.getItem('isEmpresaAccount'); // Leemos el valor guardado
         const isUserAcc = await AsyncStorage.getItem('isUserAccount'); // <-- AÑADE ESTA LÍNEA
+        const userId = await AsyncStorage.getItem('userId');
+
+        if (userId) {
+            const userResponse = await api.get(`/api/usuarios/${userId}/`);
+            console.log("datos user", userResponse.data);
+            setUserData(userResponse.data);
+          }
         
         setIsLogged(!!token); // Primero, actualiza el estado de login
         setIsEmpresaAccount(isEmpresaAcc === 'true'); // Actualizamos el estado de tipo de cuenta
@@ -200,6 +208,8 @@ const handleLogin = async () => {
       await AsyncStorage.setItem('userName', userData.username);
       await AsyncStorage.setItem('isUserAccount', 'true');
       await AsyncStorage.setItem('isEmpresaAccount', 'false');
+
+      setUserData(userData); // Guardamos los datos del usuario en el estado
 
       // Si tiene empresa asociada, guardamos también su ID
       if (resultado.data?.empresa_id) {
@@ -566,17 +576,9 @@ const filteredEvents = fuente.filter(e => {
                   <Text style={styles.loginBtnText}>Iniciar sesión</Text>
                 </TouchableOpacity>
               )}
-              {/* {empresaData?.logo ? (
-                        <Image
-                          source={{ uri: empresaData.logo }}
-                          style={{ width: 100, height: 100, borderRadius: 50 }}
-                        />
-                      ) : (
-                        <Text style={styles.fotoIcon}>👤</Text>
-                      )} */}
+              
               {isLogged && (
                 <TouchableOpacity 
-                  // Redirige a 'Empresa' si es una cuenta de empresa, si no, a 'Perfil'.
                   onPress={() => {
                     if (isEmpresaAccount && !isUserAccount) {
                       navigation.navigate('Empresa');
@@ -585,13 +587,33 @@ const filteredEvents = fuente.filter(e => {
                     }
                   }}
                 >
-                  {!isUserAccount && isEmpresaAccount && empresaData?.logo ? (
+                  {isUserAccount && userData?.avatar_url ? (
+                    // Avatar de usuario
+                    <Image
+                      source={{ uri: `${userData.avatar_url}?t=${Date.now()}` }} // evita cache
+                      style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}
+                    />
+                  ) : !isUserAccount && isEmpresaAccount && empresaData?.logo ? (
+                    // Logo de empresa
                     <Image
                       source={{ uri: empresaData.logo }}
                       style={{ width: 32, height: 32, borderRadius: 100, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}
                     />
                   ) : (
-                    <View style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9', alignItems: 'center', justifyContent: 'center', backgroundColor: '#a4a5dfff' }}>
+                    // Placeholder genérico
+                    <View
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        marginLeft: 12,
+                        borderWidth: 1,
+                        borderColor: '#0ea5e9',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: '#a4a5dfff',
+                      }}
+                    >
                       <Text style={{ color: '#fff', fontSize: 16 }}>👤</Text>
                     </View>
                   )}

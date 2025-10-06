@@ -28,7 +28,8 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
             'phone': self.user.phone,
             'birthday': str(self.user.birthday),
             'region': self.user.region,
-            'gender': self.user.gender
+            'gender': self.user.gender,
+            'avatar_url': self.user.avatar_url,
         }
         if hasattr(self.user, "empresa"):
             data['empresa_id'] = self.user.empresa.id
@@ -41,7 +42,7 @@ class UserPublicSerializer(serializers.ModelSerializer):
         model = Usuario
         fields = [
             'id', 'email', 'username', 'phone', 'birthday', 'region', 'gender',
-            'is_staff', 'is_active'
+            'is_staff', 'is_active', 'avatar_url'
         ]
     
     @property

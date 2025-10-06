@@ -174,6 +174,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
             "rejection_reason",
             "verification_notes",
             "eventos",
+            
         ]
         read_only_fields = [
             "id",
@@ -245,14 +246,7 @@ class EmpresaSerializer(serializers.ModelSerializer):
 class EmpresaRegistroSerializer(serializers.ModelSerializer):
     # Aceptamos una lista que puede contener strings (urls) o dicts {"tipo":..., "url":...}
     redes_sociales = serializers.ListField(child=serializers.JSONField(), write_only=True, required=False)
-    # Campos para crear el usuario
-    # email = serializers.EmailField(write_only=True)
-    # password = serializers.CharField(write_only=True)
     
-    # phone = serializers.IntegerField(write_only=True)
-    # birthday = serializers.DateField(required=False, allow_null=True)
-    # region = serializers.ChoiceField(write_only=True, choices=Usuario.ESTADO_CHOICES)
-    # gender = serializers.ChoiceField(write_only=True, choices=Usuario.GENERO_CHOICES)
 
     class Meta:
         model = Empresa
