@@ -94,7 +94,7 @@ class EmpresaPreRegistroView(generics.CreateAPIView):
             defaults={
                 'code': pin,
                 'created_at': timezone.now(),
-                'expires_at': timezone.now() + timezone.timedelta(minutes=15),
+                'expires_at': timezone.now() + timezone.timedelta(minutes=10),
                 'is_verified': False,
             }
         )
@@ -751,7 +751,7 @@ class EmpresaReenviarPinView(APIView):
         pin = str(random.randint(100000, 999999))
         verif.code = pin
         verif.created_at = timezone.now()
-        verif.expires_at = timezone.now() + timezone.timedelta(minutes=15)
+        verif.expires_at = timezone.now() + timezone.timedelta(minutes=10)
         verif.is_verified = False
         verif.save()
         # Envía el correo
