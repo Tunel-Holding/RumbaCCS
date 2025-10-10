@@ -19,6 +19,25 @@ class IsEmpresaAuthenticated(BasePermission):
         return bool(empresa)
 
 
+# class IsEmpresaOrUsuarioAuthenticated(BasePermission):
+#     """
+#     Permite acceso si el request.user es:
+#     - un Usuario autenticado (is_authenticated True)
+#     - o una Empresa autenticada por token
+#     """
+#     def has_permission(self, request, view):
+#         user = request.user
+
+#         # Caso Usuario
+#         if hasattr(user, "is_authenticated"):
+#             return bool(user.is_authenticated)
+
+#         # Caso Empresa
+#         if isinstance(user, Empresa):
+#             return True  # ya pasó el token
+
+#         return False
+
 class IsEmpresaOrUsuarioAuthenticated(BasePermission):
     """
     Permite acceso si el request.user es:
@@ -28,7 +47,11 @@ class IsEmpresaOrUsuarioAuthenticated(BasePermission):
     def has_permission(self, request, view):
         user = request.user
 
-        # Caso Usuario
+        # Caso AuthEntity (wrapper)
+        if hasattr(user, "kind") and hasattr(user, "obj"):
+            return user.obj is not None
+
+        # Caso Usuario normal
         if hasattr(user, "is_authenticated"):
             return bool(user.is_authenticated)
 
@@ -37,6 +60,8 @@ class IsEmpresaOrUsuarioAuthenticated(BasePermission):
             return True  # ya pasó el token
 
         return False
+
+
 
 def _is_usuario_entity(user):
     # Si usas AuthEntity: user.kind == 'usuario'

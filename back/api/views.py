@@ -2,6 +2,8 @@ import email
 from django.shortcuts import render
 from rest_framework import viewsets, permissions, generics, status
 from django.contrib.auth import get_user_model, authenticate
+from empresa.serializers import EmpresaSerializer
+from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -12,6 +14,8 @@ from django.core.mail import send_mail
 from django.utils import timezone
 import random
 from django.conf import settings
+from empresa.services import validate_image_with_sightengine
+from .services import upload_user_profile_picture, delete_user_profile_picture
 
 Usuario = get_user_model()
 
@@ -102,6 +106,56 @@ class VerifyCodeView(APIView):
 class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UserPublicSerializer
+
+    @action(detail=True, methods=["get"], url_path="empresas-seguidas")
+    def empresas_seguidas(self, request, pk=None):
+        usuario = self.get_object()
+        empresas = usuario.empresas_que_sigue.all()
+        serializer = EmpresaSerializer(empresas, many=True, context={"request": request})
+        return Response({
+            "empresas": serializer.data
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get"], url_path="total-empresas-seguidas")
+    def total_empresas_seguidas(self, request, pk=None):
+        usuario = self.get_object()
+        return Response({
+            "total": usuario.total_empresas_seguidas
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="upload-avatar")
+    def upload_avatar(self, request, pk=None):
+        usuario = self.get_object()
+        file = request.FILES.get("file")  # ✅ usar FILES
+
+        if not file:
+            return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not validate_image_with_sightengine(file):
+            return Response({"error": "La imagen no pasó la validación de contenido."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        file.seek(0)
+
+        # Si ya tiene avatar, eliminarlo antes
+        if usuario.avatar_path:
+            delete_user_profile_picture(usuario.avatar_path)
+
+        # Subir nueva imagen
+        result = upload_user_profile_picture(file, usuario.id)
+
+        # Guardar relación
+        usuario.avatar_url = result["public_url"]
+        usuario.avatar_path = result["path"]
+        usuario.save()
+
+        return Response(
+            {
+                "avatar_url": usuario.avatar_url,
+                "avatar_path": usuario.avatar_path
+            },
+            status=status.HTTP_200_OK
+        )
 
 
 class FinalizeRegisterView(APIView):

@@ -19,7 +19,8 @@ from .views import (
     EmpresaEventoCreateView,
     EventoImagenViewSet,
     empresas_por_ids,
-    UsuarioEventoViewSet
+    UsuarioEventoViewSet,
+    EmpresaValidarPinConUsuarioView,
 )
 
 # 1) Router principal para empresas
@@ -63,6 +64,11 @@ urlpatterns = [
     path('registro-empresa/', EmpresaPreRegistroView.as_view(), name='registro-empresa'),
     path('validar-pin-empresa/', EmpresaValidarPinView.as_view(), name='validar-pin-empresa'),
     path('reenviar-pin-empresa/', EmpresaReenviarPinView.as_view(), name='reenviar-pin-empresa'),
+    
+    # Flujo C: Registro de empresa vinculada a usuario
+    path('validar-pin-empresa-usuario/', EmpresaValidarPinConUsuarioView.as_view(), name='validar-pin-empresa-usuario'),
+
+    
 
     # Login de empresa
     # path('login-empresa/', EmpresaLoginView.as_view(), name='login-empresa'),
