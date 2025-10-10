@@ -4,8 +4,10 @@ import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarModal from '../components/CalendarModal';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, ActivityIndicator } from 'react-native';
 import { SvgXml } from 'react-native-svg';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 
 // SVGs originales
@@ -23,59 +25,194 @@ const sectionTitles = {
 export default function PerfilScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false });
   const [userName, setUserName] = useState('');
+  // Loader para imagen de perfil
+  const [avatarLoading, setAvatarLoading] = useState(false);
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
   const [profilePicModal, setProfilePicModal] = useState(false);
+  // Estado para empresas seguidas (usuario normal)
+  const [empresasSeguidas, setEmpresasSeguidas] = useState([]);
+  const [empresasModal, setEmpresasModal] = useState(false);
+  const [loadingEmpresasSeguidas, setLoadingEmpresasSeguidas] = useState(false);
+  // Estado para seguidores (usuario empresa)
+  const [seguidores, setSeguidores] = useState([]);
+  const [seguidoresModal, setSeguidoresModal] = useState(false);
+  const [mostrarEmpresasAbajo, setMostrarEmpresasAbajo] = useState(false);
+  const [userData, setUserData] = useState(null); // Datos del usuario logueado
 
-  useEffect(() => {
-    
-  // Función que lee el nombre guardado en AsyncStorage
-  const fetchUserName = async () => {
+
+  // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
+  const fetchEmpresasSeguidas = async () => {
     try {
-      const name = await AsyncStorage.getItem('userName');
-      const empresaId = await AsyncStorage.getItem('empresaId');
-      const token = await AsyncStorage.getItem('accessToken');
-      setHasEmpresa(!!(empresaId && empresaId !== ''));
-      setIsLogged(!!token);
-
-      if (name) {
-        setUserName(name);
-      } else {
-        setUserName('');
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        setEmpresasSeguidas([]);
+        return;
       }
-    } catch (error) {
-      console.log('Error al leer userName:', error);
-      setUserName('');
+      const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
+      // Normalizar distintas formas de respuesta
+      const dataArray = Array.isArray(res?.data)
+        ? res.data
+        : (res?.data?.empresas && Array.isArray(res.data.empresas) ? res.data.empresas : (Array.isArray(res?.data?.results) ? res.data.results : []));
+      if (!Array.isArray(res?.data) && !Array.isArray(res?.data?.empresas) && !Array.isArray(res?.data?.results)) {
+        console.warn('PerfilScreen.fetchEmpresasSeguidas: unexpected response shape:', res?.data);
+      }
+      setEmpresasSeguidas(dataArray || []);
+    } catch (e) {
+      console.log('Error al cargar empresas seguidas:', e);
+      setEmpresasSeguidas([]);
     }
   };
-  // Suscribirse al evento 'focus' de React Navigation:
-  // cada vez que la pantalla vuelva al frente, se ejecuta fetchUserName
-  const focusListener = navigation.addListener('focus', fetchUserName);
 
-  // Llamada inicial al montar la pantalla
-  fetchUserName();
+  // Normalizar posibles valores no-array que puedan venir de la API
+  const empresasArray = Array.isArray(empresasSeguidas) ? empresasSeguidas : [];
 
-  // Limpiar el listener cuando el componente se desmonta
-  return () => {
-    if (focusListener) {
-      focusListener(); // quita la suscripción
+  // contador derivado
+const totalEmpresasSeguidas = Array.isArray(empresasSeguidas) ? empresasSeguidas.length : 0;
+
+console.log("total empresas seguidas",totalEmpresasSeguidas)
+
+  
+const handleUploadAvatar = async (userId) => {
+  if (!userId) return { ok: false, error: 'No user id' };
+  try {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status && perm.status !== 'granted') {
+      Alert.alert('Permisos', 'Se requieren permisos para acceder a la galería.');
+      return { ok: false, cancelled: true };
     }
-  };
-}, [navigation]);
 
-// RN: envío simple a tu endpoint DRF
-// const uploadAvatar = async (uri, name, type, token) => {
-//   const formData = new FormData();
-//   formData.append('file', { uri, name, type });
+    const mediaTypesOption = ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images;
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: mediaTypesOption,
+      quality: 0.9,
+      // Muestra UI nativa para recortar la imagen
+      allowsEditing: true,
+      aspect: [1, 1], // cuadrado para avatar
+      exif: false,
+      base64: false,
+    });
 
-//   const res = await api.post(`/api/usuarios/upload_avatar/`, formData, {
-//     headers: {
-//       'Authorization': `Bearer ${token}`, // o 'Token <token>' dependiendo de tu auth en DRF
-//       'Content-Type': 'multipart/form-data',
-//     },
-//   });
-//   return res.data;
-// };
+    if (!result || result.canceled) return { ok: false, cancelled: true };
+
+    const uri = result.assets?.[0]?.uri || result.uri;
+    if (!uri) return { ok: false, cancelled: true };
+
+    setAvatarLoading(true);
+
+    // Compresión opcional para reducir tamaño antes de subir
+    let uploadUri = uri;
+    try {
+      const manip = await ImageManipulator.manipulateAsync(
+        uri,
+        [],
+        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      if (manip?.uri) uploadUri = manip.uri;
+    } catch (_) {
+      // si falla la compresión, seguimos con la uri original
+    }
+
+    const fileName = uploadUri.split('/').pop();
+    // try to infer mime type
+    const match = (fileName || '').match(/\.([0-9a-z]+)(?:\?|$)/i);
+    const ext = match ? match[1] : 'jpg';
+    const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri: uploadUri,
+      name: fileName || `avatar_${Date.now()}.${ext}`,
+      type: mime,
+    });
+
+    // Build absolute URL from api base
+    const base = api.defaults?.baseURL || 'http://localhost:8000';
+    const url = `${base.replace(/\/$/, '')}/api/usuarios/${userId}/upload-avatar/`;
+
+    const token = await AsyncStorage.getItem('accessToken');
+
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: token ? `Bearer ${token}` : undefined,
+        Accept: 'application/json',
+        // DO NOT set Content-Type; let fetch set the multipart boundary
+      },
+      body: formData,
+    });
+
+    const json = await resp.json().catch(() => ({}));
+
+    setAvatarLoading(false);
+
+    if (!resp.ok) {
+      const msg = json?.error || json?.detail || `Error ${resp.status}`;
+      console.log('Upload avatar server error:', msg, json);
+      return { ok: false, error: msg };
+    }
+
+    const avatarUrlRaw = json?.avatar_url || json?.avatar || null;
+    const cleanAvatarUrl = typeof avatarUrlRaw === 'string' ? avatarUrlRaw.replace(/\?$/, '') : avatarUrlRaw;
+
+    setUserData((prev) => ({ ...prev, avatar_url: cleanAvatarUrl, avatar_path: json?.avatar_path || prev?.avatar_path }));
+
+    return { ok: true };
+  } catch (err) {
+    console.log('Error al subir avatar (client):', err);
+    setAvatarLoading(false);
+    if (err?.message === 'Network request failed') {
+      Alert.alert('Error de red', 'No se pudo conectar con el servidor. Revisa la URL y la conexión.');
+    }
+    return { ok: false, error: err?.message || String(err) };
+  }
+};
+
+useFocusEffect(
+    React.useCallback(() => {
+      const loadScreenData = async () => {
+        try {
+          // 1. Obtener datos de la sesión desde AsyncStorage
+          const name = await AsyncStorage.getItem('userName');
+          const empresaId = await AsyncStorage.getItem('empresaId');
+          const token = await AsyncStorage.getItem('accessToken');
+          const userId = await AsyncStorage.getItem('userId');
+
+          if (userId) {
+            const userResponse = await api.get(`/api/usuarios/${userId}/`);
+            console.log("datos user", userResponse.data);
+            setUserData(userResponse.data);
+          }
+
+          // 2. Actualizar el estado del componente
+          setUserName(name || '');
+          setHasEmpresa(!!(empresaId && empresaId !== ''));
+          setIsLogged(!!token);
+
+          // 3. Si hay un usuario logueado, cargar sus datos asociados (empresas seguidas)
+          if (userId) {
+            await fetchEmpresasSeguidas();
+          } else {
+            setEmpresasSeguidas([]); // Limpiar si no hay usuario
+          }
+
+        } catch (error) {
+          console.log('Error al cargar los datos del perfil:', error);
+          // Limpiar estado en caso de error
+          setUserName('');
+          setHasEmpresa(false);
+          setIsLogged(false);
+          setEmpresasSeguidas([]);
+        }
+      };
+
+      loadScreenData(); // Ejecutar la función de carga
+
+      // No se necesita una función de limpieza aquí si solo estamos cargando datos.
+    }, []) // El array vacío asegura que la lógica se define una vez.
+  );
+
+
 
  const handleLogout = async () => {
   await Promise.all([
@@ -83,6 +220,8 @@ export default function PerfilScreen({ navigation }) {
     AsyncStorage.removeItem('userEmail'),
     AsyncStorage.removeItem('accessToken'),
     AsyncStorage.removeItem('empresaId'),
+    AsyncStorage.removeItem('isEmpresaAccount'),
+    AsyncStorage.removeItem('userId'),
   ]);
 
   setUserName('');
@@ -129,9 +268,11 @@ export default function PerfilScreen({ navigation }) {
     <View style={styles.buttonRow}>
       <TouchableOpacity
         style={[styles.sectionButton, styles.blue, selectedSection === 'guardados' && styles.sectionButtonActive]}
-        onPress={() => {
-          console.log('Botón de guardados presionado');
+        onPress={async () => {
+          setLoadingGuardados(true);
           setSelectedSection('guardados');
+          await fetchGuardados();
+          setLoadingGuardados(false);
         }}
         activeOpacity={0.8}
       >
@@ -144,19 +285,54 @@ export default function PerfilScreen({ navigation }) {
       >
         <SvgXml xml={svgComentarios} width={24} height={24} />
       </TouchableOpacity>
+      {/* Botón de empresas que sigues, como icono SVG, junto a los otros botones */}
+      <TouchableOpacity
+        style={[styles.sectionButton, styles.blue, selectedSection === 'empresas' && styles.sectionButtonActive]}
+        onPress={async () => {
+          setLoadingEmpresasSeguidas(true);
+          setSelectedSection('empresas');
+          try {
+            const userId = await AsyncStorage.getItem('userId');
+            const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
+            const empresasArray = res?.data?.empresas && Array.isArray(res.data.empresas)
+              ? res.data.empresas
+              : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.results) ? res.data.results : []));
+            setEmpresasSeguidas(empresasArray || []);
+          } catch (e) {
+            setEmpresasSeguidas([]);
+          }
+          setLoadingEmpresasSeguidas(false);
+        }}
+        activeOpacity={0.8}
+      >
+        <SvgXml xml={`<svg width='24' height='24' viewBox='0 0 24 24' fill='none'>
+  <circle cx='12' cy='8' r='4' stroke='#0ea5e9' stroke-width='2' fill='#dbeafe'/>
+  <path d='M4 20c0-3.3137 3.134-6 7-6s7 2.6863 7 6' stroke='#0ea5e9' stroke-width='2' fill='#dbeafe'/>
+</svg>`} width={24} height={24} />
+      </TouchableOpacity>
     </View>
   );
 
   // --- Estado para eventos guardados ---
   const [guardados, setGuardados] = useState([]);
   const [loadingGuardados, setLoadingGuardados] = useState(false);
+  // Estado para comentarios relacionados a empresas
+  const [comentarios, setComentarios] = useState([]);
+  const [loadingComentarios, setLoadingComentarios] = useState(false);
 
   // Función para cargar eventos guardados desde el backend
   const fetchGuardados = async () => {
     setLoadingGuardados(true);
     try {
       const response = await api.get('api/eventos-guardados/');
-      setGuardados(response.data.map(e => ({
+      // Normalizar la respuesta: puede venir como array o como objeto paginado
+      const dataArray = Array.isArray(response?.data)
+        ? response.data
+        : (response?.data && Array.isArray(response.data.results) ? response.data.results : []);
+      if (!Array.isArray(response?.data) && !Array.isArray(response?.data?.results)) {
+        console.warn('PerfilScreen: /api/eventos-guardados returned non-array response:', response?.data);
+      }
+      setGuardados(dataArray.map(e => ({
         id: e.id, // id del registro UsuarioEvento
         eventoId: e.evento_obj.id, // id del evento original
         titulo: e.evento_obj.titulo,
@@ -185,6 +361,10 @@ export default function PerfilScreen({ navigation }) {
       console.log('useEffect: selectedSection es guardados, ejecutando fetchGuardados');
       fetchGuardados();
     }
+    // Si cambiamos a la sección 'comentarios', traemos los comentarios de empresas
+    if (selectedSection === 'comentarios') {
+      fetchComentarios();
+    }
   }, [selectedSection]);
 
   // Llama a fetchGuardados cuando el usuario regresa a la pantalla de guardados
@@ -193,8 +373,72 @@ export default function PerfilScreen({ navigation }) {
       if (selectedSection === 'guardados') {
         fetchGuardados();
       }
+      if (selectedSection === 'comentarios') {
+        fetchComentarios();
+      }
     }, [selectedSection])
   );
+
+  // --- Función para cargar comentarios de empresas ---
+  const fetchComentarios = async () => {
+    setLoadingComentarios(true);
+    try {
+      // Si el usuario es una empresa propia, pedimos los ratings de su empresa
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      if (hasEmpresa && empresaId) {
+        const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
+        const data = Array.isArray(res.data) ? res.data : (Array.isArray(res.data.results) ? res.data.results : []);
+        setComentarios((data || []).map(c => ({ ...c, empresa_nombre: res.data?.empresa?.nombre || 'Mi empresa' })) || []);
+        return;
+      }
+
+      // Usuario normal: mostremos SOLO comentarios que el usuario haya escrito
+      const userId = await AsyncStorage.getItem('userId');
+      let empresas = empresasSeguidas;
+      if ((!empresas || empresas.length === 0) && userId) {
+        // intentar obtener directamente
+        const resSeg = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
+        empresas = Array.isArray(resSeg.data) ? resSeg.data : (Array.isArray(resSeg.data.empresas) ? resSeg.data.empresas : (Array.isArray(resSeg.data.results) ? resSeg.data.results : []));
+      }
+
+      if (!empresas || empresas.length === 0) {
+        setComentarios([]);
+        return;
+      }
+
+      // Para cada empresa pedimos sus ratings en paralelo y filtramos por usuario == userId y comentario no vacío
+      const promises = empresas.map(emp => api.get(`/api/empresas/${emp.id}/ratings/`).then(r => ({ empresa: emp, data: r.data })).catch(e => ({ empresa: emp, data: [] })));
+      const results = await Promise.all(promises);
+
+      // Aplanar, normalizar y filtrar solo comentarios del usuario
+      const all = [];
+      results.forEach(r => {
+        const arr = Array.isArray(r.data) ? r.data : (Array.isArray(r.data.results) ? r.data.results : []);
+        const mapped = (arr || []).map(c => ({ ...c, empresa_nombre: r.empresa?.nombre || r.empresa?.name || 'Empresa' }));
+        // Filtramos: solo los ratings cuyo campo usuario coincida con userId y que tengan comentario no vacío
+        const filtered = mapped.filter(c => {
+          const usuarioId = c.usuario || c.usuario_id || (c.usuario && c.usuario.id) || null;
+          const hasComentario = c.comentario && String(c.comentario).trim().length > 0;
+          return usuarioId && String(usuarioId) === String(userId) && hasComentario;
+        });
+        all.push(...filtered);
+      });
+
+      // Ordenar por fecha reciente para mejor UX (si existe creado_en o creadoAt)
+      all.sort((a,b) => {
+        const ta = new Date(a.creado_en || a.created_at || a.createdAt || 0).getTime();
+        const tb = new Date(b.creado_en || b.created_at || b.createdAt || 0).getTime();
+        return tb - ta;
+      });
+
+      setComentarios(all);
+    } catch (e) {
+      console.log('Error fetchComentarios', e);
+      setComentarios([]);
+    } finally {
+      setLoadingComentarios(false);
+    }
+  };
 
   // --- Función para borrar evento guardado ---
   const borrarGuardado = async (id) => {
@@ -207,6 +451,18 @@ export default function PerfilScreen({ navigation }) {
       console.log('Error al borrar evento guardado:', error);
     }
   };
+
+  // Cierra la lista de empresas seguidas al cambiar de sección o salir de la pantalla
+  useEffect(() => {
+    if (mostrarEmpresasAbajo && selectedSection !== null) {
+      setMostrarEmpresasAbajo(false);
+    }
+  }, [selectedSection]);
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => setMostrarEmpresasAbajo(false);
+    }, [])
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
@@ -229,33 +485,181 @@ export default function PerfilScreen({ navigation }) {
           visible={menuVisible}
           setVisible={setMenuVisible}
           hasEmpresa={hasEmpresa}
-          onMenuItemPress={item => {
+          onMenuItemPress={async (item) => {
             setMenuVisible(false);
-           if (item === 'calendar') setModalVisible({ ...modalVisible, calendar: true });
+            if (item === 'calendar') {
+              // Asegura que guardados esté actualizado antes de mostrar el calendario
+              try {
+                setLoadingGuardados(true);
+                await fetchGuardados();
+              } catch (_) {}
+              setLoadingGuardados(false);
+              setModalVisible({ ...modalVisible, calendar: true });
+            }
             else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
             else if (item === 'inicio') navigation.navigate('HomeScreen');
-            else if (item === 'register') navigation.navigate('Empresa');
-            else if (item === 'empresa_form') navigation.navigate('FormularioScreen');
+            else if (item === 'register') {
+              // Al pedir 'Perfil empresa' desde el menú, cambiamos el contexto a empresa
+              try {
+                const empresaId = await AsyncStorage.getItem('empresaId');
+                if (!empresaId) {
+                  Alert.alert('No tienes empresa afiliada', 'No se encontró una empresa asociada a tu cuenta.');
+                  return;
+                }
+
+    
+                // Nuevo: marcar modo empresa sin borrar identidad usuario
+                await AsyncStorage.setItem('sessionMode', 'empresa');
+                await AsyncStorage.setItem('isEmpresaAccount', 'true');
+                await AsyncStorage.setItem('isUserAccount', 'true'); // sigue siendo un user con empresa vinculada
+
+                navigation.navigate('Empresa', { empresaId });
+              } catch (e) {
+                console.log('Error switching to empresa account from menu', e);
+                Alert.alert('Error', 'No se pudo cambiar a la cuenta empresa. Intenta nuevamente.');
+              }
+            } else if (item === 'empresa_form') navigation.navigate('FormularioScreen');
           }}
         />
       </View>
 
       {/* Perfil principal móvil */}
       <View style={styles.profileContainer}>
-        <TouchableOpacity onPress={() => setProfilePicModal(true)} activeOpacity={0.7}>
-          <Image
-            source={{ uri: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png' }}
-            style={styles.profileImage}
-          />
-        </TouchableOpacity>
+        <TouchableOpacity
+                    style={styles.profileImage}
+                    onPress={async () => {
+    
+                      const res = await handleUploadAvatar(userData.id);
+                      if (!res) {
+                        console.log('handleUploadAvatar returned falsy');
+                        return;
+                      }
+                      if (res.cancelled) return; // user cancelled silently
+                      if (!res.ok) {
+                        const msg = res.error || 'No se pudo actualizar la foto de perfil';
+
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    {userData?.avatar_url ? (
+                      <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
+                        <Image
+                          source={{ uri: userData.avatar_url }}
+                          style={{ width: '100%', height: '100%', borderRadius: 100, position: 'absolute' }}
+                          onLoadStart={() => setAvatarLoading(true)}
+                          onLoadEnd={() => setAvatarLoading(false)}
+                        />
+                        {avatarLoading && (
+                          <ActivityIndicator size="large" color="#2563eb" style={{ position: 'absolute' }} />
+                        )}
+                      </View>
+                    ) : (
+                      <Image
+                        source={{ uri: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png' }}
+                        style={styles.profileImage}
+                      />
+                    )}
+                </TouchableOpacity>
         <Text style={styles.userName}>{userName ? userName : 'Usuario'}</Text>
         {/* Botón cerrar sesión si hay usuario logueado */}
-  {userName ? (
+          {userName ? (
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
             <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
           </TouchableOpacity>
         ) : null}
-        <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>0</Text></Text>
+        {/* Mostrar solo el botón correspondiente según el tipo de usuario */}
+        {!hasEmpresa && (
+          <>
+            <Text style={styles.userStats}>Empresas seguidas: <Text style={styles.highlight}>{empresasArray.length}</Text></Text>
+
+            {/* Modal lista de empresas seguidas */}
+            <Modal
+              visible={empresasModal}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setEmpresasModal(false)}
+            >
+              <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+                <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:320, maxHeight:'80%' }}>
+                  <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#0ea5e9' }}>Empresas que sigues</Text>
+                  <ScrollView style={{ width:'100%' }}>
+                    {empresasArray.length === 0 ? (
+                      <Text style={{ color:'#64748b', textAlign:'center' }}>No sigues ninguna empresa.</Text>
+                    ) : (
+                      empresasArray.map((emp, idx) => (
+                        <View key={emp.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, justifyContent: 'center' }}>
+                          {emp.logo_url || emp.logo ? (
+                            <Image
+                              source={{ uri: emp.logo_url || emp.logo }}
+                              style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb' }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: '#94a3b8', fontSize: 18 }}>🏢</Text>
+                            </View>
+                          )}
+                          <Text style={{ color:'#1e293b', fontSize:16, textAlign:'center', flexShrink: 1 }}>{emp.nombre || emp.name || 'Empresa sin nombre'}</Text>
+                        </View>
+                      ))
+                    )}
+                  </ScrollView>
+                  <TouchableOpacity style={{ marginTop:16 }} onPress={() => setEmpresasModal(false)}>
+                    <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          </>
+        )}
+          {/* Si el usuario tiene una empresa afiliada, permitir cambiar a su perfil empresa */}
+          
+        {hasEmpresa && (
+          <>
+            <Text style={styles.userStats}>Empresas que sigues: <Text style={styles.highlight}>{totalEmpresasSeguidas}</Text></Text>
+            
+            {/* Modal lista de seguidores */}
+            <Modal
+              visible={seguidoresModal}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setSeguidoresModal(false)}
+            >
+              <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+                <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:320, maxHeight:'80%' }}>
+                  <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#0ea5e9' }}>Empresas que sigues</Text>
+                  <ScrollView style={{ width:'100%' }}>
+                    {seguidores.length === 0 ? (
+                      <Text style={{ color:'#64748b', textAlign:'center' }}>No sigues ninguna empresa aún.</Text>
+                    ) : (
+                      seguidores.map((user, idx) => (
+                        <View key={user.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, justifyContent: 'center' }}>
+                          {user.logo || user.avatar ? (
+                            <Image
+                              source={{ uri: user.logo || user.avatar }}
+                              style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb' }}
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12, backgroundColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }}>
+                              <Text style={{ color: '#94a3b8', fontSize: 18 }}>👤</Text>
+                            </View>
+                          )}
+                          <Text style={{ color:'#1e293b', fontSize:16, textAlign:'center', flexShrink: 1 }}>{user.nombre || user.name || user.username || 'Usuario sin nombre'}</Text>
+                        </View>
+                      ))
+                    )}
+                  </ScrollView>
+                  <TouchableOpacity style={{ marginTop:16 }} onPress={() => setSeguidoresModal(false)}>
+                    <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cerrar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </Modal>
+          </>
+        )}
+        {/* Bloque duplicado de modal de seguidores eliminado para corregir error de sintaxis */}
         {renderSectionButtons()}
       </View>
 
@@ -290,7 +694,10 @@ export default function PerfilScreen({ navigation }) {
         <View style={[styles.sectionContent, { padding: 16, backgroundColor: 'transparent', margin: 0 }]}> 
           <Text style={styles.sectionTitle}>Eventos guardados</Text>
           {loadingGuardados ? (
-            <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>Cargando...</Text>
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#2563eb" />
+              <Text style={{ color: '#9ca3af', marginTop: 8 }}>Cargando eventos guardados...</Text>
+            </View>
           ) : guardados.length === 0 ? (
             <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>
               <Text style={{ fontWeight: 'bold', color: '#d1d5db' }}>No</Text> se han encontrado más elementos
@@ -334,22 +741,66 @@ export default function PerfilScreen({ navigation }) {
       {selectedSection === 'comentarios' && (
         <View style={[styles.sectionContent, {backgroundColor: 'transparent', margin: 0}] }>
           <Text style={styles.sectionTitle}>Comentarios publicados</Text>
-          <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 12, width: '100%' }}>
-            <Text style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 16 }}>Festival de Cine Nocturno</Text>
-            <Text style={{ color: '#374151', marginTop: 4 }}><Text style={{ fontWeight: 'bold', color: '#111827' }}>@cinelover:</Text> ¡La selección de películas estuvo aterradora y brillante!</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-              <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' d='M14.318 5.318a4.5 4.5 0 0 1 6.364 6.364L12 20.364 3.318 11.682a4.5 4.5 0 1 1 6.364-6.364z' /></svg>`} width={20} height={20} />
-              <Text style={{ color: '#374151', marginLeft: 4 }}>12</Text>
+            {loadingComentarios ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#7c3aed" />
+                <Text style={{ color: '#9ca3af', marginTop: 8 }}>Cargando comentarios...</Text>
+              </View>
+            ) : comentarios.length === 0 ? (
+              hasEmpresa ? (
+                <Text style={{ color: '#94a3b8', textAlign: 'center', marginVertical: 16 }}>No se han encontrado mensajes afiliados a tu cuenta.</Text>
+              ) : (
+                <Text style={{ color: '#94a3b8', textAlign: 'center', marginVertical: 16 }}>No hay comentarios públicos de empresas para mostrar.</Text>
+              )
+            ) : (
+              comentarios.map((c, idx) => (
+                <View key={c.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 12, width: '100%' }}>
+                  <Text style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 16 }}>{c.empresa_nombre || c.empresa || 'Empresa'}</Text>
+                  <Text style={{ color: '#374151', marginTop: 6 }}><Text style={{ fontWeight: 'bold', color: '#111827' }}>{c.usuario_username || c.usuario || c.user_name || '@anon' }:</Text> {c.comentario || c.comentario_text || c.comentario || c.text || '(sin texto)'}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                    <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' d='M14.318 5.318a4.5 4.5 0 0 1 6.364 6.364L12 20.364 3.318 11.682a4.5 4.5 0 1 1 6.364-6.364z' /></svg>`} width={20} height={20} />
+                    <Text style={{ color: '#374151', marginLeft: 8 }}>{c.rating || c.valor || '-'}</Text>
+                    {c.created_at && <Text style={{ color: '#94a3b8', marginLeft: 12, fontSize: 12 }}>{new Date(c.created_at).toLocaleDateString()}</Text>}
+                  </View>
+                </View>
+              ))
+            )}
+        </View>
+      )}
+      {selectedSection === 'empresas' && (
+        <View style={[styles.sectionContent, { padding: 16, backgroundColor: 'transparent', margin: 0 }]}> 
+          <Text style={styles.sectionTitle}>Empresas que sigues</Text>
+          {loadingEmpresasSeguidas ? (
+            <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#0ea5e9" />
+              <Text style={{ color: '#9ca3af', marginTop: 8 }}>Cargando empresas...</Text>
             </View>
-          </View>
-          <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, width: '100%' }}>
-            <Text style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 16 }}>Festival de Cine Nocturno</Text>
-            <Text style={{ color: '#374151', marginTop: 4 }}><Text style={{ fontWeight: 'bold', color: '#111827' }}>@cinelover:</Text> ¡AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA!</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-              <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' d='M14.318 5.318a4.5 4.5 0 0 1 6.364 6.364L12 20.364 3.318 11.682a4.5 4.5 0 1 1 6.364-6.364z' /></svg>`} width={20} height={20} />
-              <Text style={{ color: '#374151', marginLeft: 4 }}>12</Text>
-            </View>
-          </View>
+          ) : empresasSeguidas.length === 0 ? (
+            <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>
+              Aún no sigues ninguna empresa
+            </Text>
+          ) : (
+            empresasSeguidas.map((emp, idx) => (
+              <TouchableOpacity
+                key={emp.id || idx}
+                style={{ backgroundColor: '#334155', borderRadius: 16, flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 16 }}
+                onPress={() => navigation.navigate('EmpresaScreen', { empresaId: emp.id })}
+              >
+                {emp.logo_url || emp.logo ? (
+                  <Image
+                    source={{ uri: emp.logo_url || emp.logo }}
+                    style={{ width: 40, height: 40, borderRadius: 20, marginRight: 14, backgroundColor: '#111827' }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={{ width: 40, height: 40, borderRadius: 20, marginRight: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ color: '#94a3b8', fontSize: 22 }}>🏢</Text>
+                  </View>
+                )}
+                <Text style={{ color: '#e0e7ff', fontSize: 17, fontWeight: '500' }}>{emp.nombre || emp.name || 'Empresa sin nombre'}</Text>
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       )}
 
@@ -378,6 +829,61 @@ export default function PerfilScreen({ navigation }) {
       <CalendarModal
         visible={modalVisible.calendar}
         onClose={() => setModalVisible({ ...modalVisible, calendar: false })}
+        eventsByDate={(() => {
+          // Construye un mapa { 'YYYY-MM-DD': [eventos...] }
+          const map = {};
+          const pad = (n) => (n < 10 ? `0${n}` : `${n}`);
+          const toKeyFromISO = (iso) => {
+            if (typeof iso !== 'string') return null;
+            // Si viene como 'YYYY-MM-DDTHH:mm:ssZ', usa los primeros 10
+            if (iso.length >= 10 && /\d{4}-\d{2}-\d{2}/.test(iso)) {
+              return iso.slice(0, 10);
+            }
+            // Intento de parseo por Date (menos preferido por ambigüedad)
+            const d = new Date(iso);
+            if (!isNaN(d.getTime())) {
+              return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+            }
+            return null;
+          };
+          const toKeyFromDMY = (str) => {
+            if (typeof str !== 'string') return null;
+            // Extrae tres grupos numéricos en orden: día, mes, año (p.ej. 9/10/2025, 09-10-2025, 9.10.2025, '9, 10, 2025')
+            const nums = (str.match(/\d+/g) || []).map((n) => parseInt(n, 10));
+            if (nums.length < 3) return null;
+            const [d, m, y] = nums;
+            if (!y || !m || !d) return null;
+            // Validación básica
+            if (y < 1000 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+            return `${y}-${pad(m)}-${pad(d)}`;
+          };
+          (guardados || []).forEach((e) => {
+            // Preferir ISO desde e.fecha (viene de e.evento_obj.fecha_evento)
+            let key = null;
+            if (e.fecha) {
+              key = toKeyFromISO(e.fecha);
+            }
+            // Si no hay ISO usable, intentar parsear e.date con formato día/mes/año
+            if (!key && e.date && typeof e.date === 'string') {
+              key = toKeyFromDMY(e.date);
+            }
+            // Último recurso: creado_en
+            if (!key && e.creado_en) {
+              key = toKeyFromISO(e.creado_en) || toKeyFromDMY(String(e.creado_en));
+            }
+            if (!key) return; // no se pudo normalizar
+            if (!map[key]) map[key] = [];
+            map[key].push(e);
+          });
+          return map;
+        })()}
+        onPressEvent={(ev) => {
+          const id = ev.eventoId || ev.id;
+          if (id) {
+            navigation.navigate('Reservar/Comprar', { idEvento: id });
+            setModalVisible({ ...modalVisible, calendar: false });
+          }
+        }}
       />
       <Modal visible={modalVisible.notifications} transparent animationType="slide">
         {/* Fade in/out animation for notifications overlay */}
@@ -459,6 +965,48 @@ export default function PerfilScreen({ navigation }) {
         </View>
       </Modal>
       </ScrollView>
+
+      {/* Nueva sección: Empresas que sigues en la parte inferior */}
+      {/* Lista de empresas que sigues, con estilo similar a eventos guardados */}
+      {mostrarEmpresasAbajo && (
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#334155', borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16, zIndex: 100, maxHeight: '60%' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <Text style={{ color: '#0ea5e9', fontWeight: 'bold', fontSize: 18 }}>Empresas que sigues</Text>
+            <TouchableOpacity onPress={() => setMostrarEmpresasAbajo(false)}>
+              <Text style={{ color: '#0ea5e9', fontWeight: 'bold', fontSize: 18 }}>Cerrar</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView>
+            {empresasSeguidas && empresasSeguidas.length > 0 ? (
+              empresasSeguidas.map((emp, idx) => (
+                <TouchableOpacity
+                  key={emp.id || idx}
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: idx !== empresasSeguidas.length - 1 ? 1 : 0, borderColor: '#475569', backgroundColor: '#475569', borderRadius: 12, marginBottom: 10, paddingHorizontal: 10 }}
+                  onPress={() => {
+                    setMostrarEmpresasAbajo(false);
+                    navigation.navigate('EmpresaScreen', { empresaId: emp.id });
+                  }}
+                >
+                  {emp.logo_url || emp.logo ? (
+                    <Image
+                      source={{ uri: emp.logo_url || emp.logo }}
+                      style={{ width: 40, height: 40, borderRadius: 20, marginRight: 14, backgroundColor: '#111827' }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={{ width: 40, height: 40, borderRadius: 20, marginRight: 14, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: '#94a3b8', fontSize: 22 }}>🏢</Text>
+                    </View>
+                  )}
+                  <Text style={{ color: '#e0e7ff', fontSize: 17, fontWeight: '500' }}>{emp.nombre || emp.name || 'Empresa sin nombre'}</Text>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 16, fontSize: 16 }}>Aún no sigues ninguna empresa</Text>
+            )}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 }
@@ -596,6 +1144,20 @@ const styles = StyleSheet.create({
     elevation: 4,
     backgroundColor: '#c7d2fe', // Un poco más oscuro para el efecto
   },
+  fotoContainer: {
+      alignItems: 'center',
+    },
+    fotoPerfil: {
+      width: 128,
+      height: 128,
+      borderRadius: 64,
+      backgroundColor: '#374151',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 4,
+      borderColor: '#6b7280',
+      marginBottom: 16,
+    },
   eventoInfoText: { color: '#ffffff', fontSize: 14 },
   eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
   eventInfo: { color: '#fff', marginBottom: 4 },

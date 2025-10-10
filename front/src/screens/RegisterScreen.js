@@ -90,28 +90,28 @@ export default function RegisterScreen({ navigation, route }) {
 
   const [errors, setErrors] = useState({});
   // Validación en tiempo real de email único
-  useEffect(() => {
-    let timeout;
-    if (email && /^([a-zA-Z0-9_.+-]+)@(gmail|hotmail)\.com$/.test(email.trim())) {
-      setCheckingEmail(true);
-      timeout = setTimeout(async () => {
-        try {
-          const res = await api.post('/api/check-email/', { email: email.trim() });
-          if (res.data.exists) {
-            setErrors(e => ({ ...e, email: 'Este correo ya está registrado' }));
-          } else {
-            setErrors(e => ({ ...e, email: undefined }));
-          }
-        } catch (err) {
-          // Si hay error, no bloquea el registro, pero muestra mensaje genérico
-          setErrors(e => ({ ...e, email: 'Error al validar el correo' }));
-        } finally {
-          setCheckingEmail(false);
-        }
-      }, 600);
-    }
-    return () => clearTimeout(timeout);
-  }, [email]);
+  // useEffect(() => {
+  //   let timeout;
+  //   if (email && /^([a-zA-Z0-9_.+-]+)@(gmail|hotmail)\.com$/.test(email.trim())) {
+  //     setCheckingEmail(true);
+  //     timeout = setTimeout(async () => {
+  //       try {
+  //         const res = await api.post('/api/check-email/', { email: email.trim() });
+  //         if (res.data.exists) {
+  //           setErrors(e => ({ ...e, email: 'Este correo ya está registrado' }));
+  //         } else {
+  //           setErrors(e => ({ ...e, email: undefined }));
+  //         }
+  //       } catch (err) {
+  //         // Si hay error, no bloquea el registro, pero muestra mensaje genérico
+  //         setErrors(e => ({ ...e, email: 'Error al validar el correo' }));
+  //       } finally {
+  //         setCheckingEmail(false);
+  //       }
+  //     }, 600);
+  //   }
+  //   return () => clearTimeout(timeout);
+  // }, [email]);
   const [formError, setFormError] = useState('');
 
   // --- Flujo PIN (similar a FormularioScreen) ---

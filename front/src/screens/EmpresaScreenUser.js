@@ -18,6 +18,7 @@ const { width } = Dimensions.get('window');
 
 export default function EmpresaScreenUser() {
   const [hasEmpresa, setHasEmpresa] = useState(false);
+  const [empresaReady, setEmpresaReady] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -39,29 +40,42 @@ export default function EmpresaScreenUser() {
   const [loading, setLoading] = useState(true);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [isEmpresaAccount, setIsEmpresaAccount] = useState(false);
+
 
 
 
   const [empresaData, setEmpresaData] = useState(null);
 
+  
+
   useEffect(() => {
   const fetchEmpresa = async () => {
     try {
+      const isEmpresaAccount = await AsyncStorage.getItem('isEmpresaAccount') === 'true';
+      setIsEmpresaAccount(isEmpresaAccount);
       const empresaId = empresaIdParam;
       const response = await api.get(`/api/public/empresas/${empresaId}/`);
+      if (response.data.is_following) {
+        setIsFollowing(true);
+      }
       setEmpresaData(response.data);
+      setEmpresaReady(true); // Set ready when data is loaded
     } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
       } else {
         console.error("❌ Error:", error.message);
       }
+      setEmpresaReady(false); // Not ready on error
     } finally {
       setLoading(false);
     }
   };
   fetchEmpresa();
 }, [empresaIdParam]);
+
+console.log("Empresa Data:", empresaData);
   
 
 const [loginVisible, setLoginVisible] = useState(false);
@@ -111,25 +125,36 @@ const handleLogin = async () => {
   Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
 };
 const seguir = async () => {
-  try {
+
+    
     const token = await AsyncStorage.getItem('accessToken');
     if (!token) {
-      setLoginVisible(true);     
-    } else {
-      toggleFollow();
+      setLoginVisible(true);
+      return;
     }
-  } catch (error) {
-    console.error("Error al seguir a la empresa:", error);
-    return false;
-  }
+
+    try {
+      const res = await api.post(`/api/empresas/${empresaIdParam}/seguir/`);
+      
+      if (res.status === 200) {
+        setIsFollowing(true);
+      }
+      else if (res.status === 405) {
+        Alert.alert('Ya sigues a esta empresa');
+      }
+    } catch (error) {
+      console.error("Error al seguir a la empresa:", error);
+    }
 };
 
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
-    seguidores: empresaData?.seguidores || 0,
-    eventosPublicados: empresaData?.eventosPublicados || 0,
+    seguidores: empresaData?.total_seguidores || 0,
+    eventosPublicados: empresaData?.total_eventos || 0,
   }
+
+  console.log('🏢 Datos de la empresa:', empresaData1);
 
   const [eventos, setEventos] = useState([]);
 
@@ -145,7 +170,9 @@ useEffect(() => {
 
       const res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
 
-      const eventosTransformados = res.data.map(ev => {
+      const eventos = Array.isArray(res.data) ? res.data : res.data.results || res.data.eventos || [];
+
+      const eventosTransformados = eventos.map(ev => {
         // Separar fecha y hora si viene en formato ISO
         let fecha = "Fecha no definida";
         let hora = "Hora no definida";
@@ -478,29 +505,47 @@ useEffect(() => {
         <View style={styles.datosContainer}>
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
+          {/* Redes sociales debajo del RIF */}
+          {empresaData?.redes_sociales && empresaData.redes_sociales.length > 0 && (
+            <View style={{ marginTop: 6 }}>
+              {empresaData.redes_sociales.map((r, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => {
+                    const href = r.url;
+                    if (href) Linking.openURL(href).catch(() => {});
+                  }}
+                  style={{ paddingVertical: 4 }}
+                >
+                  <Text style={{ color: '#60a5fa' }}>{r.tipo} — {r.url}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
           <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
-          <View style={styles.accionesRow}>
-            <TouchableOpacity
-              style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
-              onPress={seguir}
-              activeOpacity={0.85}
-            >
-              <View style={styles.seguirIcon}>
-                <PersonIcon size={18} color="#ffffff" />
-              </View>
-              <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
-               
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.clasificarButton}
-              activeOpacity={0.85}
-              onPress={() => setModalVisible({ ...modalVisible, rating: true })}
-            >
-              <Text style={styles.clasificarStar}>★</Text>
-              <Text style={styles.clasificarText}>Calificar</Text>
-            </TouchableOpacity>
-          </View>
+          {!isEmpresaAccount && (
+            <View style={styles.accionesRow}>
+              <TouchableOpacity
+                style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
+                onPress={seguir}
+                activeOpacity={0.85}
+              >
+                <View style={styles.seguirIcon}>
+                  <PersonIcon size={18} color="#ffffff" />
+                </View>
+                <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.clasificarButton}
+                activeOpacity={0.85}
+                onPress={() => setModalVisible({ ...modalVisible, rating: true })}
+              >
+                <Text style={styles.clasificarStar}>★</Text>
+                <Text style={styles.clasificarText}>Calificar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </View>
@@ -523,28 +568,111 @@ useEffect(() => {
     }
   };
 
-  const renderSocialCircles = () => {
-    const hasAny = redes.some(r => !!r.url);
-    if (!hasAny) return null;
-    return (
-      <View style={styles.socialStripContainer}>
-        <Text style={styles.socialStripTitle}>Redes sociales</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {redes.filter(r => r.url).map(r => (
-            <TouchableOpacity
-              key={r.id}
-              style={[styles.socialCircle, { borderColor: r.color }]}
-              activeOpacity={0.75}
-              onPress={() => openRedSocial(r)}
-            >
-              <Text style={styles.socialIcon}>{r.icon}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
+  // const renderSocialCircles = () => {
+  //   const hasAny = redes.some(r => !!r.url);
+  //   if (!hasAny) return null;
+  //   return (
+  //     <View style={styles.socialStripContainer}>
+  //       <Text style={styles.socialStripTitle}>Redes sociales</Text>
+  //       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+  //         {redes.filter(r => r.url).map(r => (
+  //           <TouchableOpacity
+  //             key={r.id}
+  //             style={[styles.socialCircle, { borderColor: r.color }]}
+  //             activeOpacity={0.75}
+  //             onPress={() => openRedSocial(r)}
+  //           >
+  //             <Text style={styles.socialIcon}>{r.icon}</Text>
+  //           </TouchableOpacity>
+  //         ))}
+  //       </ScrollView>
+  //     </View>
+  //   );
+  // };
+
+const renderSocialCircles = () => {
+  if (!empresaReady) return null;
+
+  const arr = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
+
+  if (!arr.length) {
+    // Fallback: intentar detectar campos directos en empresaData (por si el backend los expone así)
+    const directKeys = ['instagram','facebook','tiktok','youtube','whatsapp','website','x','twitter'];
+    const fallbackMap = {};
+    directKeys.forEach(k => {
+      if (empresaData?.[k]) fallbackMap[k] = empresaData[k];
+    });
+    if (Object.keys(fallbackMap).length === 0) return null;
+  }
+
+  const redesMap = {};
+
+  const normalizeUrl = (u) => {
+    if (!u) return null;
+    let url = u.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url.replace(/^\/+/, '');
+    }
+    return url;
   };
-console.log('🖼️ URL de imagen del evento:', eventos);
+
+  arr.forEach(red => {
+    const tipoRaw = (red?.tipo || red?.platform || red?.nombre || '').toString().toLowerCase().trim();
+    let key = tipoRaw;
+    if (['ig','insta'].includes(key)) key = 'instagram';
+    if (['x','twitter'].includes(key)) key = 'twitter';
+    if (['fb','face'].includes(key)) key = 'facebook';
+    if (['tt','tik_tok','tiktoc'].includes(key)) key = 'tiktok';
+    if (['yt','you_tube'].includes(key)) key = 'youtube';
+    if (['wa','wasap','whats','whatsapp'].includes(key)) key = 'whatsapp';
+    if (['web','site','pagina','website'].includes(key)) key = 'website';
+
+    const rawUrl = red?.url || red?.link || red?.enlace || red?.full_url;
+    const finalUrl = normalizeUrl(rawUrl);
+    if (key && finalUrl) {
+      redesMap[key] = finalUrl;
+    }
+  });
+
+  // Merge fallback direct fields
+  ['instagram','twitter','facebook','tiktok','youtube','whatsapp','website'].forEach(k => {
+    if (!redesMap[k] && empresaData?.[k]) {
+      const u = normalizeUrl(empresaData[k]);
+      if (u) redesMap[k] = u;
+    }
+  });
+
+  const redes = [
+    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap.instagram },
+    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap.twitter },
+    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap.facebook },
+    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap.tiktok },
+    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap.youtube },
+    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap.whatsapp },
+    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap.website },
+  ];
+
+  const visibles = redes.filter(r => !!r.url);
+  if (!visibles.length) return null;
+
+  return (
+    <View style={styles.socialStripContainer}>
+      <Text style={styles.socialStripTitle}>Redes sociales</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {visibles.map(r => (
+          <TouchableOpacity
+            key={r.id}
+            style={[styles.socialCircle, { borderColor: r.color }]}
+            activeOpacity={0.75}
+            onPress={() => Linking.openURL(r.url)}
+          >
+            <Text style={styles.socialIcon}>{r.icon}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
 
   const renderEventos = () => (
     <View style={styles.eventosContainer}>
@@ -596,7 +724,7 @@ console.log('🖼️ URL de imagen del evento:', eventos);
                             navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
                           }}
                         >
-                          <Text style={styles.verDetallesText}>{hasEmpresa ? 'Ver detalles' : 'Guardar'}</Text>
+                          <Text style={styles.verDetallesText}>{'Ver detalles'}</Text>
                         </TouchableOpacity>
                     </View>
                   </View>

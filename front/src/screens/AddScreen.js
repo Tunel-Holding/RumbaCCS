@@ -144,7 +144,7 @@ export default function AddScreen() {
   const handlePickImages = async () => {
   try {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions?.Images ?? ImagePicker.MediaType?.Images ?? undefined,
+  mediaTypes: ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images,
       allowsMultipleSelection: true,
       quality: 0.8,
     });
@@ -166,44 +166,126 @@ export default function AddScreen() {
   }
 };
 
-  const uploadEventoImage = async (eventoId, uri, empresaId) => {
+//   const uploadEventoImage = async (eventoId, uri, empresaId) => {
+
+//   const formData = new FormData();
+
+//   formData.append("file", {
+//     uri,
+//     name: `image_${Date.now()}.jpg`,
+//     type: "image/jpeg",
+//   });
+
+//   try {
+//     const token = await AsyncStorage.getItem("accesToken");
+
+//   const res = await api.post(
+//     `api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
+//     formData,
+//     {
+//       headers: {
+//         Authorization: `Bearer ${token}`,
+//         "Content-Type": "multipart/form-data",
+//       },
+//     }
+//   );
+
+//   // en axios, si hay error de status, lanza excepción, así que esta parte es innecesaria
+//   // pero si quieres validación extra:
+//   if (!res || res.status < 200 || res.status >= 300) {
+//     throw new Error(res?.data?.error || "Error al subir imagen");
+//   }
+
+//   // la respuesta ya está en res.data
+//   return res.data.url;
+//   } catch (e) {
+//     Alert.alert('Al subir la imagen', e.message);
+//     throw e; // relanzar para que el caller lo capture
+//   }
+// };
+
+// const uploadEventoImages = async (eventoId, uris, empresaId) => {
+//   const formData = new FormData();
+
+//   // ⬇️ Recorremos todas las imágenes y las agregamos al formData
+//   uris.forEach((uri, index) => {
+//     const filename = `image_${Date.now()}_${index}.jpg`;
+//     formData.append("files", {
+//       uri,
+//       name: filename,
+//       type: "image/jpeg", // ⚠️ si soportás png, webp, etc. conviene detectarlo dinámicamente
+//     });
+//   });
+
+//   try {
+//     const token = await AsyncStorage.getItem("accessToken"); // ojo: lo tenías escrito como "accesToken"
+
+//     const res = await api.post(
+//       `/api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
+//       formData,
+//       {
+//         headers: {
+//           "Content-Type": "multipart/form-data",
+//         },
+//       }
+//     );
+
+//     // if (!res || res.status < 200 || res.status >= 300) {
+//     //   throw new Error(res?.data?.error || "Error al subir imágenes");
+//     // }
+//     if (res.status >= 200 && res.status < 300) {
+//       return res.data.urls || []; // éxito, retornamos array vacío si no hay urls
+//     } else {
+//       // mostrar alerta y retornar null
+//       Alert.alert("Error al subir imágenes", res?.data?.error || "Error desconocido");
+//       return null;
+//     }
+
+//     // ⬅️ backend devuelve { urls: [...] }
+//     return res.data.urls;
+//   } catch (e) {
+//     console.error("🔥 Error al subir imágenes:", e);
+//     Alert.alert("Error al subir imágenes", e.message || "Intenta de nuevo");
+//   }
+// };
+
+const uploadEventoImages = async (eventoId, uris, empresaId) => {
   const formData = new FormData();
-  formData.append("file", {
-    uri,
-    name: `image_${Date.now()}.jpg`,
-    type: "image/jpeg",
+
+  // ⬇️ Recorremos todas las imágenes y las agregamos al formData
+  uris.forEach((uri, index) => {
+    const filename = `image_${Date.now()}_${index}.jpg`;
+    formData.append("files", {
+      uri,
+      name: filename,
+      type: "image/jpeg", // ⚠️ si soportás png, webp, etc. conviene detectarlo dinámicamente
+    });
   });
 
   try {
-    const token = await AsyncStorage.getItem("accesToken");
+    const res = await api.post(
+      `/api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
 
-  const res = await api.post(
-    `api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
-    formData,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data",
-      },
-    }
-  );
+    // ✅ si todo salió bien
+    return res.data.urls || [];
 
-  // en axios, si hay error de status, lanza excepción, así que esta parte es innecesaria
-  // pero si quieres validación extra:
-  if (!res || res.status < 200 || res.status >= 300) {
-    throw new Error(res?.data?.error || "Error al subir imagen");
-  }
-
-  // la respuesta ya está en res.data
-  return res.data.url;
-  } catch (e) {
-    Alert.alert('Al subir la imagen', e.message);
+  } catch (error) {
+    // ⚠️ solo mostramos alerta y no relanzamos excepción
+    const message = error.response?.data?.error || error.message || "Error desconocido";
+    Alert.alert("Error al subir imágenes", message);
+    return null; // indicamos fallo sin romper el flujo
   }
 };
 
 
-
-  const createEvento = async (payload, empresaId) => {
+const createEvento = async (payload, empresaId) => {
 
   const endpoint = `/api/empresas/${empresaId}/eventos/`;
   const res = await api.post(endpoint, payload);
@@ -214,7 +296,6 @@ export default function AddScreen() {
   }
   return res.data; // devuelve el evento creado
 };
-
 
   const handleCreateEvent = async () => {
     const empresaId = await AsyncStorage.getItem('empresaId');
@@ -291,54 +372,58 @@ export default function AddScreen() {
   console.log('payload:', payload);
 
   
- try {
-    // 1) crear evento
-    const newEvent = await createEvento(payload, empresaId);
-    const eventoId = newEvent.id;
-    setEventoId(eventoId);
 
-    // 2) subir imágenes locales (si existen)
-    const localImgs = formData.imagenesLocales || [];
-    if (localImgs.length > 0) {
-      // opcional: mostrar loader
-      setUploadingImages(true);
+    try {
+      // 1) crear evento
+      const newEvent = await createEvento(payload, empresaId);
+      const eventoId = newEvent.id;
+      setEventoId(eventoId);
 
-      const uploads = localImgs.map(uri => uploadEventoImage(eventoId, uri,empresaId));
-      const results = await Promise.allSettled(uploads);
+      // 2) subir imágenes locales en un solo request
+      const localImgs = formData.imagenesLocales || [];
+      if (localImgs.length > 0) {
+        setUploadingImages(true);
 
-      console.log("Results",results)
+        try {
+          // ⬇️ Usamos la nueva función de múltiples imágenes
+          const uploadedUrls = await uploadEventoImages(
+            eventoId,
+            localImgs,
+            empresaId
+          );
 
-      const uploadedUrls = [];
-      const failed = [];
+          if (!uploadedUrls) {
+          // backend ya borró el evento si alguna imagen falló
+          setUploadingImages(false);
+          return; // solo salir, alert ya se mostró
+        }
 
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled') uploadedUrls.push(r.value);
-        else failed.push({ uri: localImgs[i], reason: r.reason });
-      });
+          // actualizar estado
+          setFormData((prev) => ({
+            ...prev,
+            imagenesLocales: [],
+            imagenesTemp: [...(prev.imagenesTemp || []), ...uploadedUrls],
+          }));
 
-      // actualizar el estado: limpiar locales y agregar las urls subidas
-      setFormData(prev => ({
-        ...prev,
-        imagenesLocales: [],
-        imagenesTemp: [...(prev.imagenesTemp || []), ...uploadedUrls],
-      }));
+          setUploadingImages(false);
+        } catch (err) {
 
-      setUploadingImages(false);
-
-      console.log("failed:",failed)
-
-      if (failed.length > 0) {
-        console.warn('Algunas imágenes no se subieron:', failed);
-        Alert.alert('Aviso', `${failed.length} imagen(es) no se pudieron subir.`);
+          // Si falla el upload múltiple, backend ya habrá borrado el evento
+          setUploadingImages(false);
+          Alert.alert(
+            "Error",
+            "El evento fue eliminado porque una de las imágenes no pasó la verificación."
+          );
+          return;
+        }
       }
-    }
 
-      Alert.alert('Éxito', 'Evento agregado correctamente', [
-      { text: 'OK', onPress: () => navigation.navigate('Empresa') },
-    ]);
-  } catch (e) {
-    Alert.alert('Error de red', e.message);
-  }
+      Alert.alert("Éxito", "Evento agregado correctamente", [
+        { text: "OK", onPress: () => navigation.navigate("Empresa") },
+      ]);
+    } catch (e) {
+      Alert.alert("Error de red", e.message);
+    }
   };
 
 /**
@@ -451,28 +536,6 @@ const handleImageUpload = async (eventoId, file) => {
 };
 
 
-// const fetchCoordinatesOSM = async (address) => {
-//   try {
-//     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
-//     const response = await fetch(url, {
-//       headers: {
-//         'User-Agent': 'RumbaApp/1.0 (noreplyrumbaccs@gmail.com)' // obligatorio para Nominatim
-//       }
-//     });
-//     const data = await response.json();
-//     if (data && data.length > 0) {
-//       const { lat, lon } = data[0];
-//       return { latitude: parseFloat(lat), longitude: parseFloat(lon) };
-//     } else {
-//       console.warn('No se encontraron coordenadas para', address);
-//       return null;
-//     }
-//   } catch (error) {
-//     console.error('Error al obtener coordenadas OSM:', error);
-//     return null;
-//   }
-// };
-
 const searchAddress = async (query) => {
     if (!query || query.trim() === "") return [];
 
@@ -490,27 +553,44 @@ const searchAddress = async (query) => {
     return data.map((item) => {
       const addr = item.address || {};
 
-      // Prioridad para sitio específico
-      const site =
-        addr.house ||
-        addr.building ||
-        addr.attraction ||
-        addr.amenity ||
-        addr.tourism ||
-        addr.leisure ||
-        addr.historic ||
-        addr.shop ||
-        '';
+      // // Prioridad para sitio específico
+      // const site =
+      //   addr.house ||
+      //   addr.building ||
+      //   addr.attraction ||
+      //   addr.amenity ||
+      //   addr.tourism ||
+      //   addr.leisure ||
+      //   addr.historic ||
+      //   addr.shop ||
+      //   '';
 
-      const road = addr.road || addr.pedestrian || '';
-      const suburb = addr.suburb || addr.neighbourhood || '';
-      const city = addr.city || addr.town || addr.village || '';
+      // const road = addr.road || addr.pedestrian || '';
+      // const suburb = addr.suburb || addr.neighbourhood || '';
+      // const city = addr.city || addr.town || addr.village || '';
 
-      // Combinar solo los que existan
-      const name = [site, road, suburb, city].filter(Boolean).join(', ');
+      // // Combinar solo los que existan
+      // const name = [site, road, suburb, city].filter(Boolean).join(', ');
+
+      // 1. Construimos la dirección ideal por partes, dando prioridad a los campos más específicos.
+      const placeName = addr.amenity || addr.shop || addr.tourism || addr.leisure || addr.building || addr.house_number;
+      const street = addr.road || addr.pedestrian;
+      const neighborhood = addr.suburb || addr.neighbourhood || addr.quarter;
+      const city = addr.city || addr.town || addr.village;
+
+      // 2. Combinamos las partes que existen en un array.
+      const parts = [placeName, street, neighborhood, city].filter(Boolean); // Elimina partes vacías
+
+      // 3. Creamos el nombre a partir de las partes.
+      let constructedName = [...new Set(parts)].join(', '); // `new Set` para evitar duplicados (ej: "Sambil, Sambil, Caracas")
+
+      // 4. Si el nombre construido es muy pobre (ej. solo "Caracas"), usamos el 'display_name' como fallback.
+      if (parts.length <= 1 && item.display_name) {
+        constructedName = item.display_name.replace(/, Venezuela$/, '').replace(/, \d{4,5}$/, ''); // Limpia el código postal y el país.
+      }
 
       return {
-        name,                  // "Edificio XYZ, Avenida Urdaneta, La Candelaria, Caracas"
+        name: constructedName,                  // "Edificio XYZ, Avenida Urdaneta, La Candelaria, Caracas"
         latitude: parseFloat(item.lat),
         longitude: parseFloat(item.lon),
       };
@@ -777,78 +857,6 @@ useEffect(() => {
   </Modal>
 );
 
-  // const renderUbicacionModal = () => (
-  //   <Modal
-  //     visible={ubicacionModalVisible}
-  //     transparent
-  //     animationType="slide"
-  //     onRequestClose={() => setUbicacionModalVisible(false)}
-  //   >
-  //     <View style={styles.modalOverlay}>
-  //       <View style={styles.modalContent}>
-  //         <View style={styles.modalHeader}>
-  //           <Text style={styles.modalTitle}>Seleccionar Ubicación</Text>
-  //           <TouchableOpacity onPress={() => setUbicacionModalVisible(false)}>
-  //             <Text style={styles.closeButton}>×</Text>
-  //           </TouchableOpacity>
-  //         </View>
-          
-  //         {/* Simulación de Google Maps */}
-  //         <View style={styles.mapContainer}>
-  //           <View style={styles.mapPlaceholder}>
-  //             <Text style={styles.mapPlaceholderText}>🗺️</Text>
-  //             <Text style={styles.mapPlaceholderText}>Google Maps</Text>
-  //             <Text style={styles.mapPlaceholderText}>Selecciona ubicación</Text>
-  //           </View>
-            
-  //           <View style={styles.searchContainer}>
-  //             <TextInput
-  //               style={styles.searchInput}
-  //               placeholder="Buscar ubicación..."
-  //               placeholderTextColor="#64748b"
-  //               value={formData.ubicacion}
-  //               onChangeText={(text) => setFormData({...formData, ubicacion: text})}
-  //             />
-  //             <TouchableOpacity style={styles.searchButton}>
-  //               <Text style={styles.searchButtonText}>🔍</Text>
-  //             </TouchableOpacity>
-  //           </View>
-            
-  //           <View style={styles.locationOptions}>
-  //             <TouchableOpacity 
-  //               style={styles.locationOption}
-  //               onPress={() => {
-  //                 setFormData({...formData, ubicacion: 'Estadio Nacional, Santiago'});
-  //                 setUbicacionModalVisible(false);
-  //               }}
-  //             >
-  //               <Text style={styles.locationOptionText}>📍 Estadio Nacional, Santiago</Text>
-  //             </TouchableOpacity>
-  //             <TouchableOpacity 
-  //               style={styles.locationOption}
-  //               onPress={() => {
-  //                 setFormData({...formData, ubicacion: 'Plaza de Armas, Santiago'});
-  //                 setUbicacionModalVisible(false);
-  //               }}
-  //             >
-  //               <Text style={styles.locationOptionText}>📍 Plaza de Armas, Santiago</Text>
-  //             </TouchableOpacity>
-  //             <TouchableOpacity 
-  //               style={styles.locationOption}
-  //               onPress={() => {
-  //                 setFormData({...formData, ubicacion: 'Teatro Municipal, Santiago'});
-  //                 setUbicacionModalVisible(false);
-  //               }}
-  //             >
-  //               <Text style={styles.locationOptionText}>📍 Teatro Municipal, Santiago</Text>
-  //             </TouchableOpacity>
-  //           </View>
-  //         </View>
-  //       </View>
-  //     </View>
-  //   </Modal>
-  // );
-
   return (
     <SafeAreaView style={[styles.container, { paddingTop: safeMargins.top }]}>
       <StatusBar 
@@ -893,11 +901,9 @@ useEffect(() => {
             {/* Imagen del evento */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Imagen del evento</Text>
-              <TouchableOpacity
-                style={styles.imageUploadButton}
-                onPress={handlePickImages} // ahora solo selecciona imágenes localmente
-              >
-                {(formData.imagenesLocales?.length || formData.imagenesTemp?.length) > 0 ? (
+              {/* Si hay imágenes, no debe ser presionable: usar View para permitir deslizar */}
+              {((formData.imagenesLocales?.length || 0) + (formData.imagenesTemp?.length || 0)) > 0 ? (
+                <View style={styles.imageUploadButton}>
                   <ScrollView
                     horizontal
                     pagingEnabled
@@ -941,14 +947,29 @@ useEffect(() => {
                       </View>
                     ))}
                   </ScrollView>
-                ) : (
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.imageUploadButton}
+                  onPress={handlePickImages}
+                >
                   <View style={styles.imageUploadPlaceholder}>
                     <Text style={styles.imageUploadIcon}>📷</Text>
                     <Text style={styles.imageUploadText}>Agregar imagen</Text>
                     <Text style={styles.imageUploadSubtext}>Toca para seleccionar</Text>
                   </View>
-                )}
-              </TouchableOpacity>
+                </TouchableOpacity>
+              )}
+
+              {/* Si ya hay imágenes, mostrar botón para agregar más abajo */}
+              {((formData.imagenesLocales?.length || 0) + (formData.imagenesTemp?.length || 0)) > 0 && (
+                <TouchableOpacity
+                  style={styles.addMoreButton}
+                  onPress={handlePickImages}
+                >
+                  <Text style={styles.addMoreButtonText}>➕ Agregar más imágenes</Text>
+                </TouchableOpacity>
+              )}
 
 
             </View>
@@ -1771,6 +1792,20 @@ locationOptionText: {
   color: "#fff",
   fontSize: 16,
 },
+
+  addMoreButton: {
+    marginTop: 10,
+    backgroundColor: '#0ea5e9',
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addMoreButtonText: {
+    color: '#07204a',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 
 
 });

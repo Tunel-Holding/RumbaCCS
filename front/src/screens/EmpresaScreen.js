@@ -1,3 +1,4 @@
+  // ...existing code...
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -16,11 +17,10 @@ import {
   TextInput,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
-import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
@@ -29,6 +29,60 @@ import { loginConFallback } from '../utils/auth';
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreen() {
+  // Estado y lógica para seguidores
+  const [seguidores, setSeguidores] = useState([]);
+  const [seguidoresModal, setSeguidoresModal] = useState(false);
+  const [empresaReady, setEmpresaReady] = useState(false);
+
+
+  // Función para obtener los seguidores de la empresa
+  const fetchSeguidores = async () => {
+    try {
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      if (!empresaId) return setSeguidores([]);
+      const res = await api.get(`/api/empresas/${empresaId}/seguidores/`);
+      setSeguidores(res.data || []);
+    } catch (e) {
+      setSeguidores([]);
+    }
+  };
+
+  // Modal para mostrar los seguidores
+  const renderSeguidoresModal = () => (
+    <Modal
+      visible={seguidoresModal}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setSeguidoresModal(false)}
+    >
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 8, right: 12, zIndex: 2 }} onPress={() => setSeguidoresModal(false)}>
+            <Text style={{ fontSize: 24, color: '#0ea5e9' }}>×</Text>
+          </TouchableOpacity>
+          <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Usuarios que te siguen</Text>
+          <ScrollView style={{ maxHeight: 300, width: '100%' }}>
+            {seguidores.length === 0 ? (
+              <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>No tienes seguidores aún.</Text>
+            ) : (
+              seguidores.map((seguidor, idx) => (
+                <View key={seguidor.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  {seguidor.avatar_url ? (
+                    <Image source={{ uri: seguidor.avatar_url }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
+                  ) : (
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Text style={{ fontSize: 20, color: '#6b7280' }}>👤</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 16, color: '#111827' }}>{seguidor.username || seguidor.nombre || 'Usuario'}</Text>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
@@ -46,6 +100,55 @@ export default function EmpresaScreen() {
 
   const [empresaData, setEmpresaData] = useState(null);
 
+  // Estado derivado para controlar UI cuando la empresa está pendiente o rechazada
+  const status = empresaData?.status;
+  const isPending = status === 'pending';
+  const isRejected = status === 'rejected';
+  const isBlocked = isPending || isRejected;
+
+  const parseRejectionReasons = (text) => {
+    if (!text) return [];
+    // 1. Unificar saltos y sustituir separadores comunes por "\n"
+    let cleaned = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\u2022/g, '\n')   // bullet •
+      .replace(/•/g, '\n')
+      .replace(/;/g, '\n');
+
+    // 2. Si hay muchos '.' seguidos de espacio que separan frases, los convertimos provisionalmente
+    //    (solo si no hay ya varios saltos)
+    if (!cleaned.includes('\n')) {
+      cleaned = cleaned.replace(/\. +/g, '\n');
+    }
+
+    // 3. Split final
+    let parts = cleaned
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    // 4. Si todavía quedó todo en una sola línea, intentar dividir por punto final
+    if (parts.length <= 1) {
+      const dotParts = text
+        .split('.')
+        .map(s => s.trim())
+        .filter(Boolean);
+      if (dotParts.length > 1) parts = dotParts;
+    }
+
+    // 5. Eliminar duplicados accidentales
+    const unique = [];
+    const seen = new Set();
+    for (const p of parts) {
+      if (!seen.has(p.toLowerCase())) {
+        seen.add(p.toLowerCase());
+        unique.push(p);
+      }
+    }
+    return unique;
+  };
+
   useEffect(() => {
   const fetchEmpresa = async () => {
     try {
@@ -57,9 +160,11 @@ export default function EmpresaScreen() {
       }
 
       const response = await api.get(`/api/empresas/${empresaId}/`);
+
       
-      setEmpresaData(response.data);
       console.log("Datos de empresa:", response.data);
+      setEmpresaData(response.data);
+      
    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
@@ -74,19 +179,25 @@ export default function EmpresaScreen() {
   fetchEmpresa();
 }, []);
 
+useEffect(() => {
+  if (empresaData && empresaData.id) {
+    setEmpresaReady(true);
+  }
+}, [empresaData]);
+
+
   // Datos de empresa con valores por defecto si no hay datos
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
-    seguidores: empresaData?.seguidores || 0,
-    eventosPublicados: empresaData?.eventosPublicados || 0,
+    seguidores: empresaData?.total_seguidores || 0,
+    eventosPublicados: empresaData?.total_eventos || 0,
   }
-
 
 
 const handleUploadFoto = async (empresaId) => {
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  mediaTypes: ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images,
     quality: 0.8,
   });
 
@@ -107,11 +218,7 @@ const handleUploadFoto = async (empresaId) => {
     const response = await api.post(
       `/api/empresas/${empresaId}/upload-foto/`,
       formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      }
+        // Dejar que axios establezca Content-Type con boundary automáticamente
     );
 
     console.log("Logo subido:", response.data.logo);
@@ -119,8 +226,9 @@ const handleUploadFoto = async (empresaId) => {
     return true; // Devuelve true en caso de éxito
     
   } catch (error) {
-    console.error("Error subiendo logo:", error.response?.data || error.message);
-    return false
+    const msg = error.response?.data?.error || "Error inesperado";
+    Alert.alert("Error", msg);
+    return false;
   }
 };
 
@@ -140,7 +248,9 @@ useEffect(() => {
 
       const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
 
-      const eventosTransformados = res.data.map(ev => ({
+      const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
+
+      const eventosTransformados = resultadosRaw.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento
@@ -160,10 +270,6 @@ useEffect(() => {
         ownerName: ev.ownerName || `Empresa #${empresaId}`,
         empresaId: ev.empresaId || empresaId,
       }));
-
-      console.log("Status:", res.status);
-      console.log("Fechas:", eventosTransformados.map(ev => ev.fecha));
-      console.log("Imagenes: ", eventosTransformados.map(ev => ev.imagenes))
 
       setEventos(eventosTransformados);
    } catch (error) {
@@ -332,6 +438,9 @@ useEffect(() => {
   );
 
   const [profilePicModal, setProfilePicModal] = useState(false);
+  const [profilePicLoading, setProfilePicLoading] = useState(false);
+  const [profilePicEdit, setProfilePicEdit] = useState(null); // { uri }
+  const [profilePicEditVisible, setProfilePicEditVisible] = useState(false);
 
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
@@ -342,6 +451,11 @@ useEffect(() => {
           <TouchableOpacity
             style={styles.fotoPerfil}
             onPress={async () => { // <-- Convertir a async
+              // Bloquear actualización si la cuenta no está verificada
+              if (isBlocked) {
+                Alert.alert('Aviso', 'No se puede actualizar la foto hasta que este verificado');
+                return;
+              }
               const success = await handleUploadFoto(empresaData?.id); // <-- Esperar el resultado
               if (!success) {
                 Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
@@ -364,58 +478,64 @@ useEffect(() => {
         <View style={styles.datosContainer}>
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
-          <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
-          
+          {!isBlocked && (
+            <>
+              <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
+
+              {/* Botón para ver seguidores justo debajo del texto de seguidores */}
+              <TouchableOpacity
+                style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 12, alignItems: 'center', marginVertical: 10 }}
+                onPress={async () => {
+                  await fetchSeguidores();
+                  setSeguidoresModal(true);
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ver usuarios que te siguen</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
           <View style={styles.accionesRow}>
             {/* Botón de seguir eliminado */}
-            <TouchableOpacity
-              style={styles.clasificarButton}
-              activeOpacity={0.85}
-              onPress={async () => {
-                const next = !showRatingsPanel;
-                setShowRatingsPanel(next);
-                if (next && ratings.length === 0) {
-                  try {
-                    setRatingsLoading(true);
+            {!isBlocked && (
+              <TouchableOpacity
+                style={styles.clasificarButton}
+                activeOpacity={0.85}
+                onPress={async () => {
+                  const next = !showRatingsPanel;
+                  setShowRatingsPanel(next);
+                  if (next && ratings.length === 0) {
+                    try {
+                      setRatingsLoading(true);
 
-                    const empresaId = await AsyncStorage.getItem('empresaId');
-                    if (!empresaId) { setRatingsLoading(false); return; }
+                      const empresaId = await AsyncStorage.getItem('empresaId');
+                      if (!empresaId) { setRatingsLoading(false); return; }
 
-                    const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
+                      const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
 
-                    const data = await res.data;
-                    if (res.status >= 200 && res.status < 300) {
-                      setRatings(Array.isArray(data) ? data : (data.results || []));
-                    } else {
-                      console.log('Error ratings', data);
+                      const data = await res.data;
+                      if (res.status >= 200 && res.status < 300) {
+                        setRatings(Array.isArray(data) ? data : (data.results || []));
+                      } else {
+                        console.log('Error ratings', data);
+                      }
+                    } catch(e){
+                      console.log('Error fetch ratings', e.message);
+                    } finally {
+                      setRatingsLoading(false);
                     }
-                  } catch(e){
-                    console.log('Error fetch ratings', e.message);
-                  } finally {
-                    setRatingsLoading(false);
                   }
-                }
-              }}
-            >
-              <Text style={styles.clasificarStar}>★</Text>
-              <Text style={styles.clasificarText}>{showRatingsPanel ? 'Ver eventos' : 'Valoraciones y reseñas'}</Text>
-            </TouchableOpacity>
+                }}
+              >
+                <Text style={styles.clasificarStar}>★</Text>
+                <Text style={styles.clasificarText}>{showRatingsPanel ? 'Ver eventos' : 'Valoraciones y reseñas'}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
     </View>
   );
-
-  // Redes sociales dinámicas (front-only)
-  const redes = [
-    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: empresaData?.instagram || null },
-    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: empresaData?.twitter || null },
-    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: empresaData?.facebook || null },
-    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: empresaData?.tiktok || null },
-    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: empresaData?.youtube || null },
-    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: empresaData?.whatsapp || null },
-    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: empresaData?.website || null },
-  ];
 
   const openRedSocial = (item) => {
     if (item.url) {
@@ -423,32 +543,110 @@ useEffect(() => {
     }
   };
 
-  const renderSocialCircles = () => {
-    const hasAny = redes.some(r => !!r.url);
-    if (!hasAny) return null;
-    return (
-      <View style={styles.socialStripContainer}>
-        <Text style={styles.socialStripTitle}>Redes sociales</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {redes.filter(r => r.url).map(r => (
-            <TouchableOpacity
-              key={r.id}
-              style={[styles.socialCircle, { borderColor: r.color }]}
-              activeOpacity={0.75}
-              onPress={() => openRedSocial(r)}
-            >
-              <Text style={styles.socialIcon}>{r.icon}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
+  // ...
+const renderSocialCircles = () => {
+  if (!empresaReady) return null;
+  
+
+  const redesMap = {};
+  empresaData.redes_sociales.forEach(red => {
+    const key = red.tipo === 'x' ? 'twitter' : red.tipo;
+    redesMap[key] = red.url;
+  });
+
+  const redes = [
+    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap?.instagram || null },
+    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap?.twitter || null },
+    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap?.facebook || null },
+    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap?.tiktok || null },
+    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap?.youtube || null },
+    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap?.whatsapp || null },
+    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap?.website || null },
+  ];
+
+  const hasAny = redes.some(r => !!r.url);
+  if (!hasAny) return null;
+
+  return (
+    <View style={styles.socialStripContainer}>
+      <Text style={styles.socialStripTitle}>Redes sociales</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {redes.filter(r => r.url).map(r => (
+          <TouchableOpacity
+            key={r.id}
+            style={[styles.socialCircle, { borderColor: r.color }]}
+            activeOpacity={0.75}
+            onPress={() => Linking.openURL(r.url)}
+          >
+            <Text style={styles.socialIcon}>{r.icon}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );}
 
 console.log("imagenes del evento",eventos.imagenes)
 
 
   const renderEventos = () => {
+    
+    if (isBlocked) {
+      
+      if (isRejected) {
+        const raw = empresaData?.rejection_reason || '';
+        const lines = parseRejectionReasons(raw);
+        const cleanLines = lines.length ? lines : (raw ? [raw] : []);
+
+        return (
+          <View style={[styles.eventosContainer, { alignItems: 'flex-start', paddingVertical: 20 }]}>
+            <Text style={{ color: '#ef4444', fontSize: 18, fontWeight: '700' }}>Solicitud rechazada</Text>
+            <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'left', maxWidth: 520 }}>
+              Tu solicitud fue rechazada por los siguientes motivos:
+            </Text>
+
+            {!raw && (
+              <Text style={{ color: '#94a3b8', marginTop: 12 }}>
+                No se especificó un motivo. Contacta soporte para más detalles.
+              </Text>
+            )}
+
+            {raw && cleanLines.length === 1 && (
+              <Text style={{ color: '#e2e8f0', marginTop: 12, maxWidth: 520 }}>
+                {cleanLines[0]}
+              </Text>
+            )}
+
+            {raw && cleanLines.length > 1 && (
+              <View style={{ marginTop: 12, width: '100%', maxWidth: 520 }}>
+                {cleanLines.map((ln, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      flexDirection: 'row',
+                      marginBottom: 6,
+                      alignItems: 'flex-start',
+                      width: '100%',
+                      maxWidth: 520
+                    }}
+                  >
+                    <Text style={{ color: '#fff', marginRight: 8 }}>•</Text>
+                    <Text style={{ color: '#e2e8f0', flexShrink: 1 }}>{ln}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        );
+      }
+
+      return (
+        <View style={[styles.eventosContainer, { alignItems: 'center', paddingVertical: 40 }]}> 
+          <Text style={{ color: '#f59e0b', fontSize: 18, fontWeight: '700' }}>Esperando verificación</Text>
+          <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'center', maxWidth: 480 }}>Tu empresa está en proceso de revisión. Publicar eventos y ver reseñas estarán disponibles una vez que la verificación haya sido completada.</Text>
+        </View>
+      );
+    }
+
     if (showRatingsPanel) {
       return (
         <View style={styles.eventosContainer}>
@@ -509,6 +707,8 @@ console.log("imagenes del evento",eventos.imagenes)
         </View>
       );
     }
+
+
     return (
       <View style={styles.eventosContainer}>
         <View style={styles.eventosHeader}>
@@ -584,7 +784,9 @@ console.log("imagenes del evento",eventos.imagenes)
                             { text: 'Eliminar', style: 'destructive', onPress: async () => {
                                 try {
                                   await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
+                                  await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
                                   setEventos(prev => prev.filter(ev => ev.id !== evento.id));
+                                  Alert.alert('Éxito', 'El evento ha sido eliminado');
                                   Alert.alert('Éxito', 'El evento ha sido eliminado');
                                 } catch (e) {
                                   Alert.alert('Error', 'No se pudo eliminar el evento');
@@ -714,9 +916,9 @@ console.log("imagenes del evento",eventos.imagenes)
           </View>
         </View>
       </Modal>
-      {renderHeader()}
-       {renderNotificationsModal()}
-      
+  {renderHeader()}
+  {renderNotificationsModal()}
+  {renderSeguidoresModal()}
   <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
@@ -724,6 +926,79 @@ console.log("imagenes del evento",eventos.imagenes)
           {renderEventos()}
         </View>
       </ScrollView>
+
+      {/* Modal para editar y aceptar la imagen de perfil */}
+      <Modal
+        visible={profilePicEditVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setProfilePicEditVisible(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:24, alignItems:'center', width:320, borderWidth:1, borderColor:'#334155' }}>
+            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#fff' }}>Ajusta tu foto de perfil</Text>
+            {profilePicEdit && (
+              <View style={{ width: 200, height: 200, borderRadius: 100, overflow: 'hidden', backgroundColor: '#334155', marginBottom: 16, justifyContent:'center', alignItems:'center' }}>
+                <Image
+                  source={{ uri: profilePicEdit.uri }}
+                  style={{ width: 200, height: 200, borderRadius: 100 }}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
+            <View style={{ flexDirection:'row', gap:16 }}>
+              <TouchableOpacity
+                style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginRight:8 }}
+                onPress={async () => {
+                  // Bloquear actualización si la cuenta no está verificada
+                  if (isBlocked) {
+                    Alert.alert('Aviso', 'No se pudo actualizar la foto hasta que este verificado');
+                    setProfilePicEditVisible(false);
+                    return;
+                  }
+                  setProfilePicLoading(true);
+                  // Recorte circular
+                  let finalUri = profilePicEdit.uri;
+                  const manipResult = await ImageManipulator.manipulateAsync(
+                    profilePicEdit.uri,
+                    [{ resize: { width: 400, height: 400 } }],
+                    { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+                  );
+                  finalUri = manipResult.uri;
+                  // Subir imagen
+                  const file = {
+                    uri: finalUri,
+                    name: "profile.jpg",
+                    type: "image/jpeg",
+                  };
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  try {
+                    const response = await api.post(
+                      `/api/empresas/${empresaData?.id}/upload-foto/`,
+                      formData
+                    );
+                    setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
+                    setProfilePicEditVisible(false);
+                  } catch (error) {
+                    Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
+                  } finally {
+                    setProfilePicLoading(false);
+                  }
+                }}
+              >
+                <Text style={{ color:'#fff', fontWeight:'bold' }}>Aceptar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor:'#e5e7eb', borderRadius:8, padding:12 }}
+                onPress={() => setProfilePicEditVisible(false)}
+              >
+                <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
