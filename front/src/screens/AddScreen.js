@@ -367,6 +367,7 @@ const createEvento = async (payload, empresaId) => {
     fecha_evento: (formData.fecha_evento_fecha && formData.fecha_evento_hora)
       ? new Date(`${formData.fecha_evento_fecha}T${formData.fecha_evento_hora}:00`).toISOString()
       : null,
+    promote: false, // valor por defecto, el backend decidirá si lo promueve
   };
 
   console.log('payload:', payload);

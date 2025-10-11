@@ -30,9 +30,17 @@ SUPABASE_BUCKET_EVENTOS = os.getenv("SUPABASE_BUCKET_EVENTOS", "Evento")
 SIGHTENGINE_API_USER = os.getenv("SIGHTENGINE_API_USER")
 SIGHTENGINE_API_SECRET = os.getenv("SIGHTENGINE_API_SECRET")
 
+# Celery Configuración completa
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'America/Caracas'
+CELERY_ENABLE_UTC = False
+
+# Integración con django-celery-beat (tareas periódicas automáticas)
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 
 # Quick-start development settings - unsuitable for production
@@ -66,6 +74,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
+    'django_celery_beat',
     'empresa',
     'api',
     'django_extensions',
