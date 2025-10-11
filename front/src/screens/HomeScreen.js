@@ -10,6 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 
 import * as Location from 'expo-location';
+import HeaderBase from '../components/HeaderBase';
 
 const { width } = Dimensions.get('window');
 
@@ -20,6 +21,8 @@ export default function HomeScreen() {
   const scrollRef = useRef(null);
   const heroScrollRef = useRef(null);
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
+  // Carousel events state (independent)
+  const [carouselEvents, setCarouselEvents] = useState([]);
 
   const scrollToHeroIndex = (index) => {
     const cardW = width; // full-bleed card width (no gap)
@@ -34,7 +37,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     // Auto-advance every 4s
-    const maxCards = Math.max(1, (events && events.length > 0 ? Math.min(events.length, 3) : 3));
+    const maxCards = Math.max(1, (carouselEvents && carouselEvents.length > 0 ? Math.min(carouselEvents.length, 3) : 3));
     const interval = setInterval(() => {
       setCurrentHeroIndex(prev => {
         const next = (prev + 1) % maxCards;
@@ -42,9 +45,51 @@ export default function HomeScreen() {
         return next;
       });
     }, 4000);
-
     return () => clearInterval(interval);
-  }, [events]);
+  }, [carouselEvents]);
+
+  // Fetch first 3 events for carousel (independent of filters/search)
+  useEffect(() => {
+    const fetchCarouselEvents = async () => {
+      try {
+        const res = await api.get('/api/eventos-publicos/', { params: { page: 1, page_size: 3 } });
+        const responseData = res.data || {};
+        const resultadosRaw = Array.isArray(responseData.results)
+          ? responseData.results
+          : Array.isArray(responseData)
+          ? responseData
+          : [];
+        const eventosTransformados = resultadosRaw.map(ev => ({
+          id: ev.id,
+          rawEmpresaId: ev.empresa,
+          title: ev.titulo,
+          date: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleDateString()
+            : ev.creado_en
+            ? new Date(ev.creado_en).toLocaleDateString()
+            : "Fecha no definida",
+          time: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : null,
+          location: ev.ubicacion || "Ubicación no definida",
+          price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+          type: Array.isArray(ev.categoria) ? ev.categoria : ev.categoria ? [ev.categoria] : ["Sin categoría"],
+          tag: Array.isArray(ev.categoria) ? ev.categoria[0] : ev.categoria || "Sin categoría",
+          imagenes: ev.imagenes,
+          image: ev.imagen || "https://storage.googleapis.com/.../placeholder.png",
+          ownerName: `Empresa #${ev.empresa}`,
+          ownerLogo: null,
+        }));
+        setCarouselEvents(eventosTransformados);
+      } catch (error) {
+        setCarouselEvents([]);
+      }
+    };
+    fetchCarouselEvents();
+  }, []);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [loginVisible, setLoginVisible] = useState(false);
@@ -112,7 +157,6 @@ export default function HomeScreen() {
 
         if (userId) {
             const userResponse = await api.get(`/api/usuarios/${userId}/`);
-            console.log("datos user", userResponse.data);
             setUserData(userResponse.data);
           }
         
@@ -555,77 +599,19 @@ const filteredEvents = fuente.filter(e => {
         contentContainerStyle={{ paddingBottom: 32 + insets.bottom, paddingTop: 32 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header unificado */}
-        <View style={styles.header}>
-          <View style={styles.headerContainer}>
-            <View style={styles.logoContainer}>
-              <Text style={styles.logoText}>R U M B A</Text>
-              <Text style={styles.logoSubtext}>CCS</Text>
-            </View>
-            <View style={styles.headerRight}>
-              {isLogged ? (
-                <TouchableOpacity
-                  style={[styles.loginBtn, { backgroundColor: '#ef4444' }]}
-                  onPress={handleLogout}
-                >
-                  <Text style={styles.loginBtnText}>Cerrar sesión</Text>
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={styles.loginBtn}
-                  onPress={() => setLoginVisible(true)}
-                >
-                  <Text style={styles.loginBtnText}>Iniciar sesión</Text>
-                </TouchableOpacity>
-              )}
-              
-              {isLogged && (
-                <TouchableOpacity 
-                  onPress={() => {
-                    if (isEmpresaAccount && !isUserAccount) {
-                      navigation.navigate('Empresa');
-                    } else {
-                      navigation.navigate('Perfil');
-                    }
-                  }}
-                >
-                  {isUserAccount && userAvatarUrl ? (
-                    // Avatar de usuario
-                    <Image
-                      source={{ uri: userAvatarUrl }}
-                      style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}
-                    />
-                  ) : !isUserAccount && isEmpresaAccount && empresaData?.logo ? (
-                    // Logo de empresa
-                    <Image
-                      source={{ uri: empresaData.logo }}
-                      style={{ width: 32, height: 32, borderRadius: 100, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}
-                    />
-                  ) : (
-                    // Placeholder genérico
-                    <View
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        marginLeft: 12,
-                        borderWidth: 1,
-                        borderColor: '#0ea5e9',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        backgroundColor: '#a4a5dfff',
-                      }}
-                    >
-                      <Text style={{ color: '#fff', fontSize: 16 }}>👤</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
+        <HeaderBase
+          isLogged={isLogged}
+          onLoginPress={() => setLoginVisible(true)}
+          onLogoutPress={handleLogout}
+          navigation={navigation}
+          isEmpresaAccount={isEmpresaAccount}
+          isUserAccount={isUserAccount}
+          userAvatarUrl={userAvatarUrl}
+          empresaData={empresaData}
+          styles={styles}
+        />
 
-        {/* Hero: carrusel de fotos de eventos publicados (hasta 3) */}
+        {/* Hero: carrusel de fotos de eventos publicados (independiente, solo los 3 primeros) */}
         <View style={styles.heroSection}>
           <ScrollView
             ref={heroScrollRef}
@@ -642,22 +628,22 @@ const filteredEvents = fuente.filter(e => {
               setCurrentHeroIndex(idx);
             }}
           >
-            { (events && events.length > 0 ? events.slice(0,3) : [null,null,null]).map((ev, idx) => {
-                const uri = ev?.imagenes?.[0]?.url || ev?.image || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png';
-                return (
-                  <TouchableOpacity key={idx} activeOpacity={0.9} style={styles.heroCard} onPress={() => {
-                    if (ev && ev.id) {
-                      navigation.navigate('Reservar/Comprar', { idEvento: ev.id, idEmpresa: ev.rawEmpresaId });
-                    }
-                  }}>
-                    <Image source={{ uri }} style={styles.heroCardImage} resizeMode="cover" />
-                    <View style={styles.heroCardOverlay} />
-                    <View style={styles.heroCardText}>
-                      <Text style={styles.heroCardTitle}>{ev?.title || 'Próximo evento'}</Text>
-                      {ev?.location ? <Text style={styles.heroCardLocation}>📍 {ev.location}</Text> : null}
-                    </View>
-                  </TouchableOpacity>
-                );
+            {(carouselEvents && carouselEvents.length > 0 ? carouselEvents : [null, null, null]).map((ev, idx) => {
+              const uri = ev?.imagenes?.[0]?.url || ev?.image || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png';
+              return (
+                <TouchableOpacity key={idx} activeOpacity={0.9} style={styles.heroCard} onPress={() => {
+                  if (ev && ev.id) {
+                    navigation.navigate('Reservar/Comprar', { idEvento: ev.id, idEmpresa: ev.rawEmpresaId });
+                  }
+                }}>
+                  <Image source={{ uri }} style={styles.heroCardImage} resizeMode="cover" />
+                  <View style={styles.heroCardOverlay} />
+                  <View style={styles.heroCardText}>
+                    <Text style={styles.heroCardTitle}>{ev?.title || 'Próximo evento'}</Text>
+                    {ev?.location ? <Text style={styles.heroCardLocation}>📍 {ev.location}</Text> : null}
+                  </View>
+                </TouchableOpacity>
+              );
             })}
           </ScrollView>
         </View>

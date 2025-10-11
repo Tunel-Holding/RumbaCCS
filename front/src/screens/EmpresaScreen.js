@@ -212,7 +212,7 @@ const handleUploadFoto = async (empresaId) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  console.log("Subiendo foto para empresaId:", empresaId);
+
 
   try {
     const response = await api.post(
@@ -585,7 +585,6 @@ const renderSocialCircles = () => {
     </View>
   );}
 
-console.log("imagenes del evento",eventos.imagenes)
 
 
   const renderEventos = () => {

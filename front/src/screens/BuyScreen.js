@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { loginConFallback } from '../utils/auth';
 import api from '../services/api'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import HeaderBase from '../components/HeaderBase';
 
 
 // Footer links (copiados de HomeScreen.js)
@@ -127,9 +128,7 @@ export default function BuyScreen() {
     (async () => {
       try {
         const empresaId = await AsyncStorage.getItem('empresaId');
-        console.log('🔍 BuyScreen - empresaId detectado:', empresaId);
         const isEmpresa = !!(empresaId && empresaId !== '');
-        console.log('🔍 BuyScreen - hasEmpresa será:', isEmpresa);
         setHasEmpresa(isEmpresa);
         setOwnEmpresaId(empresaId || null);
       } catch (e) {
@@ -162,9 +161,31 @@ export default function BuyScreen() {
   }
 
   setIsLogged(true);
+  // Persist session and user info similarly to other screens
+  try {
+    if (resultado.data?.access) await AsyncStorage.setItem('accessToken', resultado.data.access);
+    if (resultado.data?.refresh) await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
+    if (resultado.data?.user) {
+      const ud = resultado.data.user;
+      await AsyncStorage.setItem('userId', ud.id.toString());
+      if (ud.username) await AsyncStorage.setItem('userName', ud.username);
+      // normalize avatar
+      let cleanAvatar = ud.avatar_url || ud.avatar || null;
+      if (cleanAvatar && typeof cleanAvatar === 'string') cleanAvatar = cleanAvatar.replace(/\?$/, '');
+      setUserData({ ...ud, avatar_url: cleanAvatar });
+    }
+    if (resultado.data?.empresa) {
+      await AsyncStorage.setItem('empresaId', resultado.data.empresa.id.toString());
+      setEmpresaData(resultado.data.empresa);
+      setHasEmpresa(true);
+    }
+  } catch (e) {
+    console.log('Error persisting login info:', e);
+  }
   setLoginVisible(false);
   setLoginError('');
 };
+
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
@@ -441,42 +462,7 @@ export default function BuyScreen() {
     fetchRelated();
     return () => { cancelado = true; };
   }, [evento]);
-  // Header unificado igual que HomeScreen
-  const Header = () => (
-    <View style={styles.headerHome}> 
-      <View style={styles.headerContainerHome}>
-        <View style={styles.logoContainerHome}>
-          <Text style={styles.logoTextHome}>R U M B A</Text>
-          <Text style={styles.logoSubtextHome}>CCS</Text>
-        </View>
-        <View style={styles.headerRightHome}>
-          {isLogged ? (
-            <TouchableOpacity
-              style={[styles.loginBtnHome, { backgroundColor: '#ef4444' }]}
-              onPress={handleLogout}
-            >
-              <Text style={styles.loginBtnTextHome}>Cerrar sesión</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.loginBtnHome}
-              onPress={() => setLoginVisible(true)}
-            >
-              <Text style={styles.loginBtnTextHome}>Iniciar sesión</Text>
-            </TouchableOpacity>
-          )}
-          {isLogged && (
-            <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-              <Image
-                source={userAvatarUrl ? { uri: userAvatarUrl } : require('../../assets/icon.png')}
-                style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9', backgroundColor: '#6366f1' }}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    </View>
-  );
+  // Use shared HeaderBase component
 
   // Footer de HomeScreen.js
   const Footer = () => (
@@ -505,7 +491,26 @@ if (loading) {
 
   return (
     <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}> 
-      <Header />
+      <HeaderBase
+        isLogged={isLogged}
+        onLoginPress={() => setLoginVisible(true)}
+        onLogoutPress={handleLogout}
+        navigation={navigation}
+        isEmpresaAccount={hasEmpresa}
+        isUserAccount={false}
+        userAvatarUrl={userAvatarUrl}
+        empresaData={empresaData}
+        styles={{
+          header: styles.headerHome,
+          headerContainer: styles.headerContainerHome,
+          logoContainer: styles.logoContainerHome,
+          logoText: styles.logoTextHome,
+          logoSubtext: styles.logoSubtextHome,
+          headerRight: styles.headerRightHome,
+          loginBtn: styles.loginBtnHome,
+          loginBtnText: styles.loginBtnTextHome,
+        }}
+      />
       {/* Barra de volver debajo del header */}
       <View style={[styles.backBar, { marginTop: 4 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>

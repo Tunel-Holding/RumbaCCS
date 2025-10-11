@@ -39,6 +39,7 @@ export default function PerfilScreen({ navigation }) {
   const [seguidoresModal, setSeguidoresModal] = useState(false);
   const [mostrarEmpresasAbajo, setMostrarEmpresasAbajo] = useState(false);
   const [userData, setUserData] = useState(null); // Datos del usuario logueado
+  const avatarSrc = userData?.avatar_url || userData?.avatar || null;
 
 
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
@@ -69,8 +70,6 @@ export default function PerfilScreen({ navigation }) {
 
   // contador derivado
 const totalEmpresasSeguidas = Array.isArray(empresasSeguidas) ? empresasSeguidas.length : 0;
-
-console.log("total empresas seguidas",totalEmpresasSeguidas)
 
   
 const handleUploadAvatar = async (userId) => {
@@ -180,7 +179,6 @@ useFocusEffect(
 
           if (userId) {
             const userResponse = await api.get(`/api/usuarios/${userId}/`);
-            console.log("datos user", userResponse.data);
             setUserData(userResponse.data);
           }
 
@@ -526,41 +524,26 @@ useFocusEffect(
       {/* Perfil principal móvil */}
       <View style={styles.profileContainer}>
         <TouchableOpacity
-                    style={styles.profileImage}
-                    onPress={async () => {
-    
-                      const res = await handleUploadAvatar(userData.id);
-                      if (!res) {
-                        console.log('handleUploadAvatar returned falsy');
-                        return;
-                      }
-                      if (res.cancelled) return; // user cancelled silently
-                      if (!res.ok) {
-                        const msg = res.error || 'No se pudo actualizar la foto de perfil';
-
-                      }
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    {userData?.avatar_url ? (
-                      <View style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}>
-                        <Image
-                          source={{ uri: userData.avatar_url }}
-                          style={{ width: '100%', height: '100%', borderRadius: 100, position: 'absolute' }}
-                          onLoadStart={() => setAvatarLoading(true)}
-                          onLoadEnd={() => setAvatarLoading(false)}
-                        />
-                        {avatarLoading && (
-                          <ActivityIndicator size="large" color="#2563eb" style={{ position: 'absolute' }} />
-                        )}
-                      </View>
-                    ) : (
-                      <Image
-                        source={{ uri: 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/0336b088-530a-4fdb-a3f8-acfafdbd3264.png' }}
-                        style={styles.profileImage}
-                      />
-                    )}
-                </TouchableOpacity>
+          style={styles.profileImage}
+          onPress={() => setProfilePicModal(true)}
+          activeOpacity={0.7}
+        >
+          {avatarLoading ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#ffffff" />
+            </View>
+          ) : avatarSrc ? (
+            <Image
+              source={{ uri: avatarSrc }}
+              style={{ width: '100%', height: '100%', borderRadius: 64 }}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
+              <Text style={{ color: '#fff', textAlign: 'center' }}>Presione aqui para ver los ajustes de cuenta</Text>
+            </View>
+          )}
+        </TouchableOpacity>
         <Text style={styles.userName}>{userName ? userName : 'Usuario'}</Text>
         {/* Botón cerrar sesión si hay usuario logueado */}
           {userName ? (
@@ -754,13 +737,32 @@ useFocusEffect(
               )
             ) : (
               comentarios.map((c, idx) => (
-                <View key={c.id || idx} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginBottom: 12, width: '100%' }}>
-                  <Text style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 16 }}>{c.empresa_nombre || c.empresa || 'Empresa'}</Text>
-                  <Text style={{ color: '#374151', marginTop: 6 }}><Text style={{ fontWeight: 'bold', color: '#111827' }}>{c.usuario_username || c.usuario || c.user_name || '@anon' }:</Text> {c.comentario || c.comentario_text || c.comentario || c.text || '(sin texto)'}</Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
-                    <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='currentColor'><path stroke-linecap='round' stroke-linejoin='round' d='M14.318 5.318a4.5 4.5 0 0 1 6.364 6.364L12 20.364 3.318 11.682a4.5 4.5 0 1 1 6.364-6.364z' /></svg>`} width={20} height={20} />
-                    <Text style={{ color: '#374151', marginLeft: 8 }}>{c.rating || c.valor || '-'}</Text>
-                    {c.created_at && <Text style={{ color: '#94a3b8', marginLeft: 12, fontSize: 12 }}>{new Date(c.created_at).toLocaleDateString()}</Text>}
+                <View key={c.id || idx} style={{ backgroundColor: '#334155', borderRadius: 12, padding: 16, marginBottom: 16, width: '100%' }}>
+                  {/* Header con nombre de empresa y rating */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={{ color: '#6366f1', fontWeight: 'bold', fontSize: 16 }}>{c.empresa_nombre || c.empresa || 'Empresa'}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='#fbbf24' viewBox='0 0 24 24' stroke-width='1.5' stroke='#fbbf24'><path stroke-linecap='round' stroke-linejoin='round' d='M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z' /></svg>`} width={16} height={16} />
+                      <Text style={{ color: '#fbbf24', marginLeft: 4, fontWeight: 'bold' }}>{c.rating || c.valor || '-'}/5</Text>
+                    </View>
+                  </View>
+                  
+                  {/* Comentario */}
+                  <Text style={{ color: '#e2e8f0', fontSize: 14, lineHeight: 20, marginBottom: 8 }}>
+                    {c.comentario || c.comentario_text || c.text || '(sin comentario)'}
+                  </Text>
+                  
+                  {/* Footer con fecha */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: '#94a3b8', fontSize: 12 }}>
+                      Publicado el {c.creado_en ? new Date(c.creado_en).toLocaleDateString('es-ES') : 
+                        (c.created_at ? new Date(c.created_at).toLocaleDateString('es-ES') : 'fecha no disponible')}
+                    </Text>
+                    {c.actualizado_en && c.actualizado_en !== c.creado_en && (
+                      <Text style={{ color: '#94a3b8', fontSize: 10 }}>
+                        (editado)
+                      </Text>
+                    )}
                   </View>
                 </View>
               ))
@@ -784,7 +786,7 @@ useFocusEffect(
               <TouchableOpacity
                 key={emp.id || idx}
                 style={{ backgroundColor: '#334155', borderRadius: 16, flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 16 }}
-                onPress={() => navigation.navigate('EmpresaScreen', { empresaId: emp.id })}
+                onPress={() => navigation.navigate('EmpresaScreenUser', { empresaId: emp.id })}
               >
                 {emp.logo_url || emp.logo ? (
                   <Image
@@ -954,9 +956,33 @@ useFocusEffect(
       >
         <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
           <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:300 }}>
-            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Cambiar foto de perfil</Text>
-            <TouchableOpacity style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }} onPress={() => {/* lógica de selección */}}>
-              <Text style={{ color:'#fff', textAlign:'center' }}>Seleccionar imagen</Text>
+            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Ajustes de cuenta</Text>
+            <TouchableOpacity
+              style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }}
+              onPress={async () => {
+                // Cerrar modal antes de abrir selector para evitar overlays
+                setProfilePicModal(false);
+                const id = userData?.id;
+                if (!id) {
+                  Alert.alert('Error', 'Usuario no identificado');
+                  return;
+                }
+                try {
+                  const res = await handleUploadAvatar(id);
+                  if (res?.ok) {
+                    Alert.alert('Éxito', 'Foto de perfil actualizada correctamente.');
+                  } else if (res?.cancelled) {
+                    // usuario canceló la selección, no mostramos alerta
+                  } else {
+                    Alert.alert('Error', res?.error || 'No se pudo actualizar la foto de perfil');
+                  }
+                } catch (e) {
+                  console.log('Error al seleccionar imagen desde modal:', e);
+                  Alert.alert('Error', 'Ocurrió un error al actualizar la foto de perfil.');
+                }
+              }}
+            >
+              <Text style={{ color:'#fff', textAlign:'center' }}>Cambiar foto de perfil</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
               <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
