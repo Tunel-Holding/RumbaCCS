@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect} from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarModal from '../components/CalendarModal';
 import HamburgerMenu from '../components/HamburgerMenu';
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -40,6 +40,7 @@ export default function PerfilScreen({ navigation }) {
   const [mostrarEmpresasAbajo, setMostrarEmpresasAbajo] = useState(false);
   const [userData, setUserData] = useState(null); // Datos del usuario logueado
   const avatarSrc = userData?.avatar_url || userData?.avatar || null;
+  const [loading, setLoading] = useState(false);
 
 
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
@@ -170,6 +171,7 @@ const handleUploadAvatar = async (userId) => {
 useFocusEffect(
     React.useCallback(() => {
       const loadScreenData = async () => {
+        setLoading(true);
         try {
           // 1. Obtener datos de la sesión desde AsyncStorage
           const name = await AsyncStorage.getItem('userName');
@@ -201,6 +203,8 @@ useFocusEffect(
           setHasEmpresa(false);
           setIsLogged(false);
           setEmpresasSeguidas([]);
+        }finally {
+          setLoading(false);
         }
       };
 
@@ -461,6 +465,18 @@ useFocusEffect(
       return () => setMostrarEmpresasAbajo(false);
     }, [])
   );
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: '#0f172a', flex: 1 }]}> 
+        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#00ff00" /> 
+          <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#0f172a' }}>
