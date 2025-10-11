@@ -1,4 +1,13 @@
-from .models import Empresa, Evento2, Rating, EmpresaEvento, EventoImagen, UsuarioEvento, EmpresaRedSocial
+from .models import (
+    Empresa, 
+    Evento2, 
+    Rating,
+    EmpresaEvento, 
+    EventoImagen, 
+    UsuarioEvento, 
+    EmpresaRedSocial, 
+    NotificacionUsuario
+)
 # Serializer para eventos guardados por usuario
 
 from rest_framework import serializers
@@ -47,6 +56,7 @@ class EventoSerializer(serializers.ModelSerializer):
     fecha_evento = serializers.DateTimeField(required=True,read_only = False)
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
+    promote = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Evento2
@@ -70,6 +80,7 @@ class EventoSerializer(serializers.ModelSerializer):
             "latitude",
             "longitude",
             "empresa_redes",
+            "promote",
         ]
 
     def get_distance(self, obj):
@@ -496,3 +507,8 @@ class EmpresaBulkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
         fields = ['id', 'nombre', 'logo']
+
+class NotificacionUsuarioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificacionUsuario
+        fields = ['id', 'mensaje', 'tipo', 'leida', 'creada_en']

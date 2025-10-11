@@ -386,8 +386,6 @@ class Rating(models.Model):
     def __str__(self):
         return f"{self.usuario.username} → {self.empresa} : {self.rating}"
 
-
-
 class EmpresaEvento(models.Model):
     empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='reservas')
     evento = models.ForeignKey('Evento2', on_delete=models.CASCADE, related_name='reservas')
@@ -407,3 +405,11 @@ class UsuarioEvento(models.Model):
 
     def __str__(self):
         return f"{self.usuario.username} guardó {self.evento.titulo}"
+
+
+class NotificacionUsuario(models.Model):
+    usuario = models.ForeignKey('api.Usuario', on_delete=models.CASCADE)
+    mensaje = models.TextField()
+    tipo = models.CharField(max_length=50, choices=[('evento_proximo', 'Evento próximo'), ('nuevo_evento', 'Nuevo evento')])
+    leida = models.BooleanField(default=False)
+    creada_en = models.DateTimeField(auto_now_add=True)

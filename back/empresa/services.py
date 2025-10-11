@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
+
 from django.conf import settings
 
 def upload_empresa_profile_picture(file, empresa_id):

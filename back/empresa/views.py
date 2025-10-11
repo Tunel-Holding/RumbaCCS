@@ -6,6 +6,8 @@ from rest_framework import viewsets, permissions
 from .models import (
     Empresa, Evento2, Rating,
     EventoImagen,
+    NotificacionUsuario,
+    EmpresaRedSocial,
     )
 from .serializers import (
     EmpresaTokenObtainPairSerializer,
@@ -15,7 +17,7 @@ from .serializers import (
     EventoImagenSerializer,
     TempImageSerializer,
     EmpresaBulkSerializer,
-    EmpresaStaffSerializer,
+    NotificacionUsuarioSerializer
     )
 from api.models import EmailVerification
 from django.utils import timezone
@@ -61,9 +63,6 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from .services import asignar_empresa_por_menor_carga, NoStaffAvailable, validate_image_with_sightengine
 from .notifications import notificar_asignacion_empresa
-from django.core.validators import URLValidator
-from django.core.exceptions import ValidationError as DjangoValidationError
-from .models import EmpresaRedSocial
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
 
@@ -1005,3 +1004,10 @@ class EmpresaValidarPinConUsuarioView(generics.CreateAPIView):
             {"message": "Empresa creada exitosamente", "empresa": empresa_serialized},
             status=201
         )
+
+class NotificacionUsuarioListView(generics.ListAPIView):
+    serializer_class = NotificacionUsuarioSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return NotificacionUsuario.objects.filter(usuario=self.request.user).order_by('-creada_en')

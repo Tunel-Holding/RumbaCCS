@@ -30,6 +30,10 @@ SUPABASE_BUCKET_EVENTOS = os.getenv("SUPABASE_BUCKET_EVENTOS", "Evento")
 SIGHTENGINE_API_USER = os.getenv("SIGHTENGINE_API_USER")
 SIGHTENGINE_API_SECRET = os.getenv("SIGHTENGINE_API_SECRET")
 
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
