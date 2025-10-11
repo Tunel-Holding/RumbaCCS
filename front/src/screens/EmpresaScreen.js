@@ -20,9 +20,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
-import HamburgerMenu from '../components/HamburgerMenu';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
@@ -199,7 +197,7 @@ useEffect(() => {
 
 const handleUploadFoto = async (empresaId) => {
   const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+  mediaTypes: ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images,
     quality: 0.8,
   });
 
@@ -214,17 +212,13 @@ const handleUploadFoto = async (empresaId) => {
   const formData = new FormData();
   formData.append("file", file);
 
-  console.log("Subiendo foto para empresaId:", empresaId);
+
 
   try {
     const response = await api.post(
       `/api/empresas/${empresaId}/upload-foto/`,
       formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      }
+        // Dejar que axios establezca Content-Type con boundary automáticamente
     );
 
     console.log("Logo subido:", response.data.logo);
@@ -457,6 +451,11 @@ useEffect(() => {
           <TouchableOpacity
             style={styles.fotoPerfil}
             onPress={async () => { // <-- Convertir a async
+              // Bloquear actualización si la cuenta no está verificada
+              if (isBlocked) {
+                Alert.alert('Aviso', 'No se puede actualizar la foto hasta que este verificado');
+                return;
+              }
               const success = await handleUploadFoto(empresaData?.id); // <-- Esperar el resultado
               if (!success) {
                 Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
@@ -544,7 +543,7 @@ useEffect(() => {
     }
   };
 
-  tsx
+  // ...
 const renderSocialCircles = () => {
   if (!empresaReady) return null;
   
@@ -586,7 +585,6 @@ const renderSocialCircles = () => {
     </View>
   );}
 
-console.log("imagenes del evento",eventos.imagenes)
 
 
   const renderEventos = () => {
@@ -1006,6 +1004,12 @@ console.log("imagenes del evento",eventos.imagenes)
               <TouchableOpacity
                 style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginRight:8 }}
                 onPress={async () => {
+                  // Bloquear actualización si la cuenta no está verificada
+                  if (isBlocked) {
+                    Alert.alert('Aviso', 'No se pudo actualizar la foto hasta que este verificado');
+                    setProfilePicEditVisible(false);
+                    return;
+                  }
                   setProfilePicLoading(true);
                   // Recorte circular
                   let finalUri = profilePicEdit.uri;
@@ -1026,8 +1030,7 @@ console.log("imagenes del evento",eventos.imagenes)
                   try {
                     const response = await api.post(
                       `/api/empresas/${empresaData?.id}/upload-foto/`,
-                      formData,
-                      { headers: { "Content-Type": "multipart/form-data" } }
+                      formData
                     );
                     setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
                     setProfilePicEditVisible(false);

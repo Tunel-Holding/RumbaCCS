@@ -21,6 +21,7 @@ from .views import (
     empresas_por_ids,
     UsuarioEventoViewSet,
     EmpresaValidarPinConUsuarioView,
+    UsuarioComentariosView,
 )
 
 # 1) Router principal para empresas
@@ -77,6 +78,7 @@ urlpatterns = [
     #Calificaciones
     path('empresas/<int:empresa_pk>/ratings/', EmpresaRatingsListCreateView.as_view(), name='empresa-ratings'),
     path('ratings/<int:pk>/', RatingDetailView.as_view(), name='rating-detail'),
+    path('usuario/comentarios/', UsuarioComentariosView.as_view(), name='usuario-comentarios'),
 
     # Crear evento para una empresa
     path('empresa_evento/', EmpresaEventoCreateView.as_view(), name='empresa_evento-create'),

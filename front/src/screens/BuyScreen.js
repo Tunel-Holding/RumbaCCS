@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Alert, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { loginConFallback } from '../utils/auth';
 import api from '../services/api'; 
- import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import HeaderBase from '../components/HeaderBase';
 
 
 // Footer links (copiados de HomeScreen.js)
@@ -38,6 +39,7 @@ const { width } = Dimensions.get('window');
 
 export default function BuyScreen() {
   const insets = useSafeAreaInsets();
+  const [isLogged, setIsLogged] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [companyEvents, setCompanyEvents] = useState([]); // eventos de la misma empresa
   const [companyEventsLoading, setCompanyEventsLoading] = useState(false);
@@ -50,8 +52,31 @@ export default function BuyScreen() {
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [empresaData, setEmpresaData] = useState(null);
+  const [userData, setUserData] = useState(null); // Estado para datos del usuario
+  // Memo para evitar recrear el objeto avatar_url en cada render
+  const userAvatarUrl = useMemo(() => userData?.avatar_url ? `${userData.avatar_url}` : null, [userData?.avatar_url]);
+  // Cargar datos del usuario logueado al enfocar la pantalla
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const userId = await AsyncStorage.getItem('userId');
+      if (userId) {
+        try {
+          const userResponse = await api.get(`/api/usuarios/${userId}/`);
+          let cleanAvatarUrl = userResponse.data.avatar_url;
+          if (cleanAvatarUrl && typeof cleanAvatarUrl === 'string') {
+            cleanAvatarUrl = cleanAvatarUrl.replace(/\?$/, '');
+          }
+          setUserData({ ...userResponse.data, avatar_url: cleanAvatarUrl });
+        } catch (e) {
+          setUserData(null);
+        }
+      } else {
+        setUserData(null);
+      }
+    };
+    if (isLogged) fetchUserData();
+  }, [isLogged, loginVisible]);
   const [loading, setLoading] = useState(true);
-  const [isLogged, setIsLogged] = useState(false);
   const [eventoS,setEventoS] = useState(false); //Valida que los datos del evento fueron guardados
   const [hasEmpresa, setHasEmpresa] = useState(false); // True si el usuario logueado es una empresa (tiene empresaId)
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
@@ -103,9 +128,7 @@ export default function BuyScreen() {
     (async () => {
       try {
         const empresaId = await AsyncStorage.getItem('empresaId');
-        console.log('🔍 BuyScreen - empresaId detectado:', empresaId);
         const isEmpresa = !!(empresaId && empresaId !== '');
-        console.log('🔍 BuyScreen - hasEmpresa será:', isEmpresa);
         setHasEmpresa(isEmpresa);
         setOwnEmpresaId(empresaId || null);
       } catch (e) {
@@ -138,9 +161,31 @@ export default function BuyScreen() {
   }
 
   setIsLogged(true);
+  // Persist session and user info similarly to other screens
+  try {
+    if (resultado.data?.access) await AsyncStorage.setItem('accessToken', resultado.data.access);
+    if (resultado.data?.refresh) await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
+    if (resultado.data?.user) {
+      const ud = resultado.data.user;
+      await AsyncStorage.setItem('userId', ud.id.toString());
+      if (ud.username) await AsyncStorage.setItem('userName', ud.username);
+      // normalize avatar
+      let cleanAvatar = ud.avatar_url || ud.avatar || null;
+      if (cleanAvatar && typeof cleanAvatar === 'string') cleanAvatar = cleanAvatar.replace(/\?$/, '');
+      setUserData({ ...ud, avatar_url: cleanAvatar });
+    }
+    if (resultado.data?.empresa) {
+      await AsyncStorage.setItem('empresaId', resultado.data.empresa.id.toString());
+      setEmpresaData(resultado.data.empresa);
+      setHasEmpresa(true);
+    }
+  } catch (e) {
+    console.log('Error persisting login info:', e);
+  }
   setLoginVisible(false);
   setLoginError('');
 };
+
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
@@ -298,7 +343,6 @@ export default function BuyScreen() {
           // Update UI immediately
           setIsSaved(true);
           setSavedId(res.data.id);
-          alert('Evento guardado correctamente');
           setRefreshSaved(r => r + 1); // fuerza recarga en background
         } else {
           alert('Error al guardar: ' + JSON.stringify(res?.data));
@@ -418,42 +462,7 @@ export default function BuyScreen() {
     fetchRelated();
     return () => { cancelado = true; };
   }, [evento]);
-  // Header unificado igual que HomeScreen
-  const Header = () => (
-    <View style={styles.headerHome}> 
-      <View style={styles.headerContainerHome}>
-        <View style={styles.logoContainerHome}>
-          <Text style={styles.logoTextHome}>R U M B A</Text>
-          <Text style={styles.logoSubtextHome}>CCS</Text>
-        </View>
-        <View style={styles.headerRightHome}>
-          {isLogged ? (
-            <TouchableOpacity
-              style={[styles.loginBtnHome, { backgroundColor: '#ef4444' }]}
-              onPress={handleLogout}
-            >
-              <Text style={styles.loginBtnTextHome}>Cerrar sesión</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.loginBtnHome}
-              onPress={() => setLoginVisible(true)}
-            >
-              <Text style={styles.loginBtnTextHome}>Iniciar sesión</Text>
-            </TouchableOpacity>
-          )}
-          {isLogged && (
-            <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-              <Image
-                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-                style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    </View>
-  );
+  // Use shared HeaderBase component
 
   // Footer de HomeScreen.js
   const Footer = () => (
@@ -482,7 +491,26 @@ if (loading) {
 
   return (
     <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}> 
-      <Header />
+      <HeaderBase
+        isLogged={isLogged}
+        onLoginPress={() => setLoginVisible(true)}
+        onLogoutPress={handleLogout}
+        navigation={navigation}
+        isEmpresaAccount={hasEmpresa}
+        isUserAccount={false}
+        userAvatarUrl={userAvatarUrl}
+        empresaData={empresaData}
+        styles={{
+          header: styles.headerHome,
+          headerContainer: styles.headerContainerHome,
+          logoContainer: styles.logoContainerHome,
+          logoText: styles.logoTextHome,
+          logoSubtext: styles.logoSubtextHome,
+          headerRight: styles.headerRightHome,
+          loginBtn: styles.loginBtnHome,
+          loginBtnText: styles.loginBtnTextHome,
+        }}
+      />
       {/* Barra de volver debajo del header */}
       <View style={[styles.backBar, { marginTop: 4 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>

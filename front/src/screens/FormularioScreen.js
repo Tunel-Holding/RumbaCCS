@@ -117,6 +117,10 @@ export default function FormularioScreen({ navigation, route }) {
   const fieldPositions = useRef({}); // { nombre: y, rif: y, ... }
   const registerFieldPosition = (key, y) => { fieldPositions.current[key] = y; };
   const scrollToField = (key) => {
+    // No desplazar la vista cuando se enfocan los campos de redes sociales
+    if (typeof key === 'string' && key.startsWith('social_')) {
+      return;
+    }
     const y = fieldPositions.current[key];
     if (y != null && scrollRef.current) {
       setTimeout(() => {
@@ -631,7 +635,7 @@ const handleValidarPin = async () => {
         ) : (
           <KeyboardAvoidingView
             style={{ flex:1, width:'100%' }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
           >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -639,7 +643,7 @@ const handleValidarPin = async () => {
             ref={scrollRef}
             style={{ flex: 1, width: '100%' }}
             contentContainerStyle={[styles.formContainer, { paddingTop: topSpacer, paddingBottom: insets.bottom + 340 }]} // padding extra para evitar solapamiento
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             showsVerticalScrollIndicator={false}
           >
             {/* Botón Volver */}
@@ -827,8 +831,9 @@ const handleValidarPin = async () => {
                               setSocialLinks(prev => ({ ...prev, [opt.key]: normalized }));
                             }}
                             autoCapitalize='none'
-                            onFocus={() => scrollToField(`social_${opt.key}`)}
+                            onFocus={() => {/* intencionalmente no desplazamos la vista para redes */}}
                             returnKeyType='done'
+                            blurOnSubmit={true}
                           />
                         </View>
                       )}

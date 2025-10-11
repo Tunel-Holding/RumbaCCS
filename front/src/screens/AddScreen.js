@@ -144,7 +144,7 @@ export default function AddScreen() {
   const handlePickImages = async () => {
   try {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions?.Images ?? ImagePicker.MediaType?.Images ?? undefined,
+  mediaTypes: ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images,
       allowsMultipleSelection: true,
       quality: 0.8,
     });

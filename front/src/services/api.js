@@ -10,9 +10,6 @@ const baseURL = `http://${LOCAL_IP}:${PORT}`;
 const api = axios.create({
   baseURL,
   timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem('accessToken');
