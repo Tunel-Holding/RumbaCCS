@@ -885,6 +885,50 @@ class UsuarioEventoViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(usuario=self.request.user)
         
+class UsuarioComentariosView(APIView):
+    """
+    Vista para obtener todos los comentarios que ha publicado un usuario
+    """
+    permission_classes = [IsUsuarioOrReadOnly]
+    authentication_classes = [EmpresaOrUsuarioJWTAuthentication]
+
+    def get(self, request):
+        """
+        Obtiene todos los comentarios (ratings con comentario) que ha publicado el usuario autenticado
+        """
+        auth_entity = request.user
+        real_obj = getattr(auth_entity, "obj", None)
+        
+        # Solo usuarios pueden tener comentarios
+        if not auth_entity or getattr(auth_entity, "kind", None) != "usuario":
+            return Response(
+                {"detail": "Solo los usuarios pueden tener comentarios."}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Obtener todos los ratings del usuario que tengan comentario
+        comentarios = Rating.objects.filter(
+            usuario=real_obj,
+            comentario__isnull=False
+        ).exclude(comentario='').select_related('empresa').order_by('-creado_en')
+
+        # Serializar los datos
+        comentarios_data = []
+        for comentario in comentarios:
+            comentarios_data.append({
+                'id': comentario.id,
+                'empresa_nombre': comentario.empresa.nombre,
+                'empresa_id': comentario.empresa.id,
+                'rating': comentario.rating,
+                'comentario': comentario.comentario,
+                'creado_en': comentario.creado_en,
+                'actualizado_en': comentario.actualizado_en,
+                'usuario_username': comentario.usuario.username,
+            })
+
+        return Response(comentarios_data, status=status.HTTP_200_OK)
+
+
 class EmpresaValidarPinConUsuarioView(generics.CreateAPIView):
     serializer_class = EmpresaRegistroSerializer
     permission_classes = [IsEmpresaOrUsuarioAuthenticated]

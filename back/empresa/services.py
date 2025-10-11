@@ -98,7 +98,13 @@ def validate_image_with_sightengine(file):
     """
     import requests
 
-    api_user =  settings.SIGHTENGINE_API_USER
+    # Allow developers to bypass sightengine validation during local development
+    # or when explicitly disabled via settings.SIGHTENGINE_DISABLED = True
+    if getattr(settings, 'DEBUG', False) or getattr(settings, 'SIGHTENGINE_DISABLED', False):
+        print('validate_image_with_sightengine: skipping validation (DEBUG or SIGHTENGINE_DISABLED=True)')
+        return True
+
+    api_user = settings.SIGHTENGINE_API_USER
     api_secret = settings.SIGHTENGINE_API_SECRET
 
     try:
@@ -111,13 +117,16 @@ def validate_image_with_sightengine(file):
 
         # 👇 Lógica simple: puedes ajustar los umbrales
         if result.get("status") != "success":
+            print(f"validate_image_with_sightengine: non-success status: {result}")
             return False
 
         nudity = result.get("nudity", {})
         if nudity.get("safe", 0) < 0.85:  # menos del 85% seguro
+            print(f"validate_image_with_sightengine: image rejected by nudity.safe threshold ({nudity.get('safe', 0)})")
             return False
 
         return True
-    except Exception:
+    except Exception as e:
+        print(f"validate_image_with_sightengine: exception while calling sightengine: {e}")
         return False
         
