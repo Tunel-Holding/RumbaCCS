@@ -45,6 +45,8 @@ export default function PerfilScreen({ navigation }) {
 
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
   const fetchEmpresasSeguidas = async () => {
+    setLoadingEmpresas(true);
+    
     try {
       const userId = await AsyncStorage.getItem('userId');
       if (!userId) {
@@ -63,6 +65,9 @@ export default function PerfilScreen({ navigation }) {
     } catch (e) {
       console.log('Error al cargar empresas seguidas:', e);
       setEmpresasSeguidas([]);
+    } finally {
+      
+      setLoadingEmpresas(false);
     }
   };
 
@@ -171,6 +176,7 @@ const handleUploadAvatar = async (userId) => {
 useFocusEffect(
     React.useCallback(() => {
       const loadScreenData = async () => {
+        setLoading(true);
         setLoading(true);
         try {
           // 1. Obtener datos de la sesión desde AsyncStorage
@@ -322,6 +328,9 @@ useFocusEffect(
   const [comentarios, setComentarios] = useState([]);
   const [loadingComentarios, setLoadingComentarios] = useState(false);
 
+  // Estado para empresas seguidas
+  const [loadingEmpresas, setLoadingEmpresas] = useState(false);
+
   // Función para cargar eventos guardados desde el backend
   const fetchGuardados = async () => {
     setLoadingGuardados(true);
@@ -367,6 +376,9 @@ useFocusEffect(
     if (selectedSection === 'comentarios') {
       fetchComentarios();
     }
+    if (selectedSection === 'empresas') {
+      fetchEmpresasSeguidas();
+    }
   }, [selectedSection]);
 
   // Llama a fetchGuardados cuando el usuario regresa a la pantalla de guardados
@@ -377,6 +389,9 @@ useFocusEffect(
       }
       if (selectedSection === 'comentarios') {
         fetchComentarios();
+      }
+      if (selectedSection === 'empresas') {
+        fetchEmpresasSeguidas();
       }
     }, [selectedSection])
   );

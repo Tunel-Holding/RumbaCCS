@@ -41,6 +41,7 @@ import jwt
 import os
 import uuid
 import requests
+from datetime import datetime
 from rest_framework.authentication import BaseAuthentication
 from rest_framework import exceptions
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -678,6 +679,32 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
 
+    @action(detail=False, methods=['get'])
+    def promoted(self, request):
+        """
+        Devuelve hasta 10 eventos promovidos (destacados).
+        - Si hay <=10 → se muestran siempre.
+        - Si hay >10 → rota cada hora en bloques de 10.
+        """
+        qs = Evento2.objects.filter(
+            promote=True,
+            fecha_evento__gte=timezone.now()
+        ).order_by('fecha_evento')
+
+        eventos = list(qs)
+
+        if len(eventos) <= 10:
+            selected = eventos
+        else:
+            # Semilla basada en la hora actual (ej: 2025100319)
+            seed = datetime.now().strftime("%Y%m%d%H")
+            rnd = random.Random(seed)
+            rnd.shuffle(eventos)
+            selected = eventos[:10]
+
+        serializer = self.get_serializer(selected, many=True)
+        return Response(serializer.data)
+    
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
     return {

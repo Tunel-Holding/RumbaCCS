@@ -334,6 +334,9 @@ class Evento2(models.Model):
         help_text="Código ISO de moneda (ej. USD, EUR)"
     )
 
+    promote = models.BooleanField(default=False, help_text="Si el evento es promovido o destacado")
+    want_promote = models.BooleanField(default=False, help_text="Si la empresa quiere promover este evento")
+    
     latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
 

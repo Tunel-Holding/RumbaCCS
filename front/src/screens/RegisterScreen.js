@@ -290,7 +290,7 @@ export default function RegisterScreen({ navigation, route }) {
                             ? 'api/reenviar-pin-empresa/'
                             : 'api/send-verification-code/';
                         const res = await api.post(endpoint, { email });
-                        Alert.alert('PIN reenviado', res?.data?.detail || res?.data?.message || 'Revisa tu correo');
+                        // Alert.alert('PIN reenviado', res?.data?.detail || res?.data?.message || 'Revisa tu correo');
                         setPinError(false);
                         setPinDigits(['','','','','','']);
                         setPinResendAvailable(false);
@@ -327,7 +327,7 @@ export default function RegisterScreen({ navigation, route }) {
                   const result = res.data;
                   
                   if (res.status === 200) {
-                    Alert.alert('PIN enviado', result.detail || result.message || 'Se ha enviado un nuevo PIN a tu correo.');
+                    // Alert.alert('PIN enviado', result.detail || result.message || 'Se ha enviado un nuevo PIN a tu correo.');
                   } else {
                     Alert.alert('Error', result.detail || result.message || 'No se pudo reenviar el PIN.');
                   }
@@ -415,7 +415,14 @@ export default function RegisterScreen({ navigation, route }) {
                   setVerificado(true);
                   setCargando(false);
                 } catch (err) {
-                  Alert.alert('Error', err.message || 'No se pudo verificar el PIN.');
+                  if (err.response && err.response.status === 400) {
+                    // PIN incorrecto → mostrar vista amigable
+                    setPinError(true);
+                    triggerShake();
+                  } else {
+                    // Error inesperado → alerta genérica
+                    Alert.alert('Error', err.message || 'No se pudo verificar el PIN.');
+                  }
                   setConfirmingPin(false);
                 }
               }}
