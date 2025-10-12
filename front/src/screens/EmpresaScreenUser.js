@@ -11,6 +11,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api'; // ✅ Tu instancia centralizada
+import NotificationsModal from '../components/NotificationsModal';
 
 const { width } = Dimensions.get('window');
 
@@ -335,63 +336,7 @@ useEffect(() => {
   );
 
   const renderNotificationsModal = () => (
-    <Modal visible={modalVisible.notifications} transparent animationType="slide">
-      <Animated.View
-        pointerEvents={modalVisible.notifications ? 'auto' : 'none'}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.9)',
-          zIndex: 200,
-          justifyContent: 'center',
-          alignItems: 'center',
-          opacity: notifAnim,
-        }}
-      >
-        <View style={{
-          backgroundColor: '#1e293b',
-          borderRadius: 24,
-          padding: 28,
-          minWidth: 300,
-          maxWidth: '90%',
-          shadowColor: '#000',
-          shadowOpacity: 0.18,
-          shadowOffset: { width: 0, height: 2 },
-          shadowRadius: 12,
-          position: 'relative',
-        }}>
-          <TouchableOpacity
-            onPress={() => {
-              Animated.timing(notifAnim, {
-                toValue: 0,
-                duration: 250,
-                useNativeDriver: true,
-              }).start(() => setModalVisible({ ...modalVisible, notifications: false }));
-            }}
-            style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={{ fontSize: 28, color: '#fff', fontWeight: 'bold' }}>×</Text>
-          </TouchableOpacity>
-          <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 18, textAlign: 'center' }}>Notificaciones</Text>
-          <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>¡Nuevo evento disponible!</Text>
-            <Text style={{ color: '#dbeafe', marginTop: 4 }}>Festival de Música Urbana - 20 Ene 2024</Text>
-          </View>
-          <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Recordatorio de ticket</Text>
-            <Text style={{ color: '#bbf7d0', marginTop: 4 }}>No olvides tu entrada para Nochevieja VIP</Text>
-          </View>
-          <View style={{ backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>¡Actualización de perfil!</Text>
-            <Text style={{ color: '#ede9fe', marginTop: 4 }}>Tu foto de perfil fue actualizada correctamente.</Text>
-          </View>
-        </View>
-      </Animated.View>
-    </Modal>
+    <NotificationsModal visible={modalVisible.notifications} onClose={() => setModalVisible({ ...modalVisible, notifications: false })} />
   );
 
   const renderRatingModal = () => (
