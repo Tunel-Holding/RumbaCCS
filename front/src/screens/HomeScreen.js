@@ -221,8 +221,6 @@ const handleLogin = async () => {
       }
       return; // Salimos de la función si hay un error
     }
-    console.log("Login exitoso, datos recibidos:", resultado.data);
-
     // --- LÓGICA DE DIFERENCIACIÓN DE CUENTAS ---
     // (Tu lógica existente se mantiene aquí)
      // 1. Limpiamos el estado anterior para evitar datos mezclados

@@ -11,7 +11,16 @@ export default function HeaderBase({
   userAvatarUrl,
   empresaData,
   styles
-}) {
+}) 
+
+
+{
+  const avatarFuente = userAvatarUrl
+    ? userAvatarUrl
+    : isEmpresaAccount && empresaData?.logo
+      ? empresaData.logo
+      : null;
+
   return (
     <View style={styles.header}>
       <View style={styles.headerContainer}>
@@ -19,6 +28,7 @@ export default function HeaderBase({
           <Text style={styles.logoText}>R U M B A</Text>
           <Text style={styles.logoSubtext}>CCS</Text>
         </View>
+
         <View style={styles.headerRight}>
           {isLogged ? (
             <TouchableOpacity
@@ -46,30 +56,38 @@ export default function HeaderBase({
                 }
               }}
             >
-              {userAvatarUrl ? (
-                <Image
-                  source={{ uri: userAvatarUrl }}
-                  style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 1, borderColor: '#0ea5e9' }}
-                />
-              ) : (
-                <View
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    marginLeft: 12,
-                    borderWidth: 1,
-                    borderColor: '#0ea5e9',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: '#a4a5dfff',
-                  }}
-                >
-                  <Text style={{ color: '#fff', fontSize: 16 }}>👤</Text>
-                </View>
-              )}
+              {avatarFuente ? (
+              <Image
+                source={{ uri: avatarFuente }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  marginLeft: 12,
+                  borderWidth: 1,
+                  borderColor: '#0ea5e9',
+                }}
+              />
+            ) : (
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  marginLeft: 12,
+                  borderWidth: 1,
+                  borderColor: '#0ea5e9',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#a4a5dfff',
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 16 }}>👤</Text>
+              </View>
+            )}
             </TouchableOpacity>
-          )}
+            )}
+
         </View>
       </View>
     </View>

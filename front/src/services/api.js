@@ -2,13 +2,13 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const LOCAL_IP = '192.168.1.107'; // ← Cámbiala por tu IP real
+const LOCAL_IP = '192.168.1.101'; // ← Cámbiala por tu IP real
 const PORT = '8000';
 const baseURL = `http://${LOCAL_IP}:${PORT}`;
 
 const api = axios.create({
   baseURL,
-  timeout: 10000,
+  timeout: 20000,
 });
 
 api.interceptors.request.use(async (config) => {

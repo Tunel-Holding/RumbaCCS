@@ -16,8 +16,24 @@ import random
 from django.conf import settings
 from empresa.services import validate_image_with_sightengine
 from .services import upload_user_profile_picture, delete_user_profile_picture
+from rest_framework_simplejwt.views import TokenViewBase
+from rest_framework_simplejwt.settings import api_settings
+
 
 Usuario = get_user_model()
+
+class SafeTokenRefreshView(TokenViewBase):
+    """
+    Custom TokenRefreshView that handles Usuario.DoesNotExist gracefully.
+    """
+
+    _serializer_class = api_settings.TOKEN_REFRESH_SERIALIZER
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except Usuario.DoesNotExist:
+            return Response({'detail': 'Usuario no existe'}, status=status.HTTP_401_UNAUTHORIZED)
 
 class MeView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -193,4 +209,3 @@ class FinalizeRegisterView(APIView):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }, status=status.HTTP_201_CREATED,)
-        

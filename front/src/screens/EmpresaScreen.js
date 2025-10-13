@@ -94,6 +94,7 @@ export default function EmpresaScreen() {
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [notifAnim] = useState(new Animated.Value(0));
   const [loading, setLoading] = useState(true);
+  const [avatarLoading, setAvatarLoading] = useState(false);
 
   const datos = false
   // Animaciones
@@ -194,44 +195,85 @@ useEffect(() => {
     eventosPublicados: empresaData?.total_eventos || 0,
   }
 
-
 const handleUploadFoto = async (empresaId) => {
-  const result = await ImagePicker.launchImageLibraryAsync({
-  mediaTypes: ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images,
-    quality: 0.8,
-  });
-
-  if (result.canceled) return;
-
-  const file = {
-    uri: result.assets[0].uri,
-    name: "profile.jpg",
-    type: "image/jpeg",
-  };
-
-  const formData = new FormData();
-  formData.append("file", file);
-
-
+  if (!empresaId) return { ok: false, error: 'No empresa id' };
 
   try {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') {
+      Alert.alert('Permisos', 'Se requieren permisos para acceder a la galería.');
+      return { ok: false, cancelled: true };
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images,
+      quality: 0.9,
+      allowsEditing: true,
+      aspect: [1, 1],
+      base64: false,
+      exif: false,
+    });
+
+    if (!result || result.canceled) return { ok: false, cancelled: true };
+
+    const uri = result.assets?.[0]?.uri || result.uri;
+    if (!uri) return { ok: false, cancelled: true };
+
+    setAvatarLoading(true);
+
+    let uploadUri = uri;
+    try {
+      const manip = await ImageManipulator.manipulateAsync(
+        uri,
+        [],
+        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      if (manip?.uri) uploadUri = manip.uri;
+    } catch (_) {}
+
+    const fileName = uploadUri.split('/').pop();
+    const match = (fileName || '').match(/\.([0-9a-z]+)(?:\?|$)/i);
+    const ext = match ? match[1] : 'jpg';
+    const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri: uploadUri,
+      name: fileName || `logo_${Date.now()}.${ext}`,
+      type: mime,
+    });
+
     const response = await api.post(
       `/api/empresas/${empresaId}/upload-foto/`,
       formData,
-        // Dejar que axios establezca Content-Type con boundary automáticamente
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
     );
 
-    console.log("Logo subido:", response.data.logo);
-    setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
-    return true; // Devuelve true en caso de éxito
-    
-  } catch (error) {
-    const msg = error.response?.data?.error || "Error inesperado";
-    Alert.alert("Error", msg);
-    return false;
+    setAvatarLoading(false);
+
+    const logoUrlRaw = response.data?.logo || null;
+    const cleanLogoUrl = typeof logoUrlRaw === 'string' ? logoUrlRaw.replace(/\?$/, '') : logoUrlRaw;
+
+    setEmpresaData((prev) => ({ ...prev, logo: cleanLogoUrl }));
+
+    return { ok: true };
+  } catch (err) {
+    if (err.response) {
+    console.log('Respuesta con error:', err.response.status, err.response.data);
+    } else {
+      console.log('Error de red:', err.message);
+    }
+    console.log('Error al subir logo (client):', err);
+    setAvatarLoading(false);
+    const msg = err.response?.data?.error || err.response?.data?.detail || err.message || 'Error inesperado';
+    Alert.alert('Error', msg);
+    return { ok: false, error: msg };
   }
 };
-
 
   const [eventos, setEventos] = useState([]);
 
@@ -406,14 +448,23 @@ useEffect(() => {
             }}
             activeOpacity={0.7}
           >
-            {empresaData?.logo ? (
-            <Image
-              source={{ uri: empresaData.logo }}
-              style={{ width: '100%', height: '100%', borderRadius: 100 }}
-            />
-          ) : (
-            <Text style={styles.fotoIcon}>👤</Text>
-          )}
+            {avatarLoading ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#ffffff" />
+              </View>
+            ) : empresaData?.logo ? (
+              <Image
+                source={{ uri: empresaData.logo }}
+                style={{ width: '100%', height: '100%', borderRadius: 100 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
+                <Text style={styles?.fotoIcon || { color: '#fff', textAlign: 'center' }}>
+                  👤 
+                </Text>
+              </View>
+            )}
         </TouchableOpacity>
         </View>
         {/* Datos de empresa */}
@@ -638,7 +689,7 @@ const renderSocialCircles = () => {
       return (
         <View style={[styles.eventosContainer, { alignItems: 'center', paddingVertical: 40 }]}> 
           <Text style={{ color: '#f59e0b', fontSize: 18, fontWeight: '700' }}>Esperando verificación</Text>
-          <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'center', maxWidth: 480 }}>Tu empresa está en proceso de revisión. Publicar eventos y ver reseñas estarán disponibles una vez que la verificación haya sido completada.</Text>
+          <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'center', maxWidth: 480 }}>Tu empresa está en proceso de revisión. Este proceso de verificación puede tardar de 24 a 48 horas.</Text>
         </View>
       );
     }

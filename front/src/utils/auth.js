@@ -5,9 +5,15 @@ export const loginConFallback = async (email, password) => {
   if (!email.trim() || !password.trim()) {
     return { error: 'Campos vacíos', tipo: 'validacion' };
   }
-
+  let usuarioFalló = false;
   try {
     const resUser = await api.post('/api/login/', { email, password });
+    // Si el interceptor devolvió una respuesta simulada
+    if (resUser?.data?.loggedOut) {
+      usuarioFalló = true;
+      throw new Error('Usuario no válido');
+    }
+
     const data = resUser.data;
 
     console.log('token access:', data.access);
@@ -27,10 +33,12 @@ export const loginConFallback = async (email, password) => {
     const status = errorUser.response?.status;
     const msg = errorUser.response?.data?.detail || errorUser.message;
 
-    if (status !== 401) {
+
+    // Si no es 401 o no es un logout silencioso, devolver error
+    if (!usuarioFalló && status !== 401 && !errorUser?.config?._fromSilentLogout) {
       return { error: msg, tipo: 'error' };
     }
-
+    
     try {
       const resEmpresa = await api.post('/api/empresa/login/', { email, password });
       const data = resEmpresa.data;

@@ -70,8 +70,6 @@ urlpatterns = [
     # Flujo C: Registro de empresa vinculada a usuario
     path('validar-pin-empresa-usuario/', EmpresaValidarPinConUsuarioView.as_view(), name='validar-pin-empresa-usuario'),
 
-    
-
     # Login de empresa
     # path('login-empresa/', EmpresaLoginView.as_view(), name='login-empresa'),
     path("empresa/login/", EmpresaLoginView.as_view(), name="empresa_token_obtain_pair"),

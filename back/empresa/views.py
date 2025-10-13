@@ -53,6 +53,7 @@ from rest_framework.generics import RetrieveAPIView, ListAPIView
 from .exceptions import * 
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.contrib.auth import get_user_model
 from django.db.models.expressions import RawSQL
 from rest_framework.parsers import MultiPartParser, FormParser
 from .supabase_client import supabase, upload_image_to_supabase
@@ -66,6 +67,9 @@ from .services import asignar_empresa_por_menor_carga, NoStaffAvailable, validat
 from .notifications import notificar_asignacion_empresa
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
+from api.serializers import RegisterSerializer
+
+Usuario = get_user_model()
 
 class IsEmpresaAuthenticated(BasePermission):
     def has_permission(self, request, view):
@@ -280,7 +284,7 @@ class EmpresaViewSet(ModelViewSet):
         empresa.logo = public_url
         empresa.save()
 
-        return Response({"logo": public_url}, status=status.HTTP_200_OK)
+        return Response({"logo": public_url}, status=200)
     
     def get_queryset(self):
         # Devuelve todas las empresas (para que un usuario pueda seguir cualquier empresa)
