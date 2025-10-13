@@ -145,8 +145,15 @@ const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
 };
 
 const handleLogin = async () => {
-  const resultado = await loginConFallback(user, pass);
-  if (resultado.error) {
+  let resultado;
+  try {
+    resultado = await loginConFallback(user, pass);
+  } finally {
+    // limpiar campos de login siempre
+    try { setUser(''); setPass(''); } catch (e) {}
+  }
+
+  if (resultado && resultado.error) {
     switch (resultado.tipo) {
       case 'validacion':
         Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');

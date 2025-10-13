@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Alert, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar } from 'react-native';
+import { View, Text, Alert, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { loginConFallback } from '../utils/auth';
 import api from '../services/api'; 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import HeaderBase from '../components/HeaderBase';
+import StandardHeader from '../components/StandardHeader';
 
 
 // Footer links (copiados de HomeScreen.js)
@@ -33,7 +33,6 @@ const COLORS = {
 // Eventos de la misma empresa (dinámicos)
 // Se cargan una vez que conocemos el evento principal.
 // Si la empresa no tiene más eventos, la sección no se mostrará.
-let companyEventsInit = [];
 
 const { width } = Dimensions.get('window');
 
@@ -142,8 +141,14 @@ export default function BuyScreen() {
  const handleLogin = async () => {
   setLoginError('');
   setLoginLoading(true);
-  const resultado = await loginConFallback(user, pass);
-  setLoginLoading(false);
+  let resultado;
+  try {
+    resultado = await loginConFallback(user, pass);
+  } finally {
+    setLoginLoading(false);
+    // limpiar campos de login
+    try { setUser(''); setPass(''); } catch (e) {}
+  }
 
   if (resultado.error) {
     switch (resultado.tipo) {
@@ -490,26 +495,21 @@ if (loading) {
 }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}> 
-      <HeaderBase
+      <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}> 
+    
+      <StandardHeader
         isLogged={isLogged}
         onLoginPress={() => setLoginVisible(true)}
         onLogoutPress={handleLogout}
-        navigation={navigation}
+        hasEmpresa={hasEmpresa}
         isEmpresaAccount={hasEmpresa}
-        isUserAccount={false}
+        isUserAccount={!hasEmpresa}
         userAvatarUrl={userAvatarUrl}
         empresaData={empresaData}
-        styles={{
-          header: styles.headerHome,
-          headerContainer: styles.headerContainerHome,
-          logoContainer: styles.logoContainerHome,
-          logoText: styles.logoTextHome,
-          logoSubtext: styles.logoSubtextHome,
-          headerRight: styles.headerRightHome,
-          loginBtn: styles.loginBtnHome,
-          loginBtnText: styles.loginBtnTextHome,
-        }}
+        isHomeScreen={false}
+        style={styles.headerHome}
+        logoContainerStyle={styles.logoContainerHome}
+        menuButtonStyle={styles.headerRightHome}
       />
       {/* Barra de volver debajo del header */}
       <View style={[styles.backBar, { marginTop: 4 }]}>
@@ -763,8 +763,12 @@ if (loading) {
         transparent
         onRequestClose={() => setLoginVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative' }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={insets.top}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}
+        >
+          <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: Math.min(320, width - 32), alignItems: 'center', position: 'relative' }}>
             <Pressable style={{ position: 'absolute', top: 8, right: 12, zIndex: 2 }} onPress={() => setLoginVisible(false)}>
               <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
             </Pressable>
@@ -811,7 +815,7 @@ if (loading) {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -896,6 +900,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#0f172a',
+    
   },
   headerHome: { backgroundColor: '#0f172a', paddingHorizontal: 22, paddingTop: 24, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', marginBottom: 12 },
   headerContainerHome: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -909,7 +914,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
-    marginTop: -6,
     marginBottom: 8,
   },
   backBarBtn: {

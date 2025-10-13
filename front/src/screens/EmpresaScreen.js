@@ -25,7 +25,6 @@ import NotificationsModal from '../components/NotificationsModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
-import { loginConFallback } from '../utils/auth';
 
 const { width } = Dimensions.get('window');
 
@@ -96,7 +95,7 @@ export default function EmpresaScreen() {
   const [loading, setLoading] = useState(true);
   const [avatarLoading, setAvatarLoading] = useState(false);
 
-  const datos = false
+
   // Animaciones
   const menuAnim = useRef(new Animated.Value(0)).current;
 
@@ -353,41 +352,6 @@ useEffect(() => {
     }
   }, [mobileMenuVisible]);
 
-  const toggleFollow = () => {
-    setIsFollowing(!isFollowing);
-  };
-
-  // Estado y lógica para login modal
-  const [loginVisible, setLoginVisible] = useState(false);
-  const [user, setUser] = useState('');
-  const [pass, setPass] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
-
-  const handleLogin = async () => {
-    setLoginError('');
-    setLoginLoading(true);
-    const resultado = await loginConFallback(user, pass);
-    setLoginLoading(false);
-    if (resultado.error) {
-      switch (resultado.tipo) {
-        case 'validacion':
-          setLoginError('Por favor ingresa email y contraseña');
-          break;
-        case 'error':
-          setLoginError('Error inesperado: ' + resultado.error);
-          break;
-        case 'credenciales':
-          setLoginError('Usuario o contraseña incorrectos');
-          break;
-      }
-      return;
-    }
-    setLoginVisible(false);
-    setLoginError('');
-    navigation.navigate('HomeScreen');
-  };
-
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContainer}>
@@ -411,6 +375,18 @@ useEffect(() => {
             } else if (item === 'register') {
               setLoginVisible(true);
             }
+          }}
+          onLogoutPress={async () => {
+            // limpiar datos de sesión y volver al home
+            await Promise.all([
+              AsyncStorage.removeItem('userName'),
+              AsyncStorage.removeItem('userEmail'),
+              AsyncStorage.removeItem('accessToken'),
+              AsyncStorage.removeItem('empresaId'),
+              AsyncStorage.removeItem('isEmpresaAccount'),
+              AsyncStorage.removeItem('userId'),
+            ]);
+            navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
           }}
         />
       </View>
@@ -583,62 +559,6 @@ const renderSocialCircles = () => {
   const renderEventos = () => {
     // Si la empresa está pendiente o rechazada, ocultamos la lista de eventos y mostramos un aviso claro
     if (isBlocked) {
-      // if (isRejected) {
-      //   const raw = empresaData?.rejection_reason || '';
-      //   const lines = parseRejectionReasons(raw);
-
-      //   console.log('DEBUG rejection_reason RAW =>', raw);
-      //   console.log('DEBUG rejection_reason PARSED =>', lines);
-      //   // return (
-      //   //   <View style={[styles.eventosContainer, { alignItems: 'flex-start', paddingVertical: 20 }]}> 
-      //   //     <Text style={{ color: '#ef4444', fontSize: 18, fontWeight: '700' }}>Solicitud rechazada</Text>
-      //   //     <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'left', maxWidth: 520 }}>Tu solicitud fue rechazada por los siguientes motivos:</Text>
-      //   //     {lines.length > 0 ? (
-      //   //       <View style={{ marginTop: 12 }}>
-      //   //         {lines.map((ln, i) => (
-      //   //           <View key={i} style={{ flexDirection: 'row', marginBottom: 6 }}>
-      //   //             <Text style={{ color: '#fff', marginRight: 8 }}>•</Text>
-      //   //             <Text style={{ color: '#e2e8f0', flex: 1 }}>{ln}</Text>
-      //   //           </View>
-      //   //         ))}
-      //   //       </View>
-      //   //     ) : (
-      //   //       <Text style={{ color: '#94a3b8', marginTop: 12 }}>No se especificó un motivo. Contacta soporte para más detalles.</Text>
-      //   //     )}
-      //   //   </View>
-      //   // );
-      // return (
-      //     <View style={[styles.eventosContainer, { alignItems: 'flex-start', paddingVertical: 20 }]}>
-      //       <Text style={{ color: '#ef4444', fontSize: 18, fontWeight: '700' }}>Solicitud rechazada</Text>
-      //       <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'left', maxWidth: 520 }}>
-      //         Tu solicitud fue rechazada por los siguientes motivos:
-      //       </Text>
-
-      //       {lines.length > 0 ? (
-      //         <View style={{ marginTop: 12 }}>
-      //           {lines.map((ln, i) => (
-      //             <View key={i} style={{ flexDirection: 'row', marginBottom: 6 }}>
-      //               <Text style={{ color: '#fff', marginRight: 8 }}>•</Text>
-      //               <Text style={{ color: '#e2e8f0', flex: 1 }}>{ln}</Text>
-      //             </View>
-      //           ))}
-      //         </View>
-      //       ) : raw ? (
-      //         // Fallback: mostrar el texto entero si no se pudo segmentar
-      //         <Text style={{ color: '#e2e8f0', marginTop: 12 }}>{raw}</Text>
-      //       ) : (
-      //         <Text style={{ color: '#94a3b8', marginTop: 12 }}>
-      //           No se especificó un motivo. Contacta soporte para más detalles.
-      //         </Text>
-      //       )}
-      //     </View>
-      //   );
-      
-      // }
-
-
-
-      // pending
       if (isRejected) {
         const raw = empresaData?.rejection_reason || '';
         const lines = parseRejectionReasons(raw);
@@ -812,13 +732,7 @@ const renderSocialCircles = () => {
                   </View>
                   <View style={styles.eventoFooter}>
                     <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                    {/*
-                      Para que este botón funcione debes:
-                      1. Tener el backend corriendo y accesible desde la app (revisa la URL base en api.js).
-                      2. El endpoint DELETE /api/eventos/{evento.id}/ debe existir y aceptar la petición.
-                      3. Si tu API requiere autenticación, asegúrate de enviar el token correcto en los headers.
-                      4. El evento debe existir en la base de datos.
-                    */}
+                  
                     <TouchableOpacity
                       style={[styles.verDetallesButton, { backgroundColor: '#ef4444', marginRight: 8 }]}
                       onPress={async () => {
@@ -830,7 +744,6 @@ const renderSocialCircles = () => {
                             { text: 'Cancelar', style: 'cancel' },
                             { text: 'Eliminar', style: 'destructive', onPress: async () => {
                                 try {
-                                  await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
                                   await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
                                   setEventos(prev => prev.filter(ev => ev.id !== evento.id));
                                   Alert.alert('Éxito', 'El evento ha sido eliminado');
@@ -901,65 +814,6 @@ const renderSocialCircles = () => {
             <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
               <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
             </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-      
-      {/* Modal de Login */}
-      <Modal
-        visible={loginVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setLoginVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setLoginVisible(false)}>
-              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
-            </TouchableOpacity>
-            <Text style={styles.loginTitle}>Iniciar sesión</Text>
-            <TextInput
-              style={styles.loginInput}
-              placeholder="Correo electrónico"
-              placeholderTextColor="#888"
-              keyboardType="email-address"
-              value={user}
-              onChangeText={setUser}
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-            <TextInput
-              style={styles.loginInput}
-              placeholder="Contraseña"
-              placeholderTextColor="#888"
-              secureTextEntry
-              value={pass}
-              onChangeText={setPass}
-              autoCapitalize="none"
-              autoComplete="password"
-            />
-            {loginError ? (
-              <Text style={{ color: '#ef4444', marginBottom: 8, textAlign: 'center', fontWeight: 'bold' }}>{loginError}</Text>
-            ) : null}
-            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin} disabled={loginLoading}>
-              {loginLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.loginBtnText}>Ingresar</Text>
-              )}
-            </TouchableOpacity>
-            <View style={styles.loginLinks}>
-              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
-              <Text style={styles.loginLink}>|</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setLoginVisible(false);
-                  navigation.navigate('RegisterScreen');
-                }}
-              >
-                <Text style={styles.loginLink}>Regístrate</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>
@@ -1293,10 +1147,4 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
   modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
-  loginTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
-  loginInput: { backgroundColor: '#fff', borderRadius: 8, padding: 10, width: '100%', marginBottom: 12 },
-  loginBtnModal: { backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 },
-  loginLinks: { flexDirection: 'row', marginTop: 12 },
-  loginLink: { color: '#0ea5e9', marginHorizontal: 6 },
-  loginBtnText: { color: '#fff', fontWeight: 'bold' },
 });
