@@ -906,7 +906,7 @@ class UsuarioEventoViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        queryset = UsuarioEvento.objects.filter(usuario=self.request.user)
+        queryset = UsuarioEvento.objects.filter(usuario=self.request.user).order_by('-fecha_guardado')
         evento_id = self.request.query_params.get('evento')
         if evento_id:
             queryset = queryset.filter(evento_id=evento_id)

@@ -126,7 +126,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="empresas-seguidas")
     def empresas_seguidas(self, request, pk=None):
         usuario = self.get_object()
-        empresas = usuario.empresas_que_sigue.all()
+        empresas = usuario.empresas_que_sigue.all().order_by('-nombre')
         serializer = EmpresaSerializer(empresas, many=True, context={"request": request})
         return Response({
             "empresas": serializer.data
