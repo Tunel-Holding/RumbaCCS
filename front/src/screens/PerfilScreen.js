@@ -178,7 +178,6 @@ useFocusEffect(
     React.useCallback(() => {
       const loadScreenData = async () => {
         setLoading(true);
-        setLoading(true);
         try {
           // 1. Obtener datos de la sesión desde AsyncStorage
           const name = await AsyncStorage.getItem('userName');
@@ -220,8 +219,6 @@ useFocusEffect(
       // No se necesita una función de limpieza aquí si solo estamos cargando datos.
     }, []) // El array vacío asegura que la lógica se define una vez.
   );
-
-
 
  const handleLogout = async () => {
   await Promise.all([
@@ -300,16 +297,7 @@ useFocusEffect(
         onPress={async () => {
           setLoadingEmpresasSeguidas(true);
           setSelectedSection('empresas');
-          try {
-            const userId = await AsyncStorage.getItem('userId');
-            const res = await api.get(`/api/usuarios/${userId}/empresas-seguidas/`);
-            const empresasArray = res?.data?.empresas && Array.isArray(res.data.empresas)
-              ? res.data.empresas
-              : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.data?.results) ? res.data.results : []));
-            setEmpresasSeguidas(empresasArray || []);
-          } catch (e) {
-            setEmpresasSeguidas([]);
-          }
+          await fetchEmpresasSeguidas();
           setLoadingEmpresasSeguidas(false);
         }}
         activeOpacity={0.8}
@@ -370,8 +358,15 @@ useFocusEffect(
   // Llama a fetchGuardados cuando el usuario selecciona la sección "guardados"
   useEffect(() => {
     if (selectedSection === 'guardados') {
-      console.log('useEffect: selectedSection es guardados, ejecutando fetchGuardados');
-      fetchGuardados();
+      if (guardados.length === 0 && !loadingGuardados) {
+        console.log('useEffect: cargando eventos guardados por primera vez');
+        fetchGuardados();
+      }
+    }
+    if (selectedSection === 'guardados' && guardados.length === 0 && !loadingGuardados) {
+
+    console.log('useEffect: cargando eventos guardados por primera vez');
+    fetchGuardados();
     }
     // Si cambiamos a la sección 'comentarios', traemos los comentarios de empresas
     if (selectedSection === 'comentarios') {
