@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigation, useFocusEffect } from '@react-navigation/native'; // <-- Importa useFocusEffect
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { loginConFallback } from '../utils/auth';
 import axios from 'axios';
 
@@ -10,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 
 import * as Location from 'expo-location';
-import HeaderBase from '../components/HeaderBase';
+import StandardHeader from '../components/StandardHeader';
 
 const { width } = Dimensions.get('window');
 
@@ -24,11 +25,14 @@ export default function HomeScreen() {
   // Carousel events state (independent)
   const [carouselEvents, setCarouselEvents] = useState([]);
 
-  const scrollToHeroIndex = (index) => {
+  // index: target slide index (0-based). animated: whether to animate the scroll.
+  const scrollToHeroIndex = (index, animated = true) => {
     const cardW = width; // full-bleed card width (no gap)
     if (heroScrollRef.current && typeof heroScrollRef.current.scrollTo === 'function') {
       try {
-        heroScrollRef.current.scrollTo({ x: index * cardW, animated: true });
+        const realCount = (carouselEvents && carouselEvents.length) ? carouselEvents.length : 0;
+        const offsetIndex = realCount > 1 ? (index + 1) : index;
+        heroScrollRef.current.scrollTo({ x: offsetIndex * cardW, animated });
       } catch (e) {
         // some RN versions expose different refs; ignore
       }
@@ -36,16 +40,37 @@ export default function HomeScreen() {
   };
 
   useEffect(() => {
-    // Auto-advance every 4s
-    const maxCards = Math.max(1, (carouselEvents && carouselEvents.length > 0 ? Math.min(carouselEvents.length, 3) : 3));
+    // Auto-advance every 4s when there is more than one real item
+    const realCount = (carouselEvents && carouselEvents.length) ? carouselEvents.length : 0;
+    if (realCount <= 1) return;
     const interval = setInterval(() => {
       setCurrentHeroIndex(prev => {
-        const next = (prev + 1) % maxCards;
-        scrollToHeroIndex(next);
+        const next = (prev + 1) % realCount;
+        const wrappingForward = prev === (realCount - 1) && next === 0;
+        if (wrappingForward) {
+          // animate forward to the cloned first (offset = realCount+1), then onMomentumScrollEnd will snap to real first
+          try { heroScrollRef.current?.scrollTo({ x: (realCount + 1) * width, animated: true }); } catch (e) {}
+          return next;
+        }
+        // normal advance
+        scrollToHeroIndex(next, true);
         return next;
       });
     }, 4000);
     return () => clearInterval(interval);
+  }, [carouselEvents]);
+
+  // When carousel events change, position scroll at first real item (offset = width) if using clones
+  useEffect(() => {
+    const realCount = (carouselEvents && carouselEvents.length) ? carouselEvents.length : 0;
+    if (realCount <= 1) {
+      setCurrentHeroIndex(0);
+      setTimeout(() => { try { heroScrollRef.current?.scrollTo({ x: 0, animated: false }); } catch (e) {} }, 50);
+      return;
+    }
+    setCurrentHeroIndex(0);
+    // position to the first real item (index 0 -> offset = 1 * width)
+    setTimeout(() => { try { heroScrollRef.current?.scrollTo({ x: width, animated: false }); } catch (e) {} }, 60);
   }, [carouselEvents]);
 
   // Fetch first 3 events for carousel (independent of filters/search)
@@ -284,6 +309,8 @@ const handleLogin = async () => {
   } finally {
     // Este bloque se ejecuta SIEMPRE, tanto si hay éxito como si hay error.
     setLoginLoading(false);
+    // Limpiar campos de login para evitar datos residuales
+    try { setUser(''); setPass(''); } catch (e) {}
   }
 };
 
@@ -552,85 +579,6 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
   useEffect(() => {
     fetchPromotedEventos();
   }, []);
-// const fetchPromotedEventos = async () => {
-//   setLoading(true);
-
-//   // Cancelar request anterior si existe
-//   if (searchCancelToken.current) {
-//     searchCancelToken.current.cancel("Nueva búsqueda, cancelando anterior");
-//   }
-//   searchCancelToken.current = axios.CancelToken.source();
-
-//   try {
-//     const res = await api.get("/api/eventos-publicos/promoted/", {
-//       timeout: 15000,
-//       cancelToken: searchCancelToken.current.token,
-//     });
-
-//     const resultadosRaw = Array.isArray(res.data) ? res.data : [];
-
-//     const eventosTransformados = resultadosRaw.map(ev => ({
-//       id: ev.id,
-//       rawEmpresaId: ev.empresa,
-//       title: ev.titulo,
-//       date: ev.fecha_evento
-//         ? new Date(ev.fecha_evento).toLocaleDateString()
-//         : ev.creado_en
-//         ? new Date(ev.creado_en).toLocaleDateString()
-//         : "Fecha no definida",
-//       time: ev.fecha_evento
-//         ? new Date(ev.fecha_evento).toLocaleTimeString([], {
-//             hour: "2-digit",
-//             minute: "2-digit",
-//           })
-//         : null,
-//       location: ev.ubicacion || "Ubicación no definida",
-//       price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
-//       type: Array.isArray(ev.categoria) ? ev.categoria : ev.categoria ? [ev.categoria] : ["Sin categoría"],
-//       tag: Array.isArray(ev.categoria) ? ev.categoria[0] : ev.categoria || "Sin categoría",
-//       imagenes: ev.imagenes,
-//       image: ev.imagen || "https://storage.googleapis.com/.../placeholder.png",
-//       ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
-//       ownerLogo: companyCache[ev.empresa]?.logo || null,
-//     }));
-
-//     setEventoPromoted(eventosTransformados);
-
-//     // Actualización de empresas
-//     const idsPendientes = [
-//       ...new Set(eventosTransformados.map(ev => ev.rawEmpresaId).filter(id => id && !companyCache[id])),
-//     ];
-//     if (idsPendientes.length) {
-//       const resp = await api.get("/api/public/empresas/bulk/", {
-//         params: { ids: idsPendientes.join(",") },
-//         timeout: 15000,
-//       });
-//       const empresas = Array.isArray(resp.data) ? resp.data : [];
-//       const nuevosDatosEmpresa = {};
-//       empresas.forEach(emp => (nuevosDatosEmpresa[emp.id] = { nombre: emp.nombre, logo: emp.logo }));
-//       idsPendientes.forEach(id => {
-//         if (!nuevosDatosEmpresa[id]) nuevosDatosEmpresa[id] = { nombre: `Empresa #${id}`, logo: null };
-//       });
-//       setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
-//       setEventoPromoted(prev =>
-//         prev.map(ev =>
-//           ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
-//             ? { ...ev, ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre, ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo }
-//             : ev
-//         )
-//       );
-//     }
-//   } catch (error) {
-//     if (!axios.isCancel(error)) console.error(error);
-//   } finally {
-//     setLoading(false);
-//   }
-// };
-
-// --- FUNCIONES DE NAVEGACION / INFINITE SCROLL (CAMBIO: loadMore pide la siguiente página) ---
-
-
-
 
 
   // Footer links
@@ -698,16 +646,28 @@ const filteredEvents = fuente.filter(e => {
         contentContainerStyle={{ paddingBottom: 32 + insets.bottom, paddingTop: 32 }}
         showsVerticalScrollIndicator={false}
       >
-        <HeaderBase
+        <StandardHeader
           isLogged={isLogged}
+          isHomeScreen={true}
           onLoginPress={() => setLoginVisible(true)}
-          onLogoutPress={handleLogout}
-          navigation={navigation}
+          onMenuPress={(item) => {
+            // Si el usuario pide 'inicio' o 'Tu perfil', dirigimos según tipo de cuenta
+            if (item === 'inicio') {
+              if (isEmpresaAccount) {
+                navigation.navigate('Empresa');
+              } else {
+                navigation.navigate('Perfil');
+              }
+              return;
+            }
+          }}
           isEmpresaAccount={isEmpresaAccount}
           isUserAccount={isUserAccount}
           userAvatarUrl={userAvatarUrl}
           empresaData={empresaData}
-          styles={styles}
+          style={styles.header}
+          logoContainerStyle={styles.logoContainer}
+          menuButtonStyle={styles.headerRight}
         />
 
         {/* Hero: carrusel de fotos de eventos publicados (independiente, solo los 3 primeros) */}
@@ -720,31 +680,127 @@ const filteredEvents = fuente.filter(e => {
             contentContainerStyle={{ paddingHorizontal: 0 }}
             snapToInterval={width}
             decelerationRate={'fast'}
+            pagingEnabled={true}
             onMomentumScrollEnd={(e) => {
               const x = e.nativeEvent.contentOffset.x;
               const w = width; // full-bleed card width
               const idx = Math.round(x / w);
-              setCurrentHeroIndex(idx);
+              const real = (carouselEvents && carouselEvents.length) ? carouselEvents : [];
+              const realCount = real.length;
+              if (realCount <= 1) {
+                setCurrentHeroIndex(0);
+                return;
+              }
+              // We render: [last, ...real, first]
+              if (idx === 0) {
+                // landed on cloned last -> jump to real last (index = realCount -1)
+                try { heroScrollRef.current?.scrollTo({ x: realCount * w, animated: false }); } catch (e) {}
+                setCurrentHeroIndex(realCount - 1);
+                return;
+              }
+              if (idx === realCount + 1) {
+                // landed on cloned first -> jump to real first (index = 0)
+                try { heroScrollRef.current?.scrollTo({ x: w, animated: false }); } catch (e) {}
+                setCurrentHeroIndex(0);
+                return;
+              }
+              // otherwise idx corresponds to real item at idx - 1
+              setCurrentHeroIndex(idx - 1);
             }}
           >
-            {(carouselEvents && carouselEvents.length > 0 ? carouselEvents : [null, null, null]).map((ev, idx) => {
-              const uri = ev?.imagenes?.[0]?.url || ev?.image || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png';
-              return (
-                <TouchableOpacity key={idx} activeOpacity={0.9} style={styles.heroCard} onPress={() => {
-                  if (ev && ev.id) {
-                    navigation.navigate('Reservar/Comprar', { idEvento: ev.id, idEmpresa: ev.rawEmpresaId });
-                  }
-                }}>
-                  <Image source={{ uri }} style={styles.heroCardImage} resizeMode="cover" />
-                  <View style={styles.heroCardOverlay} />
-                  <View style={styles.heroCardText}>
-                    <Text style={styles.heroCardTitle}>{ev?.title || 'Próximo evento'}</Text>
-                    {ev?.location ? <Text style={styles.heroCardLocation}>📍 {ev.location}</Text> : null}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
+            {(function renderCircular() {
+              const real = (carouselEvents && carouselEvents.length) ? carouselEvents : [];
+              if (real.length === 0) {
+                // placeholder 3 empty slides
+                return [null, null, null].map((ev, idx) => {
+                  const uri = 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png';
+                  return (
+                    <TouchableOpacity key={`ph-${idx}`} activeOpacity={0.9} style={styles.heroCard}>
+                      <Image source={{ uri }} style={styles.heroCardImage} resizeMode="cover" />
+                      <View style={styles.heroCardOverlay} />
+                      <View style={styles.heroCardText}>
+                        <Text style={styles.heroCardTitle}>Próximo evento</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                });
+              }
+
+              // build circular list: [last, ...real, first]
+              const items = [];
+              const last = real[real.length - 1];
+              items.push(last);
+              real.forEach(it => items.push(it));
+              items.push(real[0]);
+
+              return items.map((ev, idx) => {
+                const uri = ev?.imagenes?.[0]?.url || ev?.image || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png';
+                const key = ev?.id ? `c-${ev.id}-${idx}` : `c-ph-${idx}`;
+                return (
+                  <TouchableOpacity key={key} activeOpacity={0.9} style={styles.heroCard} onPress={() => {
+                    if (ev && ev.id) {
+                      navigation.navigate('Reservar/Comprar', { idEvento: ev.id, idEmpresa: ev.rawEmpresaId });
+                    }
+                  }}>
+                    <Image source={{ uri }} style={styles.heroCardImage} resizeMode="cover" />
+                    <View style={styles.heroCardOverlay} />
+                    <View style={styles.heroCardText}>
+                      <Text style={styles.heroCardTitle}>{ev?.title || 'Próximo evento'}</Text>
+                      {ev?.location ? <Text style={styles.heroCardLocation}>📍 {ev.location}</Text> : null}
+                    </View>
+                  </TouchableOpacity>
+                );
+              });
+            })()}
           </ScrollView>
+          {/* Flechas izquierda/derecha sobre el carrusel */}
+          {(() => {
+            const realCount = (carouselEvents && carouselEvents.length > 0) ? carouselEvents.length : 3;
+            if (realCount <= 1) return null;
+            return (
+              <>
+                <TouchableOpacity
+                  accessibilityLabel="Ir al elemento anterior"
+                  accessibilityRole="button"
+                  style={[styles.heroArrow, styles.heroArrowLeft]}
+                  onPress={() => {
+                    const prev = (currentHeroIndex - 1 + realCount) % realCount;
+                    const wrappingBackward = currentHeroIndex === 0 && prev === realCount - 1; // first -> last
+                    if (wrappingBackward) {
+                      // animate backward to the cloned last (offset = 0), then onMomentumScrollEnd will snap to real last
+                      try { heroScrollRef.current?.scrollTo({ x: 0, animated: true }); } catch (e) {}
+                      setCurrentHeroIndex(prev);
+                      return;
+                    }
+                    scrollToHeroIndex(prev, true);
+                    setCurrentHeroIndex(prev);
+                  }}
+                >
+                  <Ionicons name="chevron-back" size={28} color="#fff" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  accessibilityLabel="Ir al siguiente elemento"
+                  accessibilityRole="button"
+                  style={[styles.heroArrow, styles.heroArrowRight]}
+                  onPress={() => {
+                    const next = (currentHeroIndex + 1) % realCount;
+                    const wrappingForward = currentHeroIndex === realCount - 1 && next === 0; // last -> first
+                    if (wrappingForward) {
+                      // animate forward to the cloned first (offset = realCount+1), then onMomentumScrollEnd will snap to real first
+                      try { heroScrollRef.current?.scrollTo({ x: (realCount + 1) * width, animated: true }); } catch (e) {}
+                      setCurrentHeroIndex(next);
+                      return;
+                    }
+                    scrollToHeroIndex(next, true);
+                    setCurrentHeroIndex(next);
+                  }}
+                >
+                  <Ionicons name="chevron-forward" size={28} color="#fff" />
+                </TouchableOpacity>
+              </>
+            );
+          })()}
         </View>
 
         {/* Buscador */}
@@ -1041,6 +1097,9 @@ const styles = StyleSheet.create({
   heroCardText: { position: 'absolute', bottom: 12, left: 12, right: 12, zIndex: 2 },
   heroCardTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
   heroCardLocation: { color: '#e6edf3', fontSize: 12, marginTop: 4, opacity: 0.95 },
+  heroArrow: { position: 'absolute', top: '40%', zIndex: 5, backgroundColor: 'rgba(0,0,0,0.45)', padding: 6, borderRadius: 24 },
+  heroArrowLeft: { left: 8 },
+  heroArrowRight: { right: 8 },
   search: { backgroundColor: '#fff', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 16 },
   filters: { flexDirection: 'row', marginBottom: 12 },
   filterBtn: { backgroundColor: '#334155', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16, marginRight: 8 },

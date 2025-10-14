@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalendarModal from '../components/CalendarModal';
-import HamburgerMenu from '../components/HamburgerMenu';
+import StandardHeader from '../components/StandardHeader';
 import NotificationsModal from '../components/NotificationsModal';
 import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator } from 'react-native';
 import { SvgXml } from 'react-native-svg';
@@ -42,6 +42,12 @@ export default function PerfilScreen({ navigation }) {
   const [userData, setUserData] = useState(null); // Datos del usuario logueado
   const avatarSrc = userData?.avatar_url || userData?.avatar || null;
   const [loading, setLoading] = useState(false);
+  // Estado para controlar el modal/flujo de login (StandardHeader usa setLoginVisible)
+  const [loginVisible, setLoginVisible] = useState(false);
+  // Alias esperado por StandardHeader
+  const userAvatarUrl = avatarSrc;
+  // Datos de la empresa vinculada (si aplica)
+  const [empresaData, setEmpresaData] = useState(null);
 
 
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
@@ -188,6 +194,17 @@ useFocusEffect(
           if (userId) {
             const userResponse = await api.get(`/api/usuarios/${userId}/`);
             setUserData(userResponse.data);
+          }
+
+          // Si hay empresaId, intentar obtener datos de la empresa para pasar al header
+          if (empresaId) {
+            try {
+              const empresaRes = await api.get(`/api/empresas/${empresaId}/`);
+              setEmpresaData(empresaRes.data);
+            } catch (e) {
+              // no bloquear si falla
+              console.log('No se pudo cargar empresaData en PerfilScreen', e);
+            }
           }
 
           // 2. Actualizar el estado del componente
@@ -477,6 +494,59 @@ useFocusEffect(
     }, [])
   );
 
+  // Handler centralizado para acciones del menú (asegura que exista cuando se pase a StandardHeader)
+  const handleMenuItemPress = async (item) => {
+    try {
+      setMenuVisible(false);
+      if (item === 'calendar') {
+        // Asegura que guardados esté actualizado antes de mostrar el calendario
+        try {
+          setLoadingGuardados(true);
+          await fetchGuardados();
+        } catch (_) {}
+        setLoadingGuardados(false);
+        setModalVisible({ ...modalVisible, calendar: true });
+        return;
+      }
+
+      if (item === 'notifications') {
+        setModalVisible({ ...modalVisible, notifications: true });
+        return;
+      }
+
+      if (item === 'inicio') {
+        navigation.navigate('HomeScreen');
+        return;
+      }
+
+      if (item === 'register') {
+        // Cambiar a contexto empresa y navegar a Empresa
+        try {
+          const empresaId = await AsyncStorage.getItem('empresaId');
+          if (!empresaId) {
+            Alert.alert('No tienes empresa afiliada', 'No se encontró una empresa asociada a tu cuenta.');
+            return;
+          }
+          await AsyncStorage.setItem('sessionMode', 'empresa');
+          await AsyncStorage.setItem('isEmpresaAccount', 'true');
+          await AsyncStorage.setItem('isUserAccount', 'true');
+          navigation.navigate('Empresa', { empresaId });
+        } catch (e) {
+          console.log('Error switching to empresa account from menu', e);
+          Alert.alert('Error', 'No se pudo cambiar a la cuenta empresa. Intenta nuevamente.');
+        }
+        return;
+      }
+
+      if (item === 'empresa_form') {
+        navigation.navigate('FormularioScreen');
+        return;
+      }
+    } catch (e) {
+      console.log('handleMenuItemPress error', e);
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: '#0f172a', flex: 1 }]}> 
@@ -497,56 +567,26 @@ useFocusEffect(
       <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 48, backgroundColor: '#0f172a', zIndex: 10 }} pointerEvents="none" />
       <ScrollView
         style={[styles.container, { marginTop: 32, marginBottom: 48 }]}
-        contentContainerStyle={{ paddingHorizontal: 16 }}
+        contentContainerStyle={{ paddingHorizontal: 16, flexGrow: 1, paddingBottom: 96 }}
         scrollEnabled={!modalVisible.calendar}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
       >
-      {/* Header / Navbar móvil */}
-      <View style={styles.navbar}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>R U M B A</Text>
-          <Text style={styles.logoSubText}>CCS</Text>
-        </View>
-        <HamburgerMenu
-          visible={menuVisible}
-          setVisible={setMenuVisible}
+        <StandardHeader
+          isLogged={isLogged}
+          onLoginPress={() => setLoginVisible(true)}
+          onLogoutPress={handleLogout}
+          onMenuPress={handleMenuItemPress}
           hasEmpresa={hasEmpresa}
-          onMenuItemPress={async (item) => {
-            setMenuVisible(false);
-            if (item === 'calendar') {
-              // Asegura que guardados esté actualizado antes de mostrar el calendario
-              try {
-                setLoadingGuardados(true);
-                await fetchGuardados();
-              } catch (_) {}
-              setLoadingGuardados(false);
-              setModalVisible({ ...modalVisible, calendar: true });
-            }
-            else if (item === 'notifications') setModalVisible({ ...modalVisible, notifications: true });
-            else if (item === 'inicio') navigation.navigate('HomeScreen');
-            else if (item === 'register') {
-              // Al pedir 'Perfil empresa' desde el menú, cambiamos el contexto a empresa
-              try {
-                const empresaId = await AsyncStorage.getItem('empresaId');
-                if (!empresaId) {
-                  Alert.alert('No tienes empresa afiliada', 'No se encontró una empresa asociada a tu cuenta.');
-                  return;
-                }
-
-    
-                // Nuevo: marcar modo empresa sin borrar identidad usuario
-                await AsyncStorage.setItem('sessionMode', 'empresa');
-                await AsyncStorage.setItem('isEmpresaAccount', 'true');
-                await AsyncStorage.setItem('isUserAccount', 'true'); // sigue siendo un user con empresa vinculada
-
-                navigation.navigate('Empresa', { empresaId });
-              } catch (e) {
-                console.log('Error switching to empresa account from menu', e);
-                Alert.alert('Error', 'No se pudo cambiar a la cuenta empresa. Intenta nuevamente.');
-              }
-            } else if (item === 'empresa_form') navigation.navigate('FormularioScreen');
-          }}
+          isEmpresaAccount={hasEmpresa}
+          isUserAccount={!hasEmpresa}
+          userAvatarUrl={userAvatarUrl}
+          empresaData={empresaData}
+          isHomeScreen={false}
+          style={styles.headerHome}
+          logoContainerStyle={styles.logoContainerHome}
+          menuButtonStyle={styles.headerRightHome}
         />
-      </View>
 
       {/* Perfil principal móvil */}
       <View style={styles.profileContainer}>
@@ -572,12 +612,6 @@ useFocusEffect(
           )}
         </TouchableOpacity>
         <Text style={styles.userName}>{userName ? userName : 'Usuario'}</Text>
-        {/* Botón cerrar sesión si hay usuario logueado */}
-          {userName ? (
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.8}>
-            <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        ) : null}
         {/* Mostrar solo el botón correspondiente según el tipo de usuario */}
         {!hasEmpresa && (
           <>
@@ -833,88 +867,6 @@ useFocusEffect(
         </View>
       )}
 
-      {/* Modals solo versión móvil */}
-      <Modal visible={modalVisible.cart} transparent animationType="none">
-        {/* Fade in/out animation for tickets overlay */}
-        <Animated.View>
-          <View style={{
-            backgroundColor: '#1e293b',
-            borderRadius: 24,
-            padding: 28,
-            minWidth: 300,
-            maxWidth: '90%',
-            shadowColor: '#000',
-            shadowOpacity: 0.18,
-            shadowOffset: { width: 0, height: 2 },
-            shadowRadius: 12,
-            position: 'relative',
-          }}>
-           
-            <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 18, textAlign: 'center' }}>Tus Tickets</Text>
-
-          </View>
-        </Animated.View>
-      </Modal>
-      <CalendarModal
-        visible={modalVisible.calendar}
-        onClose={() => setModalVisible({ ...modalVisible, calendar: false })}
-        eventsByDate={(() => {
-          // Construye un mapa { 'YYYY-MM-DD': [eventos...] }
-          const map = {};
-          const pad = (n) => (n < 10 ? `0${n}` : `${n}`);
-          const toKeyFromISO = (iso) => {
-            if (typeof iso !== 'string') return null;
-            // Si viene como 'YYYY-MM-DDTHH:mm:ssZ', usa los primeros 10
-            if (iso.length >= 10 && /\d{4}-\d{2}-\d{2}/.test(iso)) {
-              return iso.slice(0, 10);
-            }
-            // Intento de parseo por Date (menos preferido por ambigüedad)
-            const d = new Date(iso);
-            if (!isNaN(d.getTime())) {
-              return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-            }
-            return null;
-          };
-          const toKeyFromDMY = (str) => {
-            if (typeof str !== 'string') return null;
-            // Extrae tres grupos numéricos en orden: día, mes, año (p.ej. 9/10/2025, 09-10-2025, 9.10.2025, '9, 10, 2025')
-            const nums = (str.match(/\d+/g) || []).map((n) => parseInt(n, 10));
-            if (nums.length < 3) return null;
-            const [d, m, y] = nums;
-            if (!y || !m || !d) return null;
-            // Validación básica
-            if (y < 1000 || m < 1 || m > 12 || d < 1 || d > 31) return null;
-            return `${y}-${pad(m)}-${pad(d)}`;
-          };
-          (guardados || []).forEach((e) => {
-            // Preferir ISO desde e.fecha (viene de e.evento_obj.fecha_evento)
-            let key = null;
-            if (e.fecha) {
-              key = toKeyFromISO(e.fecha);
-            }
-            // Si no hay ISO usable, intentar parsear e.date con formato día/mes/año
-            if (!key && e.date && typeof e.date === 'string') {
-              key = toKeyFromDMY(e.date);
-            }
-            // Último recurso: creado_en
-            if (!key && e.creado_en) {
-              key = toKeyFromISO(e.creado_en) || toKeyFromDMY(String(e.creado_en));
-            }
-            if (!key) return; // no se pudo normalizar
-            if (!map[key]) map[key] = [];
-            map[key].push(e);
-          });
-          return map;
-        })()}
-        onPressEvent={(ev) => {
-          const id = ev.eventoId || ev.id;
-          if (id) {
-            navigation.navigate('Reservar/Comprar', { idEvento: id });
-            setModalVisible({ ...modalVisible, calendar: false });
-          }
-        }}
-      />
-      <NotificationsModal visible={modalVisible.notifications} onClose={() => setModalVisible({ ...modalVisible, notifications: false })} />
 
       {/* Modal para cambiar foto de perfil */}
       <Modal
@@ -1096,6 +1048,9 @@ const styles = StyleSheet.create({
   modalTitle: { color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 16 },
   closeModal: { color: '#ff007f', fontSize: 16, marginTop: 12 },
   menuButton: { padding: 8, marginLeft: 12 },
+  headerHome: {},
+  logoContainerHome: {},
+  headerRightHome: {},
   mobileMenuOverlay: {
     position: 'absolute',
     top: 0,
