@@ -9,20 +9,6 @@ from rest_framework import serializers
 router = DefaultRouter()
 router.register(r'usuarios', UsuarioViewSet)
 
-class PasswordResetRequestSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-
-class PasswordResetConfirmSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    code = serializers.CharField(max_length=6)
-    password = serializers.CharField(write_only=True, min_length=6)
-    password2 = serializers.CharField(write_only=True, min_length=6)
-
-    def validate(self, data):
-        if data['password'] != data['password2']:
-            raise serializers.ValidationError("Las contraseñas no coinciden.")
-        return data
-
 urlpatterns = [
     path('', include(router.urls)),
     path('login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),  # LOGIN con email

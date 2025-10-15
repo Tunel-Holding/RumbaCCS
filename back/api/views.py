@@ -8,6 +8,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import RegisterSerializer, UserPublicSerializer, MyTokenObtainPairSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer
 from .models import EmailVerification, Usuario
+from empresa.models import Empresa
 from django.core.mail import send_mail
 from django.utils import timezone
 import random
@@ -146,8 +147,9 @@ class PasswordResetRequestView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         email = serializer.validated_data['email']
-        if not Usuario.objects.filter(email=email).exists():
+        if not Usuario.objects.filter(email=email).exists() and not Empresa.objects.filter(email=email).exists():
             return Response({'error': 'Usuario no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        
         code = str(random.randint(100000, 999999))
         expires_at = timezone.now() + timezone.timedelta(minutes=10)
         EmailVerification.objects.update_or_create(
@@ -190,7 +192,11 @@ class PasswordResetConfirmView(APIView):
         try:
             user = Usuario.objects.get(email=email)
         except Usuario.DoesNotExist:
-            return Response({'error': 'Usuario no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+            try:
+                user = Empresa.objects.get(email=email)
+            except Empresa.DoesNotExist:
+                return Response({'error': 'Usuario no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
 
         user.set_password(password)
         user.save()
