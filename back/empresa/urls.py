@@ -19,7 +19,10 @@ from .views import (
     EmpresaEventoCreateView,
     EventoImagenViewSet,
     empresas_por_ids,
-    UsuarioEventoViewSet
+    UsuarioEventoViewSet,
+    EmpresaValidarPinConUsuarioView,
+    UsuarioComentariosView,
+    NotificacionUsuarioListView,
 )
 
 # 1) Router principal para empresas
@@ -63,6 +66,9 @@ urlpatterns = [
     path('registro-empresa/', EmpresaPreRegistroView.as_view(), name='registro-empresa'),
     path('validar-pin-empresa/', EmpresaValidarPinView.as_view(), name='validar-pin-empresa'),
     path('reenviar-pin-empresa/', EmpresaReenviarPinView.as_view(), name='reenviar-pin-empresa'),
+    
+    # Flujo C: Registro de empresa vinculada a usuario
+    path('validar-pin-empresa-usuario/', EmpresaValidarPinConUsuarioView.as_view(), name='validar-pin-empresa-usuario'),
 
     # Login de empresa
     # path('login-empresa/', EmpresaLoginView.as_view(), name='login-empresa'),
@@ -71,10 +77,14 @@ urlpatterns = [
     #Calificaciones
     path('empresas/<int:empresa_pk>/ratings/', EmpresaRatingsListCreateView.as_view(), name='empresa-ratings'),
     path('ratings/<int:pk>/', RatingDetailView.as_view(), name='rating-detail'),
+    path('usuario/comentarios/', UsuarioComentariosView.as_view(), name='usuario-comentarios'),
 
     # Crear evento para una empresa
     path('empresa_evento/', EmpresaEventoCreateView.as_view(), name='empresa_evento-create'),
     
     # Imagenes de eventos
     path('api/eventos/<int:evento_id>/imagenes/', evento_imagenes, name='evento-imagenes'),
+    
+    # Rutas para notificaciones de usuario
+     path('notificaciones/', NotificacionUsuarioListView.as_view(), name='notificaciones-usuario'),
 ]

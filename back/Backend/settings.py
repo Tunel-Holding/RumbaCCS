@@ -27,9 +27,20 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 SUPABASE_BUCKET_EVENTOS = os.getenv("SUPABASE_BUCKET_EVENTOS", "Evento")
+SIGHTENGINE_API_USER = os.getenv("SIGHTENGINE_API_USER")
+SIGHTENGINE_API_SECRET = os.getenv("SIGHTENGINE_API_SECRET")
 
-# Verificación temporal
-print("SUPABASE_URL:", SUPABASE_URL)
+# Celery Configuración completa
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'America/Caracas'
+CELERY_ENABLE_UTC = False
+
+# Integración con django-celery-beat (tareas periódicas automáticas)
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 
 # Quick-start development settings - unsuitable for production
@@ -63,6 +74,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
+    'django_celery_beat',
     'empresa',
     'api',
     'django_extensions',
@@ -128,6 +140,17 @@ DATABASES = {
     }
 }
 
+# Alternativa: configuración para SQLite (local)
+# Útil para desarrollo local sin depender de Supabase
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',  # archivo local en tu proyecto
+        
+#     }
+# }
+
+
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django.db.backends.postgresql',
@@ -174,6 +197,8 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
+TIME_ZONE = "America/Caracas"
+
 
 
 # Static files (CSS, JavaScript, Images)
@@ -194,6 +219,8 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.AllowAny',  # en producción restringe por vista
     ),
+     "DEFAULT_PAGINATION_CLASS": "empresa.services.CustomPagination",  # 👈 usa tu archivo services.py
+    "PAGE_SIZE": 10,
     # "DEFAULT_PERMISSION_CLASSES": (
     #     "rest_framework.permissions.IsAuthenticated",
     # ),

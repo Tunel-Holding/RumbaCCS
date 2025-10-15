@@ -9,15 +9,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
-import EmpresaMenu from '../components/EmpresaMenu';
-import HamburgerMenu from '../components/HamburgerMenu';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api'; // ✅ Tu instancia centralizada
+import NotificationsModal from '../components/NotificationsModal';
 
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreenUser() {
   const [hasEmpresa, setHasEmpresa] = useState(false);
+  const [empresaReady, setEmpresaReady] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -39,29 +39,82 @@ export default function EmpresaScreenUser() {
   const [loading, setLoading] = useState(true);
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [isEmpresaAccount, setIsEmpresaAccount] = useState(false);
+  // Promedio y conteo de ratings de la empresa
+  const [avgRating, setAvgRating] = useState(null);
+  const [ratingsCount, setRatingsCount] = useState(0);
+  // Estado para panel de reseñas
+  const [showReviews, setShowReviews] = useState(false);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  // Cache local de usuarios para evitar múltiples peticiones
+  const usersCacheRef = useRef({});
+
+  // Estado de sesión local (usado por handleLogin)
+  const [isLogged, setIsLogged] = useState(false);
+
 
 
 
   const [empresaData, setEmpresaData] = useState(null);
 
+  
+
   useEffect(() => {
   const fetchEmpresa = async () => {
     try {
+      const isEmpresaAccount = await AsyncStorage.getItem('isEmpresaAccount') === 'true';
+      setIsEmpresaAccount(isEmpresaAccount);
       const empresaId = empresaIdParam;
       const response = await api.get(`/api/public/empresas/${empresaId}/`);
-      setEmpresaData(response.data);
+      const data = response.data;
+      if (data.is_following) {
+        setIsFollowing(true);
+      }
+      setEmpresaData(data);
+
+      // Intentamos obtener promedio de rating desde el propio objeto devuelto
+      const possibleAvg = data.avg_rating || data.promedio_rating || data.rating_average || data.rating || data.rating_promedio || data.rating_avg;
+      const possibleCount = data.total_ratings || data.ratings_count || data.total_ratings_count || data.n_ratings || data.total_reviews || 0;
+      if (possibleAvg != null && possibleAvg !== '') {
+        setAvgRating(Number(possibleAvg));
+        setRatingsCount(Number(possibleCount) || 0);
+      } else {
+        // Fallback: pedir explicitamente los ratings y calcular promedio
+        try {
+          const rr = await api.get(`/api/empresas/${empresaId}/ratings/`);
+          const items = Array.isArray(rr.data) ? rr.data : rr.data.results || [];
+          if (items.length) {
+            const sum = items.reduce((s, it) => s + (Number(it.rating) || 0), 0);
+            setAvgRating(sum / items.length);
+            setRatingsCount(items.length);
+          } else {
+            setAvgRating(null);
+            setRatingsCount(0);
+          }
+        } catch (e) {
+          // No bloquear si el endpoint requiere auth o falla; dejamos el promedio null
+          setAvgRating(null);
+          setRatingsCount(0);
+        }
+      }
+
+      setEmpresaReady(true); // Set ready when data is loaded
     } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
       } else {
         console.error("❌ Error:", error.message);
       }
+      setEmpresaReady(false); // Not ready on error
     } finally {
       setLoading(false);
     }
   };
   fetchEmpresa();
 }, [empresaIdParam]);
+
+console.log("Empresa Data:", empresaData);
   
 
 const [loginVisible, setLoginVisible] = useState(false);
@@ -92,8 +145,15 @@ const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
 };
 
 const handleLogin = async () => {
-  const resultado = await loginConFallback(user, pass);
-  if (resultado.error) {
+  let resultado;
+  try {
+    resultado = await loginConFallback(user, pass);
+  } finally {
+    // limpiar campos de login siempre
+    try { setUser(''); setPass(''); } catch (e) {}
+  }
+
+  if (resultado && resultado.error) {
     switch (resultado.tipo) {
       case 'validacion':
         Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
@@ -108,28 +168,69 @@ const handleLogin = async () => {
     return;
   }
   setLoginVisible(false);
-  Alert.alert('Login correcto', `Has ingresado como ${resultado.tipo}`);
+  // Persist session and update local state
+  try {
+    if (resultado.data?.access) await AsyncStorage.setItem('accessToken', resultado.data.access);
+    if (resultado.data?.refresh) await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
+    if (resultado.data?.user) {
+      const ud = resultado.data.user;
+      await AsyncStorage.setItem('userId', ud.id.toString());
+      if (ud.username) await AsyncStorage.setItem('userName', ud.username);
+      let cleanAvatar = ud.avatar_url || ud.avatar || null;
+      if (cleanAvatar && typeof cleanAvatar === 'string') cleanAvatar = cleanAvatar.replace(/\?$/, '');
+      // Update local user state if present
+      // Some screens expect userData in state; set it here for header components
+      // (There's no setUserData in this screen; we'll store minimal info)
+      await AsyncStorage.setItem('userName', ud.username || '');
+    }
+    if (resultado.data?.empresa) {
+      await AsyncStorage.setItem('empresaId', resultado.data.empresa.id.toString());
+      await AsyncStorage.setItem('isEmpresaAccount', 'true');
+      await AsyncStorage.setItem('isUserAccount', 'false');
+      setIsEmpresaAccount(true);
+    } else {
+      await AsyncStorage.setItem('isUserAccount', 'true');
+      await AsyncStorage.setItem('isEmpresaAccount', 'false');
+      setIsEmpresaAccount(false);
+    }
+    setIsLogged(true);
+  } catch (e) {
+    console.log('Error persisting login info (EmpresaScreenUser):', e);
+  }
+
 };
 const seguir = async () => {
-  try {
+
+    
     const token = await AsyncStorage.getItem('accessToken');
     if (!token) {
-      setLoginVisible(true);     
-    } else {
-      toggleFollow();
+      setLoginVisible(true);
+      return;
     }
-  } catch (error) {
-    console.error("Error al seguir a la empresa:", error);
-    return false;
-  }
+
+    try {
+      const res = await api.post(`/api/empresas/${empresaIdParam}/seguir/`);
+      
+      if (res.status === 200) {
+        setIsFollowing(true);
+      }
+      else if (res.status === 405) {
+        Alert.alert('Ya sigues a esta empresa');
+      }
+    } catch (error) {
+      console.error("Error al seguir a la empresa:", error);
+    }
 };
+
+console.log('🏢 Datos de la empresa:', empresaData1);
 
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
-    seguidores: empresaData?.seguidores || 0,
-    eventosPublicados: empresaData?.eventosPublicados || 0,
+    seguidores: empresaData?.total_seguidores || 0,
+    eventosPublicados: empresaData?.total_eventos || 0,
   }
+
 
   const [eventos, setEventos] = useState([]);
 
@@ -145,7 +246,9 @@ useEffect(() => {
 
       const res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
 
-      const eventosTransformados = res.data.map(ev => {
+      const eventos = Array.isArray(res.data) ? res.data : res.data.results || res.data.eventos || [];
+
+      const eventosTransformados = eventos.map(ev => {
         // Separar fecha y hora si viene en formato ISO
         let fecha = "Fecha no definida";
         let hora = "Hora no definida";
@@ -240,63 +343,7 @@ useEffect(() => {
   );
 
   const renderNotificationsModal = () => (
-    <Modal visible={modalVisible.notifications} transparent animationType="slide">
-      <Animated.View
-        pointerEvents={modalVisible.notifications ? 'auto' : 'none'}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.9)',
-          zIndex: 200,
-          justifyContent: 'center',
-          alignItems: 'center',
-          opacity: notifAnim,
-        }}
-      >
-        <View style={{
-          backgroundColor: '#1e293b',
-          borderRadius: 24,
-          padding: 28,
-          minWidth: 300,
-          maxWidth: '90%',
-          shadowColor: '#000',
-          shadowOpacity: 0.18,
-          shadowOffset: { width: 0, height: 2 },
-          shadowRadius: 12,
-          position: 'relative',
-        }}>
-          <TouchableOpacity
-            onPress={() => {
-              Animated.timing(notifAnim, {
-                toValue: 0,
-                duration: 250,
-                useNativeDriver: true,
-              }).start(() => setModalVisible({ ...modalVisible, notifications: false }));
-            }}
-            style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={{ fontSize: 28, color: '#fff', fontWeight: 'bold' }}>×</Text>
-          </TouchableOpacity>
-          <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 18, textAlign: 'center' }}>Notificaciones</Text>
-          <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>¡Nuevo evento disponible!</Text>
-            <Text style={{ color: '#dbeafe', marginTop: 4 }}>Festival de Música Urbana - 20 Ene 2024</Text>
-          </View>
-          <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Recordatorio de ticket</Text>
-            <Text style={{ color: '#bbf7d0', marginTop: 4 }}>No olvides tu entrada para Nochevieja VIP</Text>
-          </View>
-          <View style={{ backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>¡Actualización de perfil!</Text>
-            <Text style={{ color: '#ede9fe', marginTop: 4 }}>Tu foto de perfil fue actualizada correctamente.</Text>
-          </View>
-        </View>
-      </Animated.View>
-    </Modal>
+    <NotificationsModal visible={modalVisible.notifications} onClose={() => setModalVisible({ ...modalVisible, notifications: false })} />
   );
 
   const renderRatingModal = () => (
@@ -386,68 +433,7 @@ useEffect(() => {
                 Enviar
               </Text>
             </TouchableOpacity>
-  {/* Modal de Login */}
-<Modal
-        visible={loginVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setLoginVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Pressable style={styles.modalClose} onPress={() => setLoginVisible(false)}>
-              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
-            </Pressable>
-            <Text style={styles.loginTitle}>Iniciar sesión</Text>
-
-            <TextInput
-              style={styles.loginInput}
-              placeholder="Correo electrónico"
-              placeholderTextColor="#888"
-              keyboardType="email-address"
-              value={user}
-              onChangeText={setUser}
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-
-            <TextInput
-              style={styles.loginInput}
-              placeholder="Contraseña"
-              placeholderTextColor="#888"
-              secureTextEntry
-              value={pass}
-              onChangeText={setPass}
-              autoCapitalize="none"
-              autoComplete="password"
-            />
-
-            {loginError ? (
-              <Text style={{ color: '#ef4444', marginBottom: 8, textAlign: 'center', fontWeight: 'bold' }}>{loginError}</Text>
-            ) : null}
-            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin} disabled={loginLoading}>
-              {loginLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.loginBtnText}>Ingresar</Text>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.loginLinks}>
-              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
-              <Text style={styles.loginLink}>|</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setLoginVisible(false);
-                  navigation.navigate('AccountTypeScreen');
-                }}
-              >
-                <Text style={styles.loginLink}>Regístrate</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+           
           </View>
         </View>
       </View>
@@ -477,34 +463,195 @@ useEffect(() => {
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
+          {/* Mostrar promedio de ratings debajo del nombre si está disponible */}
+          {avgRating != null ? (
+            <Text style={styles.avgRatingText}>{avgRating.toFixed(1)} / 5 · <TouchableOpacity onPress={async () => {
+                // Toggle panel y cargar reseñas si es la primera vez
+                if (!showReviews && reviews.length === 0) {
+                  setReviewsLoading(true);
+                  try {
+                    const empresaId = empresaIdParam || empresaData?.id;
+                    const rr = await api.get(`/api/empresas/${empresaId}/ratings/`);
+                    const items = Array.isArray(rr.data) ? rr.data : rr.data.results || [];
+                    // Mapear ids de usuario a username (author_name)
+                    const userIds = [...new Set(items.map(i => i.usuario || i.usuario_id).filter(Boolean))];
+                    const usersMap = {};
+                    if (userIds.length) {
+                      try {
+                        const toFetch = userIds.filter(id => !usersCacheRef.current[id]);
+                        const userPromises = toFetch.map(id =>
+                          api.get(`/api/usuarios/${id}/`).then(res => ({ id, data: res.data })).catch(() => ({ id, data: null }))
+                        );
+                        const usersResults = await Promise.all(userPromises);
+                        usersResults.forEach(u => {
+                          if (u.data) {
+                            usersCacheRef.current[u.id] = u.data.username || u.data.nombre || u.data.name || `Usuario #${u.id}`;
+                          } else {
+                            usersCacheRef.current[u.id] = `Usuario #${u.id}`;
+                          }
+                        });
+                        // Rellenar usersMap desde el cache
+                        userIds.forEach(id => { usersMap[id] = usersCacheRef.current[id]; });
+                      } catch (e) {
+                        console.warn('Error cargando usuarios de reseñas', e);
+                      }
+                    }
+                    const itemsConAutor = items.map(it => ({
+                      ...it,
+                      author_name: usersMap[it.usuario] || usersMap[it.usuario_id] || it.usuario_nombre || it.username || it.author_name || `Usuario #${it.usuario || it.usuario_id || 'desconocido'}`
+                    }));
+                    // Ordenar por fecha ascendente (más antiguas primero) y tomar las 3 primeras
+                    const parseTime = (x) => new Date(x?.creado_en || x?.created_at || x?.createdAt || 0).getTime();
+                    const sorted = itemsConAutor.sort((a,b) => parseTime(a) - parseTime(b));
+                    setReviews(sorted.slice(0,3));
+                  } catch (e) {
+                    setReviews([]);
+                  } finally {
+                    setReviewsLoading(false);
+                    setShowReviews(s => !s);
+                  }
+                } else {
+                  setShowReviews(s => !s);
+                }
+              }}>
+                <Text style={styles.ratingsCountText}>{ratingsCount} reseñas</Text>
+              </TouchableOpacity></Text>
+          ) : (
+            <TouchableOpacity onPress={async () => {
+              // intentar abrir panel de reseñas aunque avg sea null (posible que existan sin promedio)
+              if (!showReviews && reviews.length === 0) {
+                setReviewsLoading(true);
+                try {
+                  const empresaId = empresaIdParam || empresaData?.id;
+                  const rr = await api.get(`/api/empresas/${empresaId}/ratings/`);
+                  const items = Array.isArray(rr.data) ? rr.data : rr.data.results || [];
+                  // Mapear ids de usuario a username (author_name)
+                  const userIds = [...new Set(items.map(i => i.usuario || i.usuario_id).filter(Boolean))];
+                  const usersMap = {};
+                    if (userIds.length) {
+                      try {
+                        const toFetch = userIds.filter(id => !usersCacheRef.current[id]);
+                        const userPromises = toFetch.map(id =>
+                          api.get(`/api/usuarios/${id}/`).then(res => ({ id, data: res.data })).catch(() => ({ id, data: null }))
+                        );
+                        const usersResults = await Promise.all(userPromises);
+                        usersResults.forEach(u => {
+                          if (u.data) {
+                            usersCacheRef.current[u.id] = u.data.username || u.data.nombre || u.data.name || `Usuario #${u.id}`;
+                          } else {
+                            usersCacheRef.current[u.id] = `Usuario #${u.id}`;
+                          }
+                        });
+                        // Rellenar usersMap desde el cache
+                        userIds.forEach(id => { usersMap[id] = usersCacheRef.current[id]; });
+                      } catch (e) {
+                        console.warn('Error cargando usuarios de reseñas', e);
+                      }
+                    }
+                  const itemsConAutor = items.map(it => ({
+                    ...it,
+                    author_name: usersMap[it.usuario] || usersMap[it.usuario_id] || it.usuario_nombre || it.username || it.author_name || `Usuario #${it.usuario || it.usuario_id || 'desconocido'}`
+                  }));
+                  // Ordenar asc y guardar solo 3 más antiguas
+                  const parseTime = (x) => new Date(x?.creado_en || x?.created_at || x?.createdAt || 0).getTime();
+                  const sorted = itemsConAutor.sort((a,b) => parseTime(a) - parseTime(b));
+                  setReviews(sorted.slice(0,3));
+                } catch (e) {
+                  setReviews([]);
+                } finally {
+                  setReviewsLoading(false);
+                  setShowReviews(s => !s);
+                }
+              } else {
+                setShowReviews(s => !s);
+              }
+            }}>
+              <Text style={styles.avgRatingText}>Sin reseñas todavía</Text>
+            </TouchableOpacity>
+          )}
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
+          {/* Redes sociales debajo del RIF */}
+          {empresaData?.redes_sociales && empresaData.redes_sociales.length > 0 && (
+            <View style={{ marginTop: 6 }}>
+              {empresaData.redes_sociales.map((r, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => {
+                    const href = r.url;
+                    if (href) Linking.openURL(href).catch(() => {});
+                  }}
+                  style={{ paddingVertical: 4 }}
+                >
+                  <Text style={{ color: '#60a5fa' }}>{r.tipo} — {r.url}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
           <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
-          <View style={styles.accionesRow}>
-            <TouchableOpacity
-              style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
-              onPress={seguir}
-              activeOpacity={0.85}
-            >
-              <View style={styles.seguirIcon}>
-                <PersonIcon size={18} color="#ffffff" />
-              </View>
-              <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
-               
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.clasificarButton}
-              activeOpacity={0.85}
-              onPress={() => setModalVisible({ ...modalVisible, rating: true })}
-            >
-              <Text style={styles.clasificarStar}>★</Text>
-              <Text style={styles.clasificarText}>Calificar</Text>
-            </TouchableOpacity>
-          </View>
+          {!isEmpresaAccount && (
+            <View style={styles.accionesRow}>
+              <TouchableOpacity
+                style={[styles.seguirButton, isFollowing && styles.seguirButtonActive]}
+                onPress={seguir}
+                activeOpacity={0.85}
+              >
+                <View style={styles.seguirIcon}>
+                  <PersonIcon size={18} color="#ffffff" />
+                </View>
+                <Text style={styles.seguirText}>{isFollowing ? 'Siguiendo' : 'Seguir'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.clasificarButton}
+                activeOpacity={0.85}
+                onPress={() => setModalVisible({ ...modalVisible, rating: true })}
+              >
+                <Text style={styles.clasificarStar}>★</Text>
+                <Text style={styles.clasificarText}>Calificar</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </View>
   );
+
+  // Panel desplegable de reseñas
+  const renderReviewsPanel = () => {
+    if (!showReviews) return null;
+    return (
+      <View style={styles.reviewsPanel}>
+        <View style={styles.reviewsHeader}>
+          <Text style={styles.reviewsHeaderTitle}>Reseñas</Text>
+          <TouchableOpacity onPress={() => setShowReviews(false)}>
+            <Text style={styles.reviewsClose}>Cerrar</Text>
+          </TouchableOpacity>
+        </View>
+        {reviewsLoading ? (
+          <ActivityIndicator color="#fff" />
+        ) : reviews.length === 0 ? (
+          <Text style={{ color: '#94a3b8', textAlign: 'center', marginVertical: 12 }}>No hay reseñas todavía.</Text>
+        ) : (
+          <ScrollView style={{ maxHeight: 300 }}>
+            {reviews.map((r, idx) => (
+              <View key={r.id || idx} style={styles.reviewCard}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.reviewUser}>{ r.author_name || 'Usuario'}</Text>
+                  <Text style={styles.reviewRating}>{(r.rating || r.valor || r.score) ? `${Number(r.rating || r.valor || r.score).toFixed(1)} / 5` : ''}</Text>
+                </View>
+                {r.comentario ? (
+                  <Text style={styles.reviewComment}>{r.comentario}</Text>
+                ) : null}
+                {r.creado_en || r.created_at ? (
+                  <Text style={styles.reviewDate}>{new Date(r.creado_en || r.created_at).toLocaleString()}</Text>
+                ) : null}
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    );
+  };
 
   // Redes sociales dinámicas
   const redes = [
@@ -523,28 +670,90 @@ useEffect(() => {
     }
   };
 
-  const renderSocialCircles = () => {
-    const hasAny = redes.some(r => !!r.url);
-    if (!hasAny) return null;
-    return (
-      <View style={styles.socialStripContainer}>
-        <Text style={styles.socialStripTitle}>Redes sociales</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {redes.filter(r => r.url).map(r => (
-            <TouchableOpacity
-              key={r.id}
-              style={[styles.socialCircle, { borderColor: r.color }]}
-              activeOpacity={0.75}
-              onPress={() => openRedSocial(r)}
-            >
-              <Text style={styles.socialIcon}>{r.icon}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
+
+const renderSocialCircles = () => {
+  if (!empresaReady) return null;
+
+  const arr = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
+
+  if (!arr.length) {
+    // Fallback: intentar detectar campos directos en empresaData (por si el backend los expone así)
+    const directKeys = ['instagram','facebook','tiktok','youtube','whatsapp','website','x','twitter'];
+    const fallbackMap = {};
+    directKeys.forEach(k => {
+      if (empresaData?.[k]) fallbackMap[k] = empresaData[k];
+    });
+    if (Object.keys(fallbackMap).length === 0) return null;
+  }
+
+  const redesMap = {};
+
+  const normalizeUrl = (u) => {
+    if (!u) return null;
+    let url = u.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url.replace(/^\/+/, '');
+    }
+    return url;
   };
-console.log('🖼️ URL de imagen del evento:', eventos);
+
+  arr.forEach(red => {
+    const tipoRaw = (red?.tipo || red?.platform || red?.nombre || '').toString().toLowerCase().trim();
+    let key = tipoRaw;
+    if (['ig','insta'].includes(key)) key = 'instagram';
+    if (['x','twitter'].includes(key)) key = 'twitter';
+    if (['fb','face'].includes(key)) key = 'facebook';
+    if (['tt','tik_tok','tiktoc'].includes(key)) key = 'tiktok';
+    if (['yt','you_tube'].includes(key)) key = 'youtube';
+    if (['wa','wasap','whats','whatsapp'].includes(key)) key = 'whatsapp';
+    if (['web','site','pagina','website'].includes(key)) key = 'website';
+
+    const rawUrl = red?.url || red?.link || red?.enlace || red?.full_url;
+    const finalUrl = normalizeUrl(rawUrl);
+    if (key && finalUrl) {
+      redesMap[key] = finalUrl;
+    }
+  });
+
+  // Merge fallback direct fields
+  ['instagram','twitter','facebook','tiktok','youtube','whatsapp','website'].forEach(k => {
+    if (!redesMap[k] && empresaData?.[k]) {
+      const u = normalizeUrl(empresaData[k]);
+      if (u) redesMap[k] = u;
+    }
+  });
+
+  const redes = [
+    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap.instagram },
+    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap.twitter },
+    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap.facebook },
+    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap.tiktok },
+    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap.youtube },
+    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap.whatsapp },
+    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap.website },
+  ];
+
+  const visibles = redes.filter(r => !!r.url);
+  if (!visibles.length) return null;
+
+  return (
+    <View style={styles.socialStripContainer}>
+      <Text style={styles.socialStripTitle}>Redes sociales</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {visibles.map(r => (
+          <TouchableOpacity
+            key={r.id}
+            style={[styles.socialCircle, { borderColor: r.color }]}
+            activeOpacity={0.75}
+            onPress={() => Linking.openURL(r.url)}
+          >
+            <Text style={styles.socialIcon}>{r.icon}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+};
 
   const renderEventos = () => (
     <View style={styles.eventosContainer}>
@@ -596,7 +805,7 @@ console.log('🖼️ URL de imagen del evento:', eventos);
                             navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
                           }}
                         >
-                          <Text style={styles.verDetallesText}>{hasEmpresa ? 'Ver detalles' : 'Guardar'}</Text>
+                          <Text style={styles.verDetallesText}>{'Ver detalles'}</Text>
                         </TouchableOpacity>
                     </View>
                   </View>
@@ -686,6 +895,7 @@ console.log('🖼️ URL de imagen del evento:', eventos);
       <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
+          {renderReviewsPanel()}
           {renderSocialCircles()}
           {renderEventos()}
         </View>
@@ -791,6 +1001,33 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
+  avgRatingText: {
+    color: '#fbbf24',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  ratingsCountText: {
+    color: '#d1d5db',
+    fontWeight: '600',
+  },
+  reviewsPanel: {
+    backgroundColor: 'rgba(17,24,39,0.95)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
+  },
+  reviewsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  reviewsHeaderTitle: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  reviewsClose: { color: '#60a5fa', fontWeight: '600' },
+  reviewCard: { backgroundColor: '#0f172a', padding: 10, borderRadius: 10, marginBottom: 10, borderWidth: 1, borderColor: '#1f2a44' },
+  reviewUser: { color: '#fff', fontWeight: '700' },
+  reviewRating: { color: '#fbbf24', fontWeight: '700' },
+  reviewComment: { color: '#e2e8f0', marginTop: 6 },
+  reviewDate: { color: '#94a3b8', marginTop: 6, fontSize: 12 },
   seguidoresText: { fontSize: 18, color: '#d1d5db', marginBottom: 4, textAlign: 'center' },
   seguidoresCount: {
     fontWeight: 'bold',

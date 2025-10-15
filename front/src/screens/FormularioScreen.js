@@ -21,6 +21,9 @@ export default function FormularioScreen({ navigation, route }) {
   const [telefono, setTelefono] = useState('');
   const [correo, setCorreo] = useState('');
   const [redes, setRedes] = useState('');
+  // Contraseña y repetir contraseña
+  const [password, setPassword] = useState('');
+  const [repeatPassword, setRepeatPassword] = useState('');
   // --- Redes sociales múltiples (front) ---
   const [usaRedes, setUsaRedes] = useState(null); // 'si' | 'no' | null
   const SOCIAL_OPTIONS = [
@@ -35,6 +38,7 @@ export default function FormularioScreen({ navigation, route }) {
   const [socialLinks, setSocialLinks] = useState({ instagram:'', facebook:'', tiktok:'', x:'', youtube:'', whatsapp:'' });
   const [descripcion, setDescripcion] = useState(''); // si lo necesitas en actualizar
   const [errores, setErrores] = useState({});
+  const [passwordError, setPasswordError] = useState('');
   const [cargando, setCargando] = useState(false);
   const [verificado, setVerificado] = useState(false);
   const [pinDigits, setPinDigits] = useState(['','','','','','']);
@@ -63,6 +67,26 @@ export default function FormularioScreen({ navigation, route }) {
 
   const pollitoAnim = useRef(new Animated.Value(0)).current;
   
+  const normalizeSocialLink = (platform, input) => {
+  const baseUrls = {
+    instagram: 'https://instagram.com/',
+    facebook: 'https://facebook.com/',
+    tiktok: 'https://tiktok.com/@',
+    x: 'https://x.com/',
+    youtube: 'https://youtube.com/',
+    whatsapp: 'https://wa.me/' // si usas número
+  };
+
+  // Si el input ya es un enlace completo, lo dejamos tal cual
+  if (input.startsWith('http://') || input.startsWith('https://')) {
+    return input;
+  }
+
+  // Si es solo username, lo normalizamos
+  const cleanInput = input.trim().replace(/^@/, '');
+  return `${baseUrls[platform]}${cleanInput}`;
+};
+
 
   // Si viene de perfil empresa
   const empresaId = route?.params?.empresaId || null;
@@ -93,6 +117,10 @@ export default function FormularioScreen({ navigation, route }) {
   const fieldPositions = useRef({}); // { nombre: y, rif: y, ... }
   const registerFieldPosition = (key, y) => { fieldPositions.current[key] = y; };
   const scrollToField = (key) => {
+    // No desplazar la vista cuando se enfocan los campos de redes sociales
+    if (typeof key === 'string' && key.startsWith('social_')) {
+      return;
+    }
     const y = fieldPositions.current[key];
     if (y != null && scrollRef.current) {
       setTimeout(() => {
@@ -114,14 +142,19 @@ export default function FormularioScreen({ navigation, route }) {
   // ✅ Validación
   const validarCampos = () => {
     const nuevosErrores = {};
+    let passError = '';
     if (!nombre.trim()) nuevosErrores.nombre = 'Este campo es obligatorio';
     if (!rif.trim()) nuevosErrores.rif = 'Este campo es obligatorio';
     if (!lugar.trim()) nuevosErrores.lugar = 'Este campo es obligatorio';
     if (!telefono.trim()) nuevosErrores.telefono = 'Este campo es obligatorio';
     if (!correo.trim()) nuevosErrores.correo = 'Este campo es obligatorio';
+    if (!password) passError = 'La contraseña es obligatoria';
+    else if (password.length < 6) passError = 'La contraseña debe tener al menos 6 caracteres';
+    else if (password !== repeatPassword) passError = 'Las contraseñas no coinciden';
     setErrores(nuevosErrores);
-    console.log("Errores de validación:", nuevosErrores);
-    return Object.keys(nuevosErrores).length === 0;
+    setPasswordError(passError);
+    console.log("Errores de validación:", nuevosErrores, passError);
+    return Object.keys(nuevosErrores).length === 0 && !passError;
   };
 
 const handleEnviar = async () => {
@@ -138,8 +171,7 @@ const handleEnviar = async () => {
 
     
     console.log("Entrando a handleEnviar, token:", token);
-    if (!token) {
-      // 🚀 Caso 1: Registro directo como empresa
+
       let telefonoValido = telefono;
       if (!/^\+?\d{7,15}$/.test(telefono)) {
         telefonoValido = telefono.replace(/[^\d+]/g, "");
@@ -153,6 +185,16 @@ const handleEnviar = async () => {
         }
       }
       
+      // Construir array de redes sociales con los seleccionados y sus links
+      const redesSocialesArr = [];
+      if (usaRedes === 'si') {
+        Object.keys(socialChecks).forEach(key => {
+          if (socialChecks[key] && socialLinks[key].trim()) {
+            redesSocialesArr.push({ tipo: key, url: socialLinks[key].trim() });
+          }
+        });
+      }
+      console.log("Redes sociales a enviar:", redesSocialesArr);
       const empresaData = {
         nombre,
         rif: rifFormateado,
@@ -160,10 +202,12 @@ const handleEnviar = async () => {
         lugar,
         telefono: telefonoValido,
         email_contacto: correo,
-        redes_sociales: redes || "",
+        redes_sociales: redesSocialesArr,
         email: correo,
-        password: "00000000",
+        password: password,
       };
+
+      console.log("Datos a enviar para registro de empresa:", empresaData);
 
       const res = await api.post('/api/registro-empresa/', empresaData);
       const data = res.data;
@@ -183,118 +227,289 @@ const handleEnviar = async () => {
         setTimeout(() => setCargando(false), 150); // deja visible el loader unos ms hasta que cambia la vista
       });
 
-    } else {
-      // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
-      console.log("Creando empresa para usuario existente, token:");
-      const res = await api.post('/api/empresas/', {
-        rif: rifFormateado,
-        lugar,
-        telefono,
-        nombre,
-        descripcion: descripcion || "",
-        email_contacto: correo,
-        redes_sociales: redes || "",
-        email: correo,
-        password: "00000000",
-      });
+    
+    // else {
+    //   // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
+    //   console.log("Creando empresa para usuario existente, token:");
+    //   // Construir array de redes sociales con los seleccionados y sus links
+    //   const redesSocialesArr2 = [];
+    //   if (usaRedes === 'si') {
+    //     Object.keys(socialChecks).forEach(key => {
+    //       if (socialChecks[key] && socialLinks[key].trim()) {
+    //         redesSocialesArr2.push({ tipo: key, url: socialLinks[key].trim() });
+    //       }
+    //     });
+    //   }
+    //   const res = await api.post('/api/empresas/', {
+    //     rif: rifFormateado,
+    //     lugar,
+    //     telefono,
+    //     nombre,
+    //     descripcion: descripcion || "",
+    //     email_contacto: correo,
+    //     redes_sociales: redesSocialesArr2,
+    //     email: correo,
+    //     password: password,
+    //   });
 
-      console.log("Respuesta al crear empresa:", res);
-      const data = res.data;
-      if (!res.status || res.status >= 400) {
-        console.error("Error backend:", data);
-        Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
-        setCargando(false);
-        return;
-      }
-      if (data.id) {
-        await AsyncStorage.setItem("empresaId", data.id.toString());
-      }
-      navigation.navigate("Empresa", { empresaId: data.id });
-      setCargando(false);
-    }
+    //   console.log("Respuesta al crear empresa:", res);
+    //   const data = res.data;
+    //   if (!res.status || res.status >= 400) {
+    //     console.error("Error backend:", data);
+    //     Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
+    //     setCargando(false);
+    //     return;
+    //   }
+    //   if (data.id) {
+    //     await AsyncStorage.setItem("empresaId", data.id.toString());
+    //   }
+    //   navigation.navigate("Empresa", { empresaId: data.id });
+    //   setCargando(false);
+    // }
   } catch (error) {
     console.error("Error capturado en catch:", error);
     setCargando(false);
-    Alert.alert("Error", "Error inesperado, revisa la consola");
+    // Si es un error de Axios con respuesta del servidor
+    if (error?.response && error.response.data) {
+      const resp = error.response.data;
+      // Mensajes comunes: { email: ["El correo ya está registrado"] } o { detail: '...' }
+      if (resp.email && Array.isArray(resp.email) && resp.email[0]) {
+        Alert.alert('Error', 'El correo ya está en uso. Intenta con otro o inicia sesión.');
+        return;
+      }
+      // Si el backend devuelve errores agrupados por campo
+      for (const key of Object.keys(resp)) {
+        const val = resp[key];
+        if (Array.isArray(val) && val.length > 0 && /correo|email|ya está|already|exist/i.test(String(val[0]))) {
+          Alert.alert('Error', 'El correo ya está en uso. Intenta con otro o inicia sesión.');
+          return;
+        }
+      }
+      // Fallback: mostrar el mensaje que envió el servidor
+      Alert.alert('Error', JSON.stringify(resp));
+    } else {
+      Alert.alert('Error', error?.message || 'Error inesperado');
+    }
   }
 };
 
 
-// Nueva función para validar el pin y crear usuario+empresa
+// // Nueva función para validar el pin y crear usuario+empresa
+// const handleValidarPin = async () => {
+//   const pinIngresado = pinDigits.join('');
+//   if (pinIngresado.length !== PIN_LENGTH) {
+//     Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
+//     return;
+//   }
+//   if (!correo) {
+//   Alert.alert("Error", "El correo no está definido, vuelve a registrarte.");
+//   setCargando(false);
+//   return;
+// }
+//   const rifFormateado = /^\d{9}$/.test(rif)
+//         ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
+//         : (rif ? `${rifPrefix}-${rif}` : '');
+//   try {
+//     setCargando(true);
+//     // Construir array de redes sociales con los seleccionados y sus links
+//     const redesSocialesArr = [];
+//     if (usaRedes === 'si') {
+//       Object.keys(socialChecks).forEach(key => {
+//         if (socialChecks[key] && socialLinks[key].trim()) {
+//           redesSocialesArr.push({ tipo: key, url: socialLinks[key].trim() });
+//         }
+//       });
+//     }
+
+//     const token = await AsyncStorage.getItem("accessToken");
+
+//     const endpoint = token 
+//       ? '/api/validar-pin-empresa-usuario/' 
+//       : '/api/validar-pin-empresa/';
+
+
+//     const res = await api.post(endpoint, {
+//       email: correo,
+//       pin: pinIngresado,
+//       password: password,
+//       empresa: {
+//         nombre,
+//         rif: rifFormateado,
+//         lugar,
+//         telefono,
+//         email_contacto: correo,
+//         redes_sociales: redesSocialesArr,
+//         descripcion,
+//       }
+//     }, {
+//       headers: {
+//         Authorization: `Bearer ${token}`, // 👈 necesario
+//       }
+//     });
+
+// const data = res.data;
+
+// if (!res.status || res.status >= 400) {
+//   Alert.alert("Error", data?.detail || "No se pudo validar el pin");
+//   setCargando(false);
+//   return;
+// }
+
+// console.log("PIN validado y empresa creada:", data);
+
+// if (data.empresa.id) {
+//   await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
+//   if (data.usuario_id) {
+//     await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
+//   }
+// } else {
+//   Alert.alert("Error", "No se pudo obtener el ID de la empresa");
+//   setCargando(false);
+//   return;
+// }
+// await AsyncStorage.setItem('isEmpresaAccount', 'true');
+// await AsyncStorage.setItem('accessToken', data.access);
+// await AsyncStorage.setItem('refreshToken', data.refresh);
+// await AsyncStorage.setItem('empresa', JSON.stringify(data));
+// if (data.usuario_id) {
+//   await AsyncStorage.setItem('usuarioId', data.usuario_id.toString());
+// }
+
+// Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
+// setCargando(false);
+// navigation.reset({
+//   index: 0,
+//   routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
+// });
+    
+//   } catch (error) {
+//     setCargando(false);
+//     // Marcar error de PIN si el backend devuelve 400/401 o respuesta esperada de PIN inválido
+//     setPinError(true);
+//   }
+
+// };
+
 const handleValidarPin = async () => {
   const pinIngresado = pinDigits.join('');
   if (pinIngresado.length !== PIN_LENGTH) {
     Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
     return;
   }
+
   if (!correo) {
-  Alert.alert("Error", "El correo no está definido, vuelve a registrarte.");
-  setCargando(false);
-  return;
-}
+    Alert.alert("Error", "El correo no está definido, vuelve a registrarte.");
+    setCargando(false);
+    return;
+  }
+
   const rifFormateado = /^\d{9}$/.test(rif)
-        ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
-        : (rif ? `${rifPrefix}-${rif}` : '');
+    ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
+    : (rif ? `${rifPrefix}-${rif}` : '');
+
   try {
     setCargando(true);
-    const res = await api.post('/api/validar-pin-empresa/', {
-  email: correo,
-  pin: pinIngresado,
-  password: "00000000",
-  empresa: {
-    nombre,
-    rif: rifFormateado,
-    lugar,
-    telefono,
-    email_contacto: correo,
-    redes_sociales: redes || "",
-    descripcion,
-  }
-});
 
-const data = res.data;
+    // Construir array de redes sociales con los seleccionados y sus links
+    const redesSocialesArr = [];
+    if (usaRedes === 'si') {
+      Object.keys(socialChecks).forEach(key => {
+        if (socialChecks[key] && socialLinks[key].trim()) {
+          redesSocialesArr.push({ tipo: key, url: socialLinks[key].trim() });
+        }
+      });
+    }
 
-if (!res.status || res.status >= 400) {
-  Alert.alert("Error", data?.detail || "No se pudo validar el pin");
-  setCargando(false);
-  return;
-}
+    const token = await AsyncStorage.getItem("accessToken");
 
-console.log("PIN validado y empresa creada:", data);
+    const endpoint = token
+      ? '/api/validar-pin-empresa-usuario/'
+      : '/api/validar-pin-empresa/';
 
-if (data.empresa.id) {
-  await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
-  if (data.usuario_id) {
-    await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
-  }
-} else {
-  Alert.alert("Error", "No se pudo obtener el ID de la empresa");
-  setCargando(false);
-  return;
-}
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-await AsyncStorage.setItem('accessToken', data.access);
-await AsyncStorage.setItem('refreshToken', data.refresh);
-await AsyncStorage.setItem('empresa', JSON.stringify(data));
-if (data.usuario_id) {
-  await AsyncStorage.setItem('usuarioId', data.usuario_id.toString());
-}
+    const res = await api.post(endpoint, {
+      email: correo,
+      pin: pinIngresado,
+      password: password, // 🔹 password necesario en ambos flujos
+      empresa: {
+        nombre,
+        rif: rifFormateado,
+        lugar,
+        telefono,
+        email_contacto: correo,
+        redes_sociales: redesSocialesArr,
+        descripcion,
+      }
+    }, { headers });
 
-Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
-setCargando(false);
-navigation.reset({
-  index: 0,
-  routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
-});
+    const data = res.data;
+
+    if (!res.status || res.status >= 400) {
+      Alert.alert("Error", data?.detail || "No se pudo validar el pin");
+      setCargando(false);
+      return;
+    }
+
+    console.log("PIN validado y empresa creada:", data);
+
+    // Guardar datos en AsyncStorage
+    if (data.empresa && data.empresa.id) {
+      await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
+    } else {
+      console.warn("No se encontró data.empresa.id", data);
+    }
     
+    if (data.usuario_id) {
+      await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
+    }
+
+    if (data.access) await AsyncStorage.setItem('accessToken', data.access);
+    if (data.refresh) await AsyncStorage.setItem('refreshToken', data.refresh);
+
+    await AsyncStorage.setItem('isEmpresaAccount', 'true');
+    await AsyncStorage.setItem('empresa', JSON.stringify(data.empresa));
+
+    Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
+    setCargando(false);
+
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
+    });
+
   } catch (error) {
     setCargando(false);
-    // Marcar error de PIN si el backend devuelve 400/401 o respuesta esperada de PIN inválido
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+
+    // Flujo esperado: PIN inválido / expirado
+    if (status === 400 || status === 401) {
+      const msg = (data?.detail || data?.message || '').toString().toLowerCase();
+      if (
+        data?.code === 'PIN_INVALID' ||
+        data?.error === 'PIN_INVALID' ||
+        data?.errors?.pin ||
+        /pin.*(inválid|invalid|incorrect|expir)/i.test(msg) ||
+        /c[oó]digo/.test(msg)
+      ) {
+        setPinError(true);
+        return; // no console.error
+      }
+    }
+
+    // Error de red
+    if (!status) {
+      Alert.alert('Error de red', 'No se pudo validar el PIN. Revisa tu conexión.');
+      return;
+    }
+
+    // Error inesperado
+    console.error("Error inesperado al validar PIN:", error);
+    Alert.alert('Error', data?.detail || 'Ocurrió un error inesperado al validar el PIN.');
     setPinError(true);
   }
-
 };
-
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top }}>
@@ -344,7 +559,6 @@ navigation.reset({
                     onPress={async () => {
                       try {
                         const res = await api.post('/api/reenviar-pin-empresa/', { email: correo });
-                        Alert.alert('PIN reenviado', res?.data?.detail || 'Revisa tu correo');
                         setPinError(false);
                         setPinDigits(['','','','','','']);
                         const t2 = setTimeout(() => setPinResendAvailable(true), 60000);
@@ -446,7 +660,7 @@ navigation.reset({
         ) : (
           <KeyboardAvoidingView
             style={{ flex:1, width:'100%' }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
           >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
@@ -454,7 +668,7 @@ navigation.reset({
             ref={scrollRef}
             style={{ flex: 1, width: '100%' }}
             contentContainerStyle={[styles.formContainer, { paddingTop: topSpacer, paddingBottom: insets.bottom + 340 }]} // padding extra para evitar solapamiento
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             showsVerticalScrollIndicator={false}
           >
             {/* Botón Volver */}
@@ -565,6 +779,37 @@ navigation.reset({
               />
             </View>
             {errores.correo && <Text style={styles.errorText}>{errores.correo}</Text>}
+            {/* Contraseña y repetir contraseña */}
+            <Text style={styles.label}>Contraseña</Text>
+            <View onLayout={e => registerFieldPosition('password', e.nativeEvent.layout.y)}>
+              <TextInput
+                style={styles.input}
+                placeholder="Contraseña"
+                placeholderTextColor="#888"
+                value={password}
+                onChangeText={text => { setPassword(text); if (passwordError) setPasswordError(''); }}
+                onFocus={() => scrollToField('password')}
+                secureTextEntry
+                returnKeyType='next'
+                autoCapitalize='none'
+              />
+            </View>
+            <Text style={styles.label}>Repetir contraseña</Text>
+            <View onLayout={e => registerFieldPosition('repeatPassword', e.nativeEvent.layout.y)}>
+              <TextInput
+                style={styles.input}
+                placeholder="Repetir contraseña"
+                placeholderTextColor="#888"
+                value={repeatPassword}
+                onChangeText={text => { setRepeatPassword(text); if (passwordError) setPasswordError(''); }}
+                onFocus={() => scrollToField('repeatPassword')}
+                secureTextEntry
+                returnKeyType='done'
+                autoCapitalize='none'
+              />
+            </View>
+            {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+
             <Text style={styles.label}>¿Agregar redes sociales?</Text>
             <View style={{ flexDirection:'row', marginBottom: 12 }}>
               {['si','no'].map(op => (
@@ -606,10 +851,14 @@ navigation.reset({
                             placeholder={`Enlace o usuario de ${opt.label}`}
                             placeholderTextColor="#888"
                             value={socialLinks[opt.key]}
-                            onChangeText={txt => setSocialLinks(prev => ({ ...prev, [opt.key]: txt }))}
+                            onChangeText={txt => {
+                              const normalized = normalizeSocialLink(opt.key, txt);
+                              setSocialLinks(prev => ({ ...prev, [opt.key]: normalized }));
+                            }}
                             autoCapitalize='none'
-                            onFocus={() => scrollToField(`social_${opt.key}`)}
+                            onFocus={() => {/* intencionalmente no desplazamos la vista para redes */}}
                             returnKeyType='done'
+                            blurOnSubmit={true}
                           />
                         </View>
                       )}

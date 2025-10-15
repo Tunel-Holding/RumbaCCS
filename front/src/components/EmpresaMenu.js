@@ -4,7 +4,7 @@ import { SvgXml } from 'react-native-svg';
 
 const menuIcon = `<svg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='white'><path stroke-linecap='round' stroke-linejoin='round' d='M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5' /></svg>`;
 
-export default function EmpresaMenu({ visible, setVisible, onMenuItemPress }) {
+export default function EmpresaMenu({ visible, setVisible, onMenuItemPress, onLogoutPress }) {
   return (
     <>
       <TouchableOpacity style={styles.menuButton} onPress={() => setVisible(true)}>
@@ -26,9 +26,10 @@ export default function EmpresaMenu({ visible, setVisible, onMenuItemPress }) {
             <TouchableOpacity onPress={() => onMenuItemPress('notifications')} style={styles.menuItem}>
               <Text style={styles.menuText}>Notificaciones</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => onMenuItemPress('register')} style={styles.menuItem}>
-              <Text style={styles.menuText}>Registrarse como usuario</Text>
+            <TouchableOpacity onPress={() => { setVisible(false); onLogoutPress && onLogoutPress(); }} style={[styles.menuItem, styles.logoutItem]}>
+              <Text style={[styles.menuText, styles.logoutText]}>Cerrar sesión</Text>
             </TouchableOpacity>
+            
           </View>
         </View>
       </Modal>
@@ -80,5 +81,7 @@ const styles = StyleSheet.create({
   menuText: { color: '#fff', fontSize: 20, fontWeight: '600', letterSpacing: 0.5 },
   closeBtn: { marginTop: 8 },
   closeText: { color: '#ff007f', fontSize: 16, marginTop: 12 },
+  logoutItem: { backgroundColor: 'transparent' },
+  logoutText: { color: '#ef4444', fontSize: 20, fontWeight: '700' },
 });
 

@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { View, Text, Alert, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar } from 'react-native';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, Alert, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { loginConFallback } from '../utils/auth';
 import api from '../services/api'; 
- import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import StandardHeader from '../components/StandardHeader';
 
 
 // Footer links (copiados de HomeScreen.js)
@@ -32,12 +33,12 @@ const COLORS = {
 // Eventos de la misma empresa (dinámicos)
 // Se cargan una vez que conocemos el evento principal.
 // Si la empresa no tiene más eventos, la sección no se mostrará.
-let companyEventsInit = [];
 
 const { width } = Dimensions.get('window');
 
 export default function BuyScreen() {
   const insets = useSafeAreaInsets();
+  const [isLogged, setIsLogged] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [companyEvents, setCompanyEvents] = useState([]); // eventos de la misma empresa
   const [companyEventsLoading, setCompanyEventsLoading] = useState(false);
@@ -50,8 +51,31 @@ export default function BuyScreen() {
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
   const [empresaData, setEmpresaData] = useState(null);
+  const [userData, setUserData] = useState(null); // Estado para datos del usuario
+  // Memo para evitar recrear el objeto avatar_url en cada render
+  const userAvatarUrl = useMemo(() => userData?.avatar_url ? `${userData.avatar_url}` : null, [userData?.avatar_url]);
+  // Cargar datos del usuario logueado al enfocar la pantalla
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const userId = await AsyncStorage.getItem('userId');
+      if (userId) {
+        try {
+          const userResponse = await api.get(`/api/usuarios/${userId}/`);
+          let cleanAvatarUrl = userResponse.data.avatar_url;
+          if (cleanAvatarUrl && typeof cleanAvatarUrl === 'string') {
+            cleanAvatarUrl = cleanAvatarUrl.replace(/\?$/, '');
+          }
+          setUserData({ ...userResponse.data, avatar_url: cleanAvatarUrl });
+        } catch (e) {
+          setUserData(null);
+        }
+      } else {
+        setUserData(null);
+      }
+    };
+    if (isLogged) fetchUserData();
+  }, [isLogged, loginVisible]);
   const [loading, setLoading] = useState(true);
-  const [isLogged, setIsLogged] = useState(false);
   const [eventoS,setEventoS] = useState(false); //Valida que los datos del evento fueron guardados
   const [hasEmpresa, setHasEmpresa] = useState(false); // True si el usuario logueado es una empresa (tiene empresaId)
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
@@ -103,9 +127,7 @@ export default function BuyScreen() {
     (async () => {
       try {
         const empresaId = await AsyncStorage.getItem('empresaId');
-        console.log('🔍 BuyScreen - empresaId detectado:', empresaId);
         const isEmpresa = !!(empresaId && empresaId !== '');
-        console.log('🔍 BuyScreen - hasEmpresa será:', isEmpresa);
         setHasEmpresa(isEmpresa);
         setOwnEmpresaId(empresaId || null);
       } catch (e) {
@@ -119,8 +141,14 @@ export default function BuyScreen() {
  const handleLogin = async () => {
   setLoginError('');
   setLoginLoading(true);
-  const resultado = await loginConFallback(user, pass);
-  setLoginLoading(false);
+  let resultado;
+  try {
+    resultado = await loginConFallback(user, pass);
+  } finally {
+    setLoginLoading(false);
+    // limpiar campos de login
+    try { setUser(''); setPass(''); } catch (e) {}
+  }
 
   if (resultado.error) {
     switch (resultado.tipo) {
@@ -138,9 +166,31 @@ export default function BuyScreen() {
   }
 
   setIsLogged(true);
+  // Persist session and user info similarly to other screens
+  try {
+    if (resultado.data?.access) await AsyncStorage.setItem('accessToken', resultado.data.access);
+    if (resultado.data?.refresh) await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
+    if (resultado.data?.user) {
+      const ud = resultado.data.user;
+      await AsyncStorage.setItem('userId', ud.id.toString());
+      if (ud.username) await AsyncStorage.setItem('userName', ud.username);
+      // normalize avatar
+      let cleanAvatar = ud.avatar_url || ud.avatar || null;
+      if (cleanAvatar && typeof cleanAvatar === 'string') cleanAvatar = cleanAvatar.replace(/\?$/, '');
+      setUserData({ ...ud, avatar_url: cleanAvatar });
+    }
+    if (resultado.data?.empresa) {
+      await AsyncStorage.setItem('empresaId', resultado.data.empresa.id.toString());
+      setEmpresaData(resultado.data.empresa);
+      setHasEmpresa(true);
+    }
+  } catch (e) {
+    console.log('Error persisting login info:', e);
+  }
   setLoginVisible(false);
   setLoginError('');
 };
+
 
   const handleLogout = async () => {
     await AsyncStorage.removeItem('accessToken');
@@ -149,7 +199,6 @@ export default function BuyScreen() {
     await AsyncStorage.removeItem('empresaId');
     await AsyncStorage.clear();
     setIsLogged(false);
-    Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente');
   };
 
   useEffect(() => {
@@ -162,7 +211,6 @@ export default function BuyScreen() {
     try {
       // 1. Fetch del evento
       const resEvento = await api.get(`/api/eventos-publicos/${idEvento}/`);
-      console.log('📦 Evento recibido:', resEvento.data);
       setEvento(resEvento.data);
       setEventoS(true);
 
@@ -246,6 +294,7 @@ export default function BuyScreen() {
   const [isSaved, setIsSaved] = useState(false);
   const [savedId, setSavedId] = useState(null); // id del registro guardado
   const [currentEventoId, setCurrentEventoId] = useState(null);
+  const [saveLoading, setSaveLoading] = useState(false);
 
   // Verificar si el evento está guardado (recarga en cambios de usuario, evento y tras guardar/quitar)
   const [refreshSaved, setRefreshSaved] = useState(0);
@@ -262,10 +311,16 @@ export default function BuyScreen() {
       try {
         // Forzar recarga sin cache
         const res = await api.get('/api/eventos-guardados/?evento=' + idEvento + '&_=' + Date.now());
-        const isGuardado = Array.isArray(res.data) && res.data.length > 0;
+        // Normalizar respuesta: puede ser array directo o paginado { results: [...] }
+        const dataArray = Array.isArray(res?.data)
+          ? res.data
+          : (res?.data && Array.isArray(res.data.results) ? res.data.results : []);
+        if (!Array.isArray(res?.data) && !Array.isArray(res?.data?.results)) {
+          console.warn('BuyScreen.checkSaved: /api/eventos-guardados returned non-array response:', res?.data);
+        }
+        const isGuardado = dataArray.length > 0;
         setIsSaved(isGuardado);
-        setSavedId(isGuardado ? res.data[0].id : null);
-        console.log(`Evento ${idEvento} guardado:`, isGuardado, res.data);
+        setSavedId(isGuardado ? dataArray[0].id : null);
       } catch (err) {
         setIsSaved(false);
         setSavedId(null);
@@ -282,28 +337,38 @@ export default function BuyScreen() {
     }
     if (!idEvento) return;
     try {
+      // Prevent duplicate requests
+      setSaveLoading(true);
       if (!isSaved) {
         // Guardar evento
         const res = await api.post('/api/eventos-guardados/', {
           evento: idEvento,
         });
-        if (res.data.id) {
-          alert('Evento guardado correctamente');
-          setRefreshSaved(r => r + 1); // fuerza recarga
+        if (res?.data?.id) {
+          // Update UI immediately
+          setIsSaved(true);
+          setSavedId(res.data.id);
+          setRefreshSaved(r => r + 1); // fuerza recarga en background
         } else {
-          alert('Error al guardar: ' + JSON.stringify(res.data));
+          alert('Error al guardar: ' + JSON.stringify(res?.data));
         }
       } else {
         // Quitar de guardados
         if (savedId) {
           await api.delete('/api/eventos-guardados/' + savedId + '/');
         }
-        alert('Evento quitado de guardados');
-        setRefreshSaved(r => r + 1); // fuerza recarga
+        // Update UI immediately
+        setIsSaved(false);
+        setSavedId(null);
+
+        setRefreshSaved(r => r + 1); // fuerza recarga en background
       }
     } catch (err) {
-      console.error('❌ Error al guardar/quitar:', err.message);
-      alert('Error al guardar/quitar: ' + err.message);
+      console.error('❌ Error al guardar/quitar:', err?.message || err);
+      alert('Error al guardar/quitar: ' + (err?.message || JSON.stringify(err)));
+    }
+    finally {
+      setSaveLoading(false);
     }
   };
   
@@ -332,7 +397,14 @@ export default function BuyScreen() {
         setCompanyEventsLoading(true);
         const res = await api.get('/api/eventos-publicos/');
         if (cancelado) return;
-        const filtrados = res.data.filter(ev => {
+      
+        const sourceData = Array.isArray(res?.data)
+          ? res.data
+          : (res?.data && Array.isArray(res.data.results) ? res.data.results : []);
+        if (!Array.isArray(res?.data) && (!res?.data || !Array.isArray(res.data.results))) {
+          console.warn('BuyScreen: /api/eventos-publicos returned non-array response:', res?.data);
+        }
+        const filtrados = sourceData.filter(ev => {
           if (ev.id === evento.id) return false;
           const catsEv = Array.isArray(ev.categoria)
             ? ev.categoria
@@ -361,7 +433,7 @@ export default function BuyScreen() {
         setRelatedIndex(0);
 
         // Eventos de la misma empresa (excluyendo el actual)
-        const mismos = res.data.filter(ev => ev.empresa === evento.empresa && ev.id !== evento.id);
+      const mismos = sourceData.filter(ev => ev.empresa === evento.empresa && ev.id !== evento.id);
         const mismosMap = mismos.map(ev => {
           let imgSource = require('../../assets/register-bg.jpg');
           if (Array.isArray(ev.imagenes) && ev.imagenes.length > 0 && ev.imagenes[0]?.url) {
@@ -395,55 +467,20 @@ export default function BuyScreen() {
     fetchRelated();
     return () => { cancelado = true; };
   }, [evento]);
-  // Header unificado igual que HomeScreen
-  const Header = () => (
-    <View style={styles.headerHome}> 
-      <View style={styles.headerContainerHome}>
-        <View style={styles.logoContainerHome}>
-          <Text style={styles.logoTextHome}>R U M B A</Text>
-          <Text style={styles.logoSubtextHome}>CCS</Text>
-        </View>
-        <View style={styles.headerRightHome}>
-          {isLogged ? (
-            <TouchableOpacity
-              style={[styles.loginBtnHome, { backgroundColor: '#ef4444' }]}
-              onPress={handleLogout}
-            >
-              <Text style={styles.loginBtnTextHome}>Cerrar sesión</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.loginBtnHome}
-              onPress={() => setLoginVisible(true)}
-            >
-              <Text style={styles.loginBtnTextHome}>Iniciar sesión</Text>
-            </TouchableOpacity>
-          )}
-          {isLogged && (
-            <TouchableOpacity onPress={() => navigation.navigate('Perfil')}>
-              <Image
-                source={{ uri: 'https://randomuser.me/api/portraits/men/32.jpg' }}
-                style={{ width: 32, height: 32, borderRadius: 16, marginLeft: 12, borderWidth: 2, borderColor: '#0ea5e9' }}
-              />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-    </View>
-  );
+  // Use shared HeaderBase component
 
   // Footer de HomeScreen.js
   const Footer = () => (
-    <View style={styles.footer}>
-      <Text style={styles.footerTitle}>RumbaCCS</Text>
-      <Text style={styles.footerDesc}>Tu plataforma de confianza para reservas de eventos y experiencias memorables.</Text>
-      <View style={styles.footerLinks}>
-        {footerLinks.map((l, i) => (
-          <Text key={i} style={styles.footerLink}>{l.title}</Text>
-        ))} 
-      </View>
-      <Text style={styles.footerCopyright}>© 2025 RumbaCCS. Todos los derechos reservados.</Text>
-    </View>
+     <View style={styles.footer}>
+              <Text style={styles.footerTitle}>RumbaCCS</Text>
+              <Text style={styles.footerDesc}>Tu plataforma de confianza para reservas de eventos y experiencias memorables.</Text>
+              <View style={styles.footerLinks}>
+                {footerLinks.map((l, i) => (
+                  <Text key={i} style={styles.footerLink}>{l.title}</Text>
+                ))}
+              </View>
+              <Text style={styles.footerCopyright}>© 2025 Tunel Holding. Todos los derechos reservados.</Text>
+            </View>
   );
 if (loading) {
   return (
@@ -458,8 +495,22 @@ if (loading) {
 }
 
   return (
-    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}> 
-      <Header />
+      <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}> 
+    
+      <StandardHeader
+        isLogged={isLogged}
+        onLoginPress={() => setLoginVisible(true)}
+        onLogoutPress={handleLogout}
+        hasEmpresa={hasEmpresa}
+        isEmpresaAccount={hasEmpresa}
+        isUserAccount={!hasEmpresa}
+        userAvatarUrl={userAvatarUrl}
+        empresaData={empresaData}
+        isHomeScreen={false}
+        style={styles.headerHome}
+        logoContainerStyle={styles.logoContainerHome}
+        menuButtonStyle={styles.headerRightHome}
+      />
       {/* Barra de volver debajo del header */}
       <View style={[styles.backBar, { marginTop: 4 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>
@@ -574,6 +625,16 @@ if (loading) {
                   {eventDetails.empresa}
                 </Text>
               </TouchableOpacity>
+              {/* Mostrar links de la empresa (si vienen) */}
+              {eventDetails.empresa_redes && eventDetails.empresa_redes.length > 0 && (
+                <View style={{ marginTop: 6 }}>
+                  {eventDetails.empresa_redes.map((r, i) => (
+                    <TouchableOpacity key={i} onPress={() => r.url && Linking.openURL(r.url)} style={{ paddingVertical: 4 }}>
+                      <Text style={{ color: COLORS.primary }}>{r.tipo} — {r.url}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -679,12 +740,16 @@ if (loading) {
             style={[styles.reserveButton, isSaved ? styles.reserveButtonSaved : null]}
             onPress={handleSave}
             activeOpacity={0.8}
-            disabled={isSaved === null}
+            disabled={isSaved === null || saveLoading}
           >
             <View style={styles.buttonContent}>
-              <Text style={[styles.buttonText, isSaved ? styles.buttonTextSaved : null]}>
-                {isSaved ? 'Quitar de guardados' : 'Guardar'}
-              </Text>
+              {saveLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={[styles.buttonText, isSaved ? styles.buttonTextSaved : null]}>
+                  {isSaved ? 'Quitar de guardados' : 'Guardar'}
+                </Text>
+              )}
             </View>
           </TouchableOpacity>
         )}
@@ -698,8 +763,12 @@ if (loading) {
         transparent
         onRequestClose={() => setLoginVisible(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
-          <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative' }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={insets.top}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}
+        >
+          <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: Math.min(320, width - 32), alignItems: 'center', position: 'relative' }}>
             <Pressable style={{ position: 'absolute', top: 8, right: 12, zIndex: 2 }} onPress={() => setLoginVisible(false)}>
               <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
             </Pressable>
@@ -746,7 +815,7 @@ if (loading) {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -831,6 +900,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#0f172a',
+    
   },
   headerHome: { backgroundColor: '#0f172a', paddingHorizontal: 22, paddingTop: 24, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', marginBottom: 12 },
   headerContainerHome: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -844,7 +914,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 18,
-    marginTop: -6,
     marginBottom: 8,
   },
   backBarBtn: {

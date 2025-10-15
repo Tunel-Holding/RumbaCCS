@@ -89,30 +89,7 @@ export default function RegisterScreen({ navigation, route }) {
   const { accountType } = route.params ?? {};
 
   const [errors, setErrors] = useState({});
-  // Validación en tiempo real de email único
-  useEffect(() => {
-    let timeout;
-    if (email && /^([a-zA-Z0-9_.+-]+)@(gmail|hotmail)\.com$/.test(email.trim())) {
-      setCheckingEmail(true);
-      timeout = setTimeout(async () => {
-        try {
-          const res = await api.post('/api/check-email/', { email: email.trim() });
-          if (res.data.exists) {
-            setErrors(e => ({ ...e, email: 'Este correo ya está registrado' }));
-          } else {
-            setErrors(e => ({ ...e, email: undefined }));
-          }
-        } catch (err) {
-          // Si hay error, no bloquea el registro, pero muestra mensaje genérico
-          setErrors(e => ({ ...e, email: 'Error al validar el correo' }));
-        } finally {
-          setCheckingEmail(false);
-        }
-      }, 600);
-    }
-    return () => clearTimeout(timeout);
-  }, [email]);
-  const [formError, setFormError] = useState('');
+  
 
   // --- Flujo PIN (similar a FormularioScreen) ---
   const [cargando, setCargando] = useState(false); // reutilizado como paso de verificación activo
@@ -171,7 +148,7 @@ export default function RegisterScreen({ navigation, route }) {
   // Email: obligatorio, debe ser válido y terminar en gmail.com o hotmail.com
   if (!email.trim()) newErrors.email = 'Este campo es obligatorio';
   else if (!/^([a-zA-Z0-9_.+-]+)@(gmail|hotmail)\.com$/.test(email.trim())) newErrors.email = 'El correo debe ser válido';
-  else if (errors.email === 'Este correo ya está registrado') newErrors.email = errors.email;
+  else if (errors.email === 'Vuelva a introducir su correo') newErrors.email = errors.email;
 
       // Contraseña
       if (!pass) newErrors.pass = 'Este campo es obligatorio';
@@ -290,7 +267,7 @@ export default function RegisterScreen({ navigation, route }) {
                             ? 'api/reenviar-pin-empresa/'
                             : 'api/send-verification-code/';
                         const res = await api.post(endpoint, { email });
-                        Alert.alert('PIN reenviado', res?.data?.detail || res?.data?.message || 'Revisa tu correo');
+                        // Alert.alert('PIN reenviado', res?.data?.detail || res?.data?.message || 'Revisa tu correo');
                         setPinError(false);
                         setPinDigits(['','','','','','']);
                         setPinResendAvailable(false);
@@ -327,7 +304,7 @@ export default function RegisterScreen({ navigation, route }) {
                   const result = res.data;
                   
                   if (res.status === 200) {
-                    Alert.alert('PIN enviado', result.detail || result.message || 'Se ha enviado un nuevo PIN a tu correo.');
+                    // Alert.alert('PIN enviado', result.detail || result.message || 'Se ha enviado un nuevo PIN a tu correo.');
                   } else {
                     Alert.alert('Error', result.detail || result.message || 'No se pudo reenviar el PIN.');
                   }
@@ -415,7 +392,14 @@ export default function RegisterScreen({ navigation, route }) {
                   setVerificado(true);
                   setCargando(false);
                 } catch (err) {
-                  Alert.alert('Error', err.message || 'No se pudo verificar el PIN.');
+                  if (err.response && err.response.status === 400) {
+                    // PIN incorrecto → mostrar vista amigable
+                    setPinError(true);
+                    triggerShake();
+                  } else {
+                    // Error inesperado → alerta genérica
+                    Alert.alert('Error', err.message || 'No se pudo verificar el PIN.');
+                  }
                   setConfirmingPin(false);
                 }
               }}
@@ -1010,10 +994,10 @@ const styles = StyleSheet.create({
   pinErrorIcon: { fontSize: 34, color: '#ef4444', fontWeight: 'bold' },
   pinErrorTitle: { fontSize: 22, fontWeight: 'bold', color: '#ef4444', marginBottom: 8, textAlign: 'center' },
   pinErrorSubtitle: { fontSize: 15, color: '#cbd5e1', textAlign: 'center', lineHeight: 20, marginBottom: 22 },
-  pinErrorButtonsRow: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', gap: 12 },
-  pinErrorBtnPrimary: { flex:1, backgroundColor: '#3b82f6', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor:'#000', shadowOpacity:0.25, shadowOffset:{width:0,height:2}, shadowRadius:4, elevation:4 },
+  pinErrorButtonsRow: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', marginTop: 8 },
+  pinErrorBtnPrimary: { flex:0.48, minWidth: 120, backgroundColor: '#3b82f6', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor:'#000', shadowOpacity:0.25, shadowOffset:{width:0,height:2}, shadowRadius:4, elevation:4, marginRight: 12 },
   pinErrorBtnPrimaryText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-  pinErrorBtnSecondary: { flex:1, backgroundColor: '#6366f1', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor:'#000', shadowOpacity:0.2, shadowOffset:{width:0,height:2}, shadowRadius:4, elevation:4 },
+  pinErrorBtnSecondary: { flex:0.48, minWidth: 120, backgroundColor: '#6366f1', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor:'#000', shadowOpacity:0.2, shadowOffset:{width:0,height:2}, shadowRadius:4, elevation:4 },
   pinErrorBtnSecondaryText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
   pinErrorMenuLink: { marginTop: 20 },
   pinErrorMenuLinkText: { color: '#94a3b8', fontSize: 14, textDecorationLine: 'underline' },

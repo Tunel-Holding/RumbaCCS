@@ -1,3 +1,4 @@
+  // ...existing code...
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -16,19 +17,72 @@ import {
   TextInput,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
-import PersonIcon from '../components/PersonIcon';
 import EmpresaMenu from '../components/EmpresaMenu';
-import HamburgerMenu from '../components/HamburgerMenu';
+import NotificationsModal from '../components/NotificationsModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
-import { loginConFallback } from '../utils/auth';
 
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreen() {
+  // Estado y lógica para seguidores
+  const [seguidores, setSeguidores] = useState([]);
+  const [seguidoresModal, setSeguidoresModal] = useState(false);
+  const [empresaReady, setEmpresaReady] = useState(false);
+
+
+  // Función para obtener los seguidores de la empresa
+  const fetchSeguidores = async () => {
+    try {
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      if (!empresaId) return setSeguidores([]);
+      const res = await api.get(`/api/empresas/${empresaId}/seguidores/`);
+      setSeguidores(res.data || []);
+    } catch (e) {
+      setSeguidores([]);
+    }
+  };
+
+  // Modal para mostrar los seguidores
+  const renderSeguidoresModal = () => (
+    <Modal
+      visible={seguidoresModal}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setSeguidoresModal(false)}
+    >
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative' }}>
+          <TouchableOpacity style={{ position: 'absolute', top: 8, right: 12, zIndex: 2 }} onPress={() => setSeguidoresModal(false)}>
+            <Text style={{ fontSize: 24, color: '#0ea5e9' }}>×</Text>
+          </TouchableOpacity>
+          <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Usuarios que te siguen</Text>
+          <ScrollView style={{ maxHeight: 300, width: '100%' }}>
+            {seguidores.length === 0 ? (
+              <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>No tienes seguidores aún.</Text>
+            ) : (
+              seguidores.map((seguidor, idx) => (
+                <View key={seguidor.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  {seguidor.avatar_url ? (
+                    <Image source={{ uri: seguidor.avatar_url }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
+                  ) : (
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                      <Text style={{ fontSize: 20, color: '#6b7280' }}>👤</Text>
+                    </View>
+                  )}
+                  <Text style={{ fontSize: 16, color: '#111827' }}>{seguidor.username || seguidor.nombre || 'Usuario'}</Text>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
@@ -39,12 +93,62 @@ export default function EmpresaScreen() {
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [notifAnim] = useState(new Animated.Value(0));
   const [loading, setLoading] = useState(true);
+  const [avatarLoading, setAvatarLoading] = useState(false);
 
-  const datos = false
+
   // Animaciones
   const menuAnim = useRef(new Animated.Value(0)).current;
 
   const [empresaData, setEmpresaData] = useState(null);
+
+  // Estado derivado para controlar UI cuando la empresa está pendiente o rechazada
+  const status = empresaData?.status;
+  const isPending = status === 'pending';
+  const isRejected = status === 'rejected';
+  const isBlocked = isPending || isRejected;
+
+  const parseRejectionReasons = (text) => {
+    if (!text) return [];
+    // 1. Unificar saltos y sustituir separadores comunes por "\n"
+    let cleaned = text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\u2022/g, '\n')   // bullet •
+      .replace(/•/g, '\n')
+      .replace(/;/g, '\n');
+
+    // 2. Si hay muchos '.' seguidos de espacio que separan frases, los convertimos provisionalmente
+    //    (solo si no hay ya varios saltos)
+    if (!cleaned.includes('\n')) {
+      cleaned = cleaned.replace(/\. +/g, '\n');
+    }
+
+    // 3. Split final
+    let parts = cleaned
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    // 4. Si todavía quedó todo en una sola línea, intentar dividir por punto final
+    if (parts.length <= 1) {
+      const dotParts = text
+        .split('.')
+        .map(s => s.trim())
+        .filter(Boolean);
+      if (dotParts.length > 1) parts = dotParts;
+    }
+
+    // 5. Eliminar duplicados accidentales
+    const unique = [];
+    const seen = new Set();
+    for (const p of parts) {
+      if (!seen.has(p.toLowerCase())) {
+        seen.add(p.toLowerCase());
+        unique.push(p);
+      }
+    }
+    return unique;
+  };
 
   useEffect(() => {
   const fetchEmpresa = async () => {
@@ -57,9 +161,10 @@ export default function EmpresaScreen() {
       }
 
       const response = await api.get(`/api/empresas/${empresaId}/`);
+
       
       setEmpresaData(response.data);
-      console.log("Datos de empresa:", response.data);
+      
    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
@@ -74,56 +179,100 @@ export default function EmpresaScreen() {
   fetchEmpresa();
 }, []);
 
+useEffect(() => {
+  if (empresaData && empresaData.id) {
+    setEmpresaReady(true);
+  }
+}, [empresaData]);
+
+
   // Datos de empresa con valores por defecto si no hay datos
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
-    seguidores: empresaData?.seguidores || 0,
-    eventosPublicados: empresaData?.eventosPublicados || 0,
+    seguidores: empresaData?.total_seguidores || 0,
+    eventosPublicados: empresaData?.total_eventos || 0,
   }
 
-
-
 const handleUploadFoto = async (empresaId) => {
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-    quality: 0.8,
-  });
-
-  if (result.canceled) return;
-
-  const file = {
-    uri: result.assets[0].uri,
-    name: "profile.jpg",
-    type: "image/jpeg",
-  };
-
-  const formData = new FormData();
-  formData.append("file", file);
-
-  console.log("Subiendo foto para empresaId:", empresaId);
+  if (!empresaId) return { ok: false, error: 'No empresa id' };
 
   try {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (perm.status !== 'granted') {
+      Alert.alert('Permisos', 'Se requieren permisos para acceder a la galería.');
+      return { ok: false, cancelled: true };
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images,
+      quality: 0.9,
+      allowsEditing: true,
+      aspect: [1, 1],
+      base64: false,
+      exif: false,
+    });
+
+    if (!result || result.canceled) return { ok: false, cancelled: true };
+
+    const uri = result.assets?.[0]?.uri || result.uri;
+    if (!uri) return { ok: false, cancelled: true };
+
+    setAvatarLoading(true);
+
+    let uploadUri = uri;
+    try {
+      const manip = await ImageManipulator.manipulateAsync(
+        uri,
+        [],
+        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      if (manip?.uri) uploadUri = manip.uri;
+    } catch (_) {}
+
+    const fileName = uploadUri.split('/').pop();
+    const match = (fileName || '').match(/\.([0-9a-z]+)(?:\?|$)/i);
+    const ext = match ? match[1] : 'jpg';
+    const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+    const formData = new FormData();
+    formData.append('file', {
+      uri: uploadUri,
+      name: fileName || `logo_${Date.now()}.${ext}`,
+      type: mime,
+    });
+
     const response = await api.post(
       `/api/empresas/${empresaId}/upload-foto/`,
       formData,
       {
         headers: {
-          "Content-Type": "multipart/form-data",
+          'Content-Type': 'multipart/form-data',
         },
       }
     );
 
-    console.log("Logo subido:", response.data.logo);
-    setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
-    return true; // Devuelve true en caso de éxito
-    
-  } catch (error) {
-    console.error("Error subiendo logo:", error.response?.data || error.message);
-    return false
+    setAvatarLoading(false);
+
+    const logoUrlRaw = response.data?.logo || null;
+    const cleanLogoUrl = typeof logoUrlRaw === 'string' ? logoUrlRaw.replace(/\?$/, '') : logoUrlRaw;
+
+    setEmpresaData((prev) => ({ ...prev, logo: cleanLogoUrl }));
+
+    return { ok: true };
+  } catch (err) {
+    if (err.response) {
+    console.log('Respuesta con error:', err.response.status, err.response.data);
+    } else {
+      console.log('Error de red:', err.message);
+    }
+    console.log('Error al subir logo (client):', err);
+    setAvatarLoading(false);
+    const msg = err.response?.data?.error || err.response?.data?.detail || err.message || 'Error inesperado';
+    Alert.alert('Error', msg);
+    return { ok: false, error: msg };
   }
 };
-
 
   const [eventos, setEventos] = useState([]);
 
@@ -140,7 +289,9 @@ useEffect(() => {
 
       const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
 
-      const eventosTransformados = res.data.map(ev => ({
+      const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
+
+      const eventosTransformados = resultadosRaw.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento
@@ -160,10 +311,6 @@ useEffect(() => {
         ownerName: ev.ownerName || `Empresa #${empresaId}`,
         empresaId: ev.empresaId || empresaId,
       }));
-
-      console.log("Status:", res.status);
-      console.log("Fechas:", eventosTransformados.map(ev => ev.fecha));
-      console.log("Imagenes: ", eventosTransformados.map(ev => ev.imagenes))
 
       setEventos(eventosTransformados);
    } catch (error) {
@@ -205,41 +352,6 @@ useEffect(() => {
     }
   }, [mobileMenuVisible]);
 
-  const toggleFollow = () => {
-    setIsFollowing(!isFollowing);
-  };
-
-  // Estado y lógica para login modal
-  const [loginVisible, setLoginVisible] = useState(false);
-  const [user, setUser] = useState('');
-  const [pass, setPass] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
-
-  const handleLogin = async () => {
-    setLoginError('');
-    setLoginLoading(true);
-    const resultado = await loginConFallback(user, pass);
-    setLoginLoading(false);
-    if (resultado.error) {
-      switch (resultado.tipo) {
-        case 'validacion':
-          setLoginError('Por favor ingresa email y contraseña');
-          break;
-        case 'error':
-          setLoginError('Error inesperado: ' + resultado.error);
-          break;
-        case 'credenciales':
-          setLoginError('Usuario o contraseña incorrectos');
-          break;
-      }
-      return;
-    }
-    setLoginVisible(false);
-    setLoginError('');
-    navigation.navigate('HomeScreen');
-  };
-
   const renderHeader = () => (
     <View style={styles.header}>
       <View style={styles.headerContainer}>
@@ -264,74 +376,31 @@ useEffect(() => {
               setLoginVisible(true);
             }
           }}
+          onLogoutPress={async () => {
+            // limpiar datos de sesión y volver al home
+            await Promise.all([
+              AsyncStorage.removeItem('userName'),
+              AsyncStorage.removeItem('userEmail'),
+              AsyncStorage.removeItem('accessToken'),
+              AsyncStorage.removeItem('empresaId'),
+              AsyncStorage.removeItem('isEmpresaAccount'),
+              AsyncStorage.removeItem('userId'),
+            ]);
+            navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
+          }}
         />
       </View>
     </View>
   );
 
   const renderNotificationsModal = () => (
-    <Modal visible={modalVisible.notifications} transparent animationType="slide">
-      {/* Fade in/out animation for notifications overlay */}
-      <Animated.View
-        pointerEvents={modalVisible.notifications ? 'auto' : 'none'}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.9)',
-          zIndex: 200,
-          justifyContent: 'center',
-          alignItems: 'center',
-          opacity: notifAnim,
-        }}
-      >
-        <View style={{
-          backgroundColor: '#1e293b',
-          borderRadius: 24,
-          padding: 28,
-          minWidth: 300,
-          maxWidth: '90%',
-          shadowColor: '#000',
-          shadowOpacity: 0.18,
-          shadowOffset: { width: 0, height: 2 },
-          shadowRadius: 12,
-          position: 'relative',
-        }}>
-          <TouchableOpacity
-            onPress={() => {
-              Animated.timing(notifAnim, {
-                toValue: 0,
-                duration: 250,
-                useNativeDriver: true,
-              }).start(() => setModalVisible({ ...modalVisible, notifications: false }));
-            }}
-            style={{ position: 'absolute', top: 16, right: 16, zIndex: 10 }}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={{ fontSize: 28, color: '#fff', fontWeight: 'bold' }}>×</Text>
-          </TouchableOpacity>
-          <Text style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 18, textAlign: 'center' }}>Notificaciones</Text>
-          {/* Ejemplo de notificaciones */}
-          <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>¡Nuevo evento disponible!</Text>
-            <Text style={{ color: '#dbeafe', marginTop: 4 }}>Festival de Música Urbana - 20 Ene 2024</Text>
-          </View>
-          <View style={{ marginBottom: 16, backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Recordatorio de ticket</Text>
-            <Text style={{ color: '#bbf7d0', marginTop: 4 }}>No olvides tu entrada para Nochevieja VIP</Text>
-          </View>
-          <View style={{ backgroundColor: '#334155', borderRadius: 12, padding: 16 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>¡Actualización de perfil!</Text>
-            <Text style={{ color: '#ede9fe', marginTop: 4 }}>Tu foto de perfil fue actualizada correctamente.</Text>
-          </View>
-        </View>
-      </Animated.View>
-    </Modal>
+    <NotificationsModal visible={modalVisible.notifications} onClose={() => setModalVisible({ ...modalVisible, notifications: false })} />
   );
 
   const [profilePicModal, setProfilePicModal] = useState(false);
+  const [profilePicLoading, setProfilePicLoading] = useState(false);
+  const [profilePicEdit, setProfilePicEdit] = useState(null); // { uri }
+  const [profilePicEditVisible, setProfilePicEditVisible] = useState(false);
 
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
@@ -342,6 +411,11 @@ useEffect(() => {
           <TouchableOpacity
             style={styles.fotoPerfil}
             onPress={async () => { // <-- Convertir a async
+              // Bloquear actualización si la cuenta no está verificada
+              if (isBlocked) {
+                Alert.alert('Aviso', 'No se puede actualizar la foto hasta que este verificado');
+                return;
+              }
               const success = await handleUploadFoto(empresaData?.id); // <-- Esperar el resultado
               if (!success) {
                 Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
@@ -350,72 +424,87 @@ useEffect(() => {
             }}
             activeOpacity={0.7}
           >
-            {empresaData?.logo ? (
-            <Image
-              source={{ uri: empresaData.logo }}
-              style={{ width: '100%', height: '100%', borderRadius: 100 }}
-            />
-          ) : (
-            <Text style={styles.fotoIcon}>👤</Text>
-          )}
+            {avatarLoading ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#ffffff" />
+              </View>
+            ) : empresaData?.logo ? (
+              <Image
+                source={{ uri: empresaData.logo }}
+                style={{ width: '100%', height: '100%', borderRadius: 100 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
+                <Text style={styles?.fotoIcon || { color: '#fff', textAlign: 'center' }}>
+                  👤 
+                </Text>
+              </View>
+            )}
         </TouchableOpacity>
         </View>
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
-          <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
-          
+          {!isBlocked && (
+            <>
+              <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
+
+              {/* Botón para ver seguidores justo debajo del texto de seguidores */}
+              <TouchableOpacity
+                style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 12, alignItems: 'center', marginVertical: 10 }}
+                onPress={async () => {
+                  await fetchSeguidores();
+                  setSeguidoresModal(true);
+                }}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ver usuarios que te siguen</Text>
+              </TouchableOpacity>
+            </>
+          )}
+
           <View style={styles.accionesRow}>
             {/* Botón de seguir eliminado */}
-            <TouchableOpacity
-              style={styles.clasificarButton}
-              activeOpacity={0.85}
-              onPress={async () => {
-                const next = !showRatingsPanel;
-                setShowRatingsPanel(next);
-                if (next && ratings.length === 0) {
-                  try {
-                    setRatingsLoading(true);
+            {!isBlocked && (
+              <TouchableOpacity
+                style={styles.clasificarButton}
+                activeOpacity={0.85}
+                onPress={async () => {
+                  const next = !showRatingsPanel;
+                  setShowRatingsPanel(next);
+                  if (next && ratings.length === 0) {
+                    try {
+                      setRatingsLoading(true);
 
-                    const empresaId = await AsyncStorage.getItem('empresaId');
-                    if (!empresaId) { setRatingsLoading(false); return; }
+                      const empresaId = await AsyncStorage.getItem('empresaId');
+                      if (!empresaId) { setRatingsLoading(false); return; }
 
-                    const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
+                      const res = await api.get(`/api/empresas/${empresaId}/ratings/`);
 
-                    const data = await res.data;
-                    if (res.status >= 200 && res.status < 300) {
-                      setRatings(Array.isArray(data) ? data : (data.results || []));
-                    } else {
-                      console.log('Error ratings', data);
+                      const data = await res.data;
+                      if (res.status >= 200 && res.status < 300) {
+                        setRatings(Array.isArray(data) ? data : (data.results || []));
+                      } else {
+                        console.log('Error ratings', data);
+                      }
+                    } catch(e){
+                      console.log('Error fetch ratings', e.message);
+                    } finally {
+                      setRatingsLoading(false);
                     }
-                  } catch(e){
-                    console.log('Error fetch ratings', e.message);
-                  } finally {
-                    setRatingsLoading(false);
                   }
-                }
-              }}
-            >
-              <Text style={styles.clasificarStar}>★</Text>
-              <Text style={styles.clasificarText}>{showRatingsPanel ? 'Ver eventos' : 'Valoraciones y reseñas'}</Text>
-            </TouchableOpacity>
+                }}
+              >
+                <Text style={styles.clasificarStar}>★</Text>
+                <Text style={styles.clasificarText}>{showRatingsPanel ? 'Ver eventos' : 'Valoraciones y reseñas'}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
     </View>
   );
-
-  // Redes sociales dinámicas (front-only)
-  const redes = [
-    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: empresaData?.instagram || null },
-    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: empresaData?.twitter || null },
-    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: empresaData?.facebook || null },
-    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: empresaData?.tiktok || null },
-    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: empresaData?.youtube || null },
-    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: empresaData?.whatsapp || null },
-    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: empresaData?.website || null },
-  ];
 
   const openRedSocial = (item) => {
     if (item.url) {
@@ -423,32 +512,108 @@ useEffect(() => {
     }
   };
 
-  const renderSocialCircles = () => {
-    const hasAny = redes.some(r => !!r.url);
-    if (!hasAny) return null;
-    return (
-      <View style={styles.socialStripContainer}>
-        <Text style={styles.socialStripTitle}>Redes sociales</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {redes.filter(r => r.url).map(r => (
-            <TouchableOpacity
-              key={r.id}
-              style={[styles.socialCircle, { borderColor: r.color }]}
-              activeOpacity={0.75}
-              onPress={() => openRedSocial(r)}
-            >
-              <Text style={styles.socialIcon}>{r.icon}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-    );
-  };
+  // ...
+const renderSocialCircles = () => {
+  if (!empresaReady) return null;
+  
 
-console.log("imagenes del evento",eventos.imagenes)
+  const redesMap = {};
+  empresaData.redes_sociales.forEach(red => {
+    const key = red.tipo === 'x' ? 'twitter' : red.tipo;
+    redesMap[key] = red.url;
+  });
+
+  const redes = [
+    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap?.instagram || null },
+    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap?.twitter || null },
+    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap?.facebook || null },
+    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap?.tiktok || null },
+    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap?.youtube || null },
+    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap?.whatsapp || null },
+    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap?.website || null },
+  ];
+
+  const hasAny = redes.some(r => !!r.url);
+  if (!hasAny) return null;
+
+  return (
+    <View style={styles.socialStripContainer}>
+      <Text style={styles.socialStripTitle}>Redes sociales</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        {redes.filter(r => r.url).map(r => (
+          <TouchableOpacity
+            key={r.id}
+            style={[styles.socialCircle, { borderColor: r.color }]}
+            activeOpacity={0.75}
+            onPress={() => Linking.openURL(r.url)}
+          >
+            <Text style={styles.socialIcon}>{r.icon}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );}
+
 
 
   const renderEventos = () => {
+    // Si la empresa está pendiente o rechazada, ocultamos la lista de eventos y mostramos un aviso claro
+    if (isBlocked) {
+      if (isRejected) {
+        const raw = empresaData?.rejection_reason || '';
+        const lines = parseRejectionReasons(raw);
+        const cleanLines = lines.length ? lines : (raw ? [raw] : []);
+
+        return (
+          <View style={[styles.eventosContainer, { alignItems: 'flex-start', paddingVertical: 20 }]}>
+            <Text style={{ color: '#ef4444', fontSize: 18, fontWeight: '700' }}>Solicitud rechazada</Text>
+            <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'left', maxWidth: 520 }}>
+              Tu solicitud fue rechazada por los siguientes motivos:
+            </Text>
+
+            {!raw && (
+              <Text style={{ color: '#94a3b8', marginTop: 12 }}>
+                No se especificó un motivo. Contacta soporte para más detalles.
+              </Text>
+            )}
+
+            {raw && cleanLines.length === 1 && (
+              <Text style={{ color: '#e2e8f0', marginTop: 12, maxWidth: 520 }}>
+                {cleanLines[0]}
+              </Text>
+            )}
+
+            {raw && cleanLines.length > 1 && (
+              <View style={{ marginTop: 12, width: '100%', maxWidth: 520 }}>
+                {cleanLines.map((ln, i) => (
+                  <View
+                    key={i}
+                    style={{
+                      flexDirection: 'row',
+                      marginBottom: 6,
+                      alignItems: 'flex-start',
+                      width: '100%',
+                      maxWidth: 520
+                    }}
+                  >
+                    <Text style={{ color: '#fff', marginRight: 8 }}>•</Text>
+                    <Text style={{ color: '#e2e8f0', flexShrink: 1 }}>{ln}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        );
+      }
+
+      return (
+        <View style={[styles.eventosContainer, { alignItems: 'center', paddingVertical: 40 }]}> 
+          <Text style={{ color: '#f59e0b', fontSize: 18, fontWeight: '700' }}>Esperando verificación</Text>
+          <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'center', maxWidth: 480 }}>Tu empresa está en proceso de revisión. Este proceso de verificación puede tardar de 24 a 48 horas.</Text>
+        </View>
+      );
+    }
+
     if (showRatingsPanel) {
       return (
         <View style={styles.eventosContainer}>
@@ -509,6 +674,8 @@ console.log("imagenes del evento",eventos.imagenes)
         </View>
       );
     }
+
+
     return (
       <View style={styles.eventosContainer}>
         <View style={styles.eventosHeader}>
@@ -565,13 +732,7 @@ console.log("imagenes del evento",eventos.imagenes)
                   </View>
                   <View style={styles.eventoFooter}>
                     <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                    {/*
-                      Para que este botón funcione debes:
-                      1. Tener el backend corriendo y accesible desde la app (revisa la URL base en api.js).
-                      2. El endpoint DELETE /api/eventos/{evento.id}/ debe existir y aceptar la petición.
-                      3. Si tu API requiere autenticación, asegúrate de enviar el token correcto en los headers.
-                      4. El evento debe existir en la base de datos.
-                    */}
+                  
                     <TouchableOpacity
                       style={[styles.verDetallesButton, { backgroundColor: '#ef4444', marginRight: 8 }]}
                       onPress={async () => {
@@ -585,6 +746,7 @@ console.log("imagenes del evento",eventos.imagenes)
                                 try {
                                   await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
                                   setEventos(prev => prev.filter(ev => ev.id !== evento.id));
+                                  Alert.alert('Éxito', 'El evento ha sido eliminado');
                                   Alert.alert('Éxito', 'El evento ha sido eliminado');
                                 } catch (e) {
                                   Alert.alert('Error', 'No se pudo eliminar el evento');
@@ -655,68 +817,9 @@ console.log("imagenes del evento",eventos.imagenes)
           </View>
         </View>
       </Modal>
-      
-      {/* Modal de Login */}
-      <Modal
-        visible={loginVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setLoginVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity style={styles.modalClose} onPress={() => setLoginVisible(false)}>
-              <Text style={{ fontSize: 24, color: '#fff' }}>×</Text>
-            </TouchableOpacity>
-            <Text style={styles.loginTitle}>Iniciar sesión</Text>
-            <TextInput
-              style={styles.loginInput}
-              placeholder="Correo electrónico"
-              placeholderTextColor="#888"
-              keyboardType="email-address"
-              value={user}
-              onChangeText={setUser}
-              autoCapitalize="none"
-              autoComplete="email"
-            />
-            <TextInput
-              style={styles.loginInput}
-              placeholder="Contraseña"
-              placeholderTextColor="#888"
-              secureTextEntry
-              value={pass}
-              onChangeText={setPass}
-              autoCapitalize="none"
-              autoComplete="password"
-            />
-            {loginError ? (
-              <Text style={{ color: '#ef4444', marginBottom: 8, textAlign: 'center', fontWeight: 'bold' }}>{loginError}</Text>
-            ) : null}
-            <TouchableOpacity style={styles.loginBtnModal} onPress={handleLogin} disabled={loginLoading}>
-              {loginLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.loginBtnText}>Ingresar</Text>
-              )}
-            </TouchableOpacity>
-            <View style={styles.loginLinks}>
-              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
-              <Text style={styles.loginLink}>|</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setLoginVisible(false);
-                  navigation.navigate('RegisterScreen');
-                }}
-              >
-                <Text style={styles.loginLink}>Regístrate</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-      {renderHeader()}
-       {renderNotificationsModal()}
-      
+  {renderHeader()}
+  {renderNotificationsModal()}
+  {renderSeguidoresModal()}
   <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
@@ -724,6 +827,79 @@ console.log("imagenes del evento",eventos.imagenes)
           {renderEventos()}
         </View>
       </ScrollView>
+
+      {/* Modal para editar y aceptar la imagen de perfil */}
+      <Modal
+        visible={profilePicEditVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setProfilePicEditVisible(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:24, alignItems:'center', width:320, borderWidth:1, borderColor:'#334155' }}>
+            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#fff' }}>Ajusta tu foto de perfil</Text>
+            {profilePicEdit && (
+              <View style={{ width: 200, height: 200, borderRadius: 100, overflow: 'hidden', backgroundColor: '#334155', marginBottom: 16, justifyContent:'center', alignItems:'center' }}>
+                <Image
+                  source={{ uri: profilePicEdit.uri }}
+                  style={{ width: 200, height: 200, borderRadius: 100 }}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
+            <View style={{ flexDirection:'row', gap:16 }}>
+              <TouchableOpacity
+                style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginRight:8 }}
+                onPress={async () => {
+                  // Bloquear actualización si la cuenta no está verificada
+                  if (isBlocked) {
+                    Alert.alert('Aviso', 'No se pudo actualizar la foto hasta que este verificado');
+                    setProfilePicEditVisible(false);
+                    return;
+                  }
+                  setProfilePicLoading(true);
+                  // Recorte circular
+                  let finalUri = profilePicEdit.uri;
+                  const manipResult = await ImageManipulator.manipulateAsync(
+                    profilePicEdit.uri,
+                    [{ resize: { width: 400, height: 400 } }],
+                    { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+                  );
+                  finalUri = manipResult.uri;
+                  // Subir imagen
+                  const file = {
+                    uri: finalUri,
+                    name: "profile.jpg",
+                    type: "image/jpeg",
+                  };
+                  const formData = new FormData();
+                  formData.append("file", file);
+                  try {
+                    const response = await api.post(
+                      `/api/empresas/${empresaData?.id}/upload-foto/`,
+                      formData
+                    );
+                    setEmpresaData(prev => ({ ...prev, logo: response.data.logo }));
+                    setProfilePicEditVisible(false);
+                  } catch (error) {
+                    Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
+                  } finally {
+                    setProfilePicLoading(false);
+                  }
+                }}
+              >
+                <Text style={{ color:'#fff', fontWeight:'bold' }}>Aceptar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ backgroundColor:'#e5e7eb', borderRadius:8, padding:12 }}
+                onPress={() => setProfilePicEditVisible(false)}
+              >
+                <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -971,10 +1147,4 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
   modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
-  loginTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
-  loginInput: { backgroundColor: '#fff', borderRadius: 8, padding: 10, width: '100%', marginBottom: 12 },
-  loginBtnModal: { backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 },
-  loginLinks: { flexDirection: 'row', marginTop: 12 },
-  loginLink: { color: '#0ea5e9', marginHorizontal: 6 },
-  loginBtnText: { color: '#fff', fontWeight: 'bold' },
 });

@@ -9,15 +9,16 @@ LocaleConfig.locales['es'] = {
 };
 LocaleConfig.defaultLocale = 'es';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { View, Text, TouchableOpacity, Animated, Dimensions, ScrollView, Modal } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 
 const { width } = Dimensions.get('window');
 
-export default function CalendarModal({ visible, onClose }) {
+export default function CalendarModal({ visible, onClose, eventsByDate = {}, onPressEvent }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [markedDates, setMarkedDates] = useState({});
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [listVisible, setListVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -53,16 +54,29 @@ export default function CalendarModal({ visible, onClose }) {
     }
   }, [visible]);
 
-  // Inicializar fechas marcadas
+  // Seleccionar hoy por defecto al abrir
   useEffect(() => {
-    setMarkedDates({
-      [todayStr]: { 
-        selected: true, 
-        selectedColor: '#6366f1',
-        selectedTextColor: '#fff'
-      }
+    if (visible) {
+      setSelectedDate(todayStr);
+    }
+  }, [visible]);
+
+  // Construir markedDates combinando fechas con eventos y la fecha seleccionada
+  const markedDates = useMemo(() => {
+    const marks = {};
+    Object.keys(eventsByDate || {}).forEach((date) => {
+      marks[date] = { ...(marks[date] || {}), marked: true, dotColor: '#22c55e' };
     });
-  }, []);
+    if (selectedDate) {
+      marks[selectedDate] = {
+        ...(marks[selectedDate] || {}),
+        selected: true,
+        selectedColor: '#6366f1',
+        selectedTextColor: '#fff',
+      };
+    }
+    return marks;
+  }, [eventsByDate, selectedDate]);
 
   const onMonthChange = (month) => {
     // Animación de transición al cambiar mes
@@ -85,33 +99,29 @@ export default function CalendarModal({ visible, onClose }) {
   };
 
   const onDayPress = (day) => {
-    const newMarkedDates = {
-      [day.dateString]: { 
-        selected: true, 
-        selectedColor: '#6366f1',
-        selectedTextColor: '#fff'
-      }
-    };
-    setMarkedDates(newMarkedDates);
+    setSelectedDate(day.dateString);
   };
 
-  if (!visible) return null;
+  const dayEvents = useMemo(() => {
+    return (selectedDate && eventsByDate[selectedDate]) ? eventsByDate[selectedDate] : [];
+  }, [eventsByDate, selectedDate]);
 
   return (
-    <Animated.View 
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.87)',
-        zIndex: 200,
-        justifyContent: 'center',
-        alignItems: 'center',
-        opacity: fadeAnim,
-      }}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Animated.View 
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.87)',
+          zIndex: 200,
+          justifyContent: 'center',
+          alignItems: 'center',
+          opacity: fadeAnim,
+        }}
+      >
       <Animated.View 
         style={{
           backgroundColor: '#1e293b',
@@ -163,10 +173,10 @@ export default function CalendarModal({ visible, onClose }) {
         
         <Calendar
           current={todayStr}
+          markingType={'dot'}
           markedDates={markedDates}
           onDayPress={onDayPress}
           onMonthChange={onMonthChange}
-          enableSwipeMonths={true}
           pagingEnabled={true}
           monthFormat={'MMMM yyyy'}
           hideExtraDays={true}
@@ -249,7 +259,69 @@ export default function CalendarModal({ visible, onClose }) {
             },
           }}
         />
+
+        {/* Botón para ver eventos del día seleccionado en una lista aparte */}
+        <View style={{ marginTop: 16 }}>
+          {selectedDate ? (
+            dayEvents && dayEvents.length > 0 ? (
+              <TouchableOpacity
+                onPress={() => setListVisible(true)}
+                activeOpacity={0.85}
+                style={{ backgroundColor: '#6366f1', paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Ver eventos para este día</Text>
+              </TouchableOpacity>
+            ) : (
+              <Text style={{ color: '#94a3b8' }}>No hay eventos guardados para este día.</Text>
+            )
+          ) : (
+            <Text style={{ color: '#94a3b8' }}>Selecciona una fecha.</Text>
+          )}
+        </View>
       </Animated.View>
-    </Animated.View>
+
+      {/* Modal de lista de eventos para el día seleccionado */}
+      <Modal
+        visible={listVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setListVisible(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:16, width:'90%', maxWidth:420, maxHeight:'75%' }}>
+            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <Text style={{ color:'#fff', fontSize:18, fontWeight:'700' }}>Eventos para {selectedDate}</Text>
+              <TouchableOpacity onPress={() => setListVisible(false)}>
+                <Text style={{ color:'#fff', fontSize:22, fontWeight:'bold' }}>×</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {(dayEvents || []).map((ev) => (
+                <TouchableOpacity
+                  key={`${ev.id || ev.eventoId}`}
+                  onPress={() => {
+                    if (onPressEvent) onPressEvent(ev);
+                    setListVisible(false);
+                  }}
+                  activeOpacity={0.85}
+                  style={{ backgroundColor:'#334155', borderRadius:12, padding:12, marginBottom:10 }}
+                >
+                  <Text style={{ color:'#e5e7eb', fontWeight:'600', fontSize:16 }}>
+                    {ev.titulo || ev.title || 'Evento'}
+                  </Text>
+                  <Text style={{ color:'#cbd5e1', marginTop:4 }}>
+                    {ev.time ? `⏰ ${ev.time}` : 'Hora no definida'}
+                  </Text>
+                  {ev.ubicacion && (
+                    <Text style={{ color:'#cbd5e1', marginTop:2 }}>📍 {ev.ubicacion}</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+      </Animated.View>
+    </Modal>
   );
 }

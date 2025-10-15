@@ -8,11 +8,9 @@ const baseURL = `http://${LOCAL_IP}:${PORT}`;
 
 const api = axios.create({
   baseURL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  timeout: 20000,
 });
+
 api.interceptors.request.use(async (config) => {
   const token = await AsyncStorage.getItem('accessToken');
   if (token) {
@@ -20,26 +18,63 @@ api.interceptors.request.use(async (config) => {
   }
   return config;
 });
+
 let isRefreshing = false;
 let failedQueue = [];
 
 const processQueue = (error, token = null) => {
   failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
+    if (error) prom.reject(error);
+    else prom.resolve(token);
   });
   failedQueue = [];
+};
+
+// --- ADDED: helper para respuesta silenciosa al invalidar sesión ---
+const silentLogoutResponse = (originalRequest) => ({
+  data: { loggedOut: true },
+  status: 401,
+  statusText: 'Unauthorized',
+  headers: {},
+  config: originalRequest,
+  _fromSilentLogout: true,
+});
+
+// --- ADDED: limpieza centralizada (puedes añadir más claves si quieres) ---
+const clearSession = async () => {
+  await AsyncStorage.multiRemove([
+    'accessToken',
+    'refreshToken',
+    'isUserAccount',
+    'isEmpresaAccount',
+    'sessionMode',
+  ]);
 };
 
 api.interceptors.response.use(
   response => response,
   async error => {
     const originalRequest = error.config;
+    const status = error.response?.status;
+    const data = error.response?.data || {};
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // --- ADDED: detectar token definitivamente inválido antes de intentar refresh ---
+    const tokenInvalid =
+      status === 401 &&
+      (
+        data.code === 'token_not_valid' ||
+        data.detail === 'Token is invalid or expired' ||
+        data.detail === 'Given token not valid for any token type'
+      );
+
+    // Si es una petición al endpoint de refresh o ya se reintentó y sigue inválido -> cerrar sesión silenciosa
+    if (tokenInvalid && (originalRequest._retry || originalRequest.url?.includes('/api/token/refresh/'))) {
+      await clearSession();
+      processQueue(error, null);
+      return silentLogoutResponse(originalRequest); // ← NO lanza reject
+    }
+
+    if (status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       if (isRefreshing) {
@@ -47,6 +82,7 @@ api.interceptors.response.use(
           failedQueue.push({ resolve, reject });
         })
           .then(token => {
+            if (!token) return silentLogoutResponse(originalRequest);
             originalRequest.headers.Authorization = `Bearer ${token}`;
             return api(originalRequest);
           })
@@ -59,11 +95,10 @@ api.interceptors.response.use(
         const refreshToken = await AsyncStorage.getItem('refreshToken');
 
         if (!refreshToken) {
-        await AsyncStorage.removeItem('accessToken');
-        await AsyncStorage.removeItem('refreshToken');
-        // aquí puedes redirigir al login
-        return Promise.reject(error);
-}
+          await clearSession(); // CHANGED: usar helper
+          return silentLogoutResponse(originalRequest); // CHANGED: no reject
+        }
+
         const refreshRes = await axios.post(`${baseURL}/api/token/refresh/`, {
           refresh: refreshToken,
         });
@@ -74,11 +109,9 @@ api.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (err) {
-        
-        await AsyncStorage.removeItem('accessToken');
-        await AsyncStorage.removeItem('refreshToken');
+        await clearSession(); // CHANGED
         processQueue(err, null);
-        return Promise.reject(err);
+        return silentLogoutResponse(originalRequest); // CHANGED: sin throw
       } finally {
         isRefreshing = false;
       }
@@ -87,12 +120,5 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-export const requestPasswordReset = async (email) => {
-  try {
-    await api.post('/api/password-reset/request/', { email });
-  } catch (error) {
-    throw error.response?.data?.detail || 'Error al solicitar el restablecimiento de contraseña';
-  }
-};
 
 export default api;
