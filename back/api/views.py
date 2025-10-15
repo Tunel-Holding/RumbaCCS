@@ -6,8 +6,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import RegisterSerializer, UserPublicSerializer, MyTokenObtainPairSerializer
-from .models import EmailVerification
+from .serializers import RegisterSerializer, UserPublicSerializer, MyTokenObtainPairSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer
+from .models import EmailVerification, Usuario
 from django.core.mail import send_mail
 from django.utils import timezone
 import random
@@ -139,4 +139,62 @@ class FinalizeRegisterView(APIView):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }, status=status.HTTP_201_CREATED,)
-        
+
+class PasswordResetRequestView(APIView):
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        email = serializer.validated_data['email']
+        if not Usuario.objects.filter(email=email).exists():
+            return Response({'error': 'Usuario no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+        code = str(random.randint(100000, 999999))
+        expires_at = timezone.now() + timezone.timedelta(minutes=10)
+        EmailVerification.objects.update_or_create(
+            email=email,
+            purpose="reset",
+            defaults={
+                "code": code,
+                "expires_at": expires_at,
+                "is_verified": False,
+            }
+        )
+        send_mail(
+            subject='Código de recuperación de contraseña',
+            message=f'Tu código de recuperación es: {code}',
+            from_email=None,  # Usa el DEFAULT_FROM_EMAIL de settings.py
+            recipient_list=[email],
+            fail_silently=False,
+        )
+        return Response({'message': 'Código enviado al correo.'}, status=status.HTTP_200_OK)
+
+class PasswordResetConfirmView(APIView):
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        email = serializer.validated_data['email']
+        code = serializer.validated_data['code']
+        password = serializer.validated_data['password']
+
+        try:
+            verification = EmailVerification.objects.get(
+                email=email, code=code, purpose="reset", is_verified=False
+            )
+        except EmailVerification.DoesNotExist:
+            return Response({'error': 'Código inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if verification.expires_at < timezone.now():
+            return Response({'error': 'El código ha expirado.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = Usuario.objects.get(email=email)
+        except Usuario.DoesNotExist:
+            return Response({'error': 'Usuario no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+        user.set_password(password)
+        user.save()
+        verification.is_verified = True
+        verification.save()
+        return Response({'message': 'Contraseña cambiada correctamente.'}, status=status.HTTP_200_OK)
+
