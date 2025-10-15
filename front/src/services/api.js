@@ -2,7 +2,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const LOCAL_IP = '192.168.1.101'; // ← Cámbiala por tu IP real
+const LOCAL_IP = '192.168.1.107'; // ← Cámbiala por tu IP real
 const PORT = '8000';
 const baseURL = `http://${LOCAL_IP}:${PORT}`;
 
@@ -57,6 +57,22 @@ api.interceptors.response.use(
     const originalRequest = error.config;
     const status = error.response?.status;
     const data = error.response?.data || {};
+
+    // Log 404s to help debugging
+    if (status === 404) {
+      try {
+        console.warn('API 404:', {
+          method: originalRequest?.method,
+          url: originalRequest?.url,
+          baseURL: originalRequest?.baseURL,
+          params: originalRequest?.params,
+          data: originalRequest?.data,
+          responseData: error.response?.data,
+        });
+      } catch (logErr) {
+        console.warn('API 404 - failed to log details', logErr);
+      }
+    }
 
     // --- ADDED: detectar token definitivamente inválido antes de intentar refresh ---
     const tokenInvalid =

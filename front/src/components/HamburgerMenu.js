@@ -105,7 +105,33 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress, ha
         Alert.alert('No tienes empresa afiliada', 'No se encontró una empresa asociada a tu cuenta.');
         return;
       }
-      navigation.navigate('Empresa', { empresaId });
+
+      // Switch session to affiliated company.
+      // NOTE: We keep the accessToken because there's no company token available here.
+      // We remove user-specific keys and set flags that tell the app it's now in empresa mode.
+      try {
+        await AsyncStorage.multiRemove(['userName', 'userEmail', 'userId', 'isUserAccount']);
+      } catch (e) {
+        // ignore remove errors
+      }
+
+      try {
+        await AsyncStorage.multiSet([
+          ['sessionMode', 'empresa'],
+          ['isEmpresaAccount', 'true'],
+          ['isUserAccount', 'false'],
+          ['empresaId', empresaId],
+          ['userKind', 'empresa'],
+        ]);
+      } catch (e) {
+        console.log('HamburgerMenu: error setting empresa session keys', e);
+      }
+
+      // Notify parent that a logout-like switch happened
+      try { onLogoutPress && onLogoutPress(); } catch(_) {}
+
+      // Reset navigation to the Empresa screen so the new session mode takes effect
+      navigation.reset({ index: 0, routes: [{ name: 'Empresa', params: { empresaId } }] });
     } catch (e) {
       console.log('HamburgerMenu: error navigating to EmpresaScreen', e);
       Alert.alert('Error', 'No se pudo abrir el perfil de la empresa.');

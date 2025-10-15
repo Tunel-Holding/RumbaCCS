@@ -1,9 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import HamburgerMenu from '../components/HamburgerMenu';
+import EmpresaMenu from '../components/EmpresaMenu';
 import { getResponsiveStyles } from '../utils/deviceConfig';
 import { useSafeMargins } from '../utils/safeAreaUtils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Componente base para header estandarizado y adaptable
 export default function StandardHeader({
@@ -67,6 +69,27 @@ export default function StandardHeader({
   // Estado para mostrar/ocultar el menú tipo HamburgerMenu
   const [menuVisible, setMenuVisible] = useState(false);
 
+  // Estado local para detectar si la cuenta logueada es tipo empresa.
+  // Inicializamos desde la prop pero luego verificamos AsyncStorage para estar seguros.
+  const [localIsEmpresaAccount, setLocalIsEmpresaAccount] = useState(isEmpresaAccount);
+
+  useEffect(() => {
+    let mounted = true;
+    const checkIsEmpresa = async () => {
+      try {
+        const v = await AsyncStorage.getItem('isEmpresaAccount');
+        if (!mounted) return;
+        setLocalIsEmpresaAccount(v === 'true');
+      } catch (e) {
+        if (!mounted) return;
+        setLocalIsEmpresaAccount(false);
+      }
+    };
+    // Only check when logged state changes (or on mount)
+    checkIsEmpresa();
+    return () => { mounted = false; };
+  }, [isLogged]);
+
   return (
     <View style={[headerDynamicStyle, style]}>
       {/* Branding y menú alineados horizontalmente */}
@@ -76,19 +99,30 @@ export default function StandardHeader({
       </View>
       {showMenu && (
         isLogged ? (
-          <HamburgerMenu
-            visible={menuVisible}
-            setVisible={setMenuVisible}
-            // If caller provided hasEmpresa use it, otherwise fall back to isEmpresaAccount
-            hasEmpresa={hasEmpresa || isEmpresaAccount}
-            isLogged={isLogged}
-            isEmpresaAccount={isEmpresaAccount}
-            isUserAccount={isUserAccount}
-            onMenuItemPress={onMenuPress}
-            onLoginPress={onLoginPress || onMenuPress /* fallback */}
-            onLogoutPress={onLogoutPress || onLogout || onMenuPress /* fallback */}
-            isHome={isHomeScreen}
-          />
+          // If account is a company, show EmpresaMenu to provide company-specific options
+          (localIsEmpresaAccount) ? (
+            <EmpresaMenu
+              visible={menuVisible}
+              setVisible={setMenuVisible}
+              onMenuItemPress={onMenuPress}
+              onLogoutPress={onLogoutPress || onLogout || onMenuPress}
+               isHome={isHomeScreen}
+            />
+          ) : (
+            <HamburgerMenu
+              visible={menuVisible}
+              setVisible={setMenuVisible}
+              // If caller provided hasEmpresa use it, otherwise fall back to isEmpresaAccount
+              hasEmpresa={hasEmpresa || localIsEmpresaAccount}
+              isLogged={isLogged}
+              isEmpresaAccount={localIsEmpresaAccount}
+              isUserAccount={isUserAccount}
+              onMenuItemPress={onMenuPress}
+              onLoginPress={onLoginPress || onMenuPress /* fallback */}
+              onLogoutPress={onLogoutPress || onLogout || onMenuPress /* fallback */}
+              isHome={isHomeScreen}
+            />
+          )
         ) : (
           <Pressable
             onPress={onLoginPress}

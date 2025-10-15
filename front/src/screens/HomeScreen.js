@@ -9,6 +9,7 @@ import axios from 'axios';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
+import EVENT_TYPES from '../constants/eventTypes';
 
 import * as Location from 'expo-location';
 import StandardHeader from '../components/StandardHeader';
@@ -115,7 +116,11 @@ export default function HomeScreen() {
     };
     fetchCarouselEvents();
   }, []);
-  const [filter, setFilter] = useState('all');
+  // scopeFilter: controla alcance (todos | nearby)
+  const [scopeFilter, setScopeFilter] = useState('all');
+  // typeFilter: controla tipo/categoría seleccionada ('all' = De todo tipo)
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [typeOpen, setTypeOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [eventoPromoted, setEventoPromoted] = useState(null);
   const [loginVisible, setLoginVisible] = useState(false);
@@ -400,32 +405,26 @@ useEffect(() => {
   return () => clearTimeout(handler);
 }, [search]);
 
-// 🔹 Fetch de eventos solo cuando cambia debouncedSearch o filter
+// 🔹 Fetch de eventos solo cuando cambia búsqueda, alcance o tipo
 useEffect(() => {
   fetchEventos(1, false);
-}, [debouncedSearch, filter]);
+}, [debouncedSearch, scopeFilter, typeFilter]);
+
+// Si el usuario otorga ubicación y estamos en filtro 'nearby', recargar eventos cercanos
+useEffect(() => {
+  if (scopeFilter === 'nearby' && userLocation) {
+    fetchEventos(1, false);
+  }
+}, [userLocation, scopeFilter]);
 
 
-  // Filtros disponibles
-  const filters = [
-    { key: 'all', label: 'Todos' },
-    { key: 'nearby', label: 'Eventos cerca de ti' },
-    { key: 'Concierto', label: 'Concierto' },
-    { key: 'Feria', label: 'Feria' },
-    { key: 'Festival', label: 'Festival' },
-    { key: 'Exposición', label: 'Exposición' },
-    { key: 'Conferencia', label: 'Conferencia' },
-    { key: 'Workshop', label: 'Workshop' },
-    { key: 'Networking', label: 'Networking' },
-    { key: 'Show', label: 'Show' },
-    { key: 'Deportivo', label: 'Deportivo' },
-    { key: 'Cultural', label: 'Cultural' },
-    { key: 'Gastronómico', label: 'Gastronómico' },
-    { key: 'Tecnológico', label: 'Tecnológico' },
-    { key: 'Arte', label: 'Arte' },
-    { key: 'Música', label: 'Música' },
-    { key: 'Teatro', label: 'Teatro' },
-  ];
+  // Filtros disponibles (solo tipos, centralizados)
+  // Sort event types alphabetically by label for display
+  const sortedEventTypes = React.useMemo(() => {
+    return [...EVENT_TYPES].sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' }));
+  }, []);
+
+  const filters = sortedEventTypes.map(e => ({ key: e.key, label: e.label }));
 
 const fetchEventos = async (pageNumber = 1, append = false) => {
   setLoadingline(true);
@@ -439,7 +438,7 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
   searchCancelToken.current = axios.CancelToken.source();
 
   try {
-    const isNearbyFilter = filter === "nearby";
+  const isNearbyFilter = scopeFilter === "nearby";
     const hasLocation = !!userLocation;
 
     let url = "/api/eventos-publicos/";
@@ -454,7 +453,10 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
     }
 
     if (!isNearbyFilter) {
-      if (filter && filter !== "all") params.categoria = filter;
+      if (typeFilter && typeFilter !== "all") params.categoria = typeFilter;
+      if (debouncedSearch) params.search = debouncedSearch;
+    } else {
+      // nearby also supports search
       if (debouncedSearch) params.search = debouncedSearch;
     }
 
@@ -503,10 +505,15 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
       ownerLogo: companyCache[ev.empresa]?.logo || null,
     }));
 
-    setEventos(prev => (append ? [...prev, ...eventosTransformados] : eventosTransformados));
+    // Si estamos en modo nearby, guardamos en nearbyEvents; si no, en eventos generales
+    if (isNearbyFilter) {
+      setNearbyEvents(prev => (append ? [...prev, ...eventosTransformados] : eventosTransformados));
+    } else {
+      setEventos(prev => (append ? [...prev, ...eventosTransformados] : eventosTransformados));
+    }
     setHasMore(Boolean(responseData.next));
 
-    // Actualización de empresas
+  // Actualización de empresas
     const idsPendientes = [
       ...new Set(eventosTransformados.map(ev => ev.rawEmpresaId).filter(id => id && !companyCache[id])),
     ];
@@ -522,13 +529,16 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
         if (!nuevosDatosEmpresa[id]) nuevosDatosEmpresa[id] = { nombre: `Empresa #${id}`, logo: null };
       });
       setCompanyCache(prev => ({ ...prev, ...nuevosDatosEmpresa }));
-      setEventos(prev =>
-        prev.map(ev =>
+      // Propagar companyCache update a la lista correspondiente
+      const updateFn = (prevList) =>
+        prevList.map(ev =>
           ev.rawEmpresaId && nuevosDatosEmpresa[ev.rawEmpresaId]
             ? { ...ev, ownerName: nuevosDatosEmpresa[ev.rawEmpresaId].nombre, ownerLogo: nuevosDatosEmpresa[ev.rawEmpresaId].logo }
             : ev
-        )
-      );
+        );
+
+      setEventos(prev => updateFn(prev));
+      setNearbyEvents(prev => updateFn(prev));
     }
   } catch (error) {
     if (!axios.isCancel(error)) console.error(error);
@@ -593,25 +603,25 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
   // --- estados extra ---
 const [nearbyEvents, setNearbyEvents] = useState([]);
 
-const fuente = filter === "nearby" ? nearbyEvents : events || [];
+const fuente = scopeFilter === "nearby" ? nearbyEvents : events || [];
 
-// --- filtro por categorías + búsqueda ---
+// --- filtro por tipo + búsqueda ---
 const filteredEvents = fuente.filter(e => {
   const categorias = Array.isArray(e.type) ? e.type : [e.type];
-  const matchesFilter = filter === 'all' || filter === 'nearby' || categorias.includes(filter);
+  const matchesType = typeFilter === 'all' || categorias.includes(typeFilter);
   const rawQuery = search.trim();
-  if (!rawQuery) return matchesFilter;
+  if (!rawQuery) return matchesType;
 
   const qTokens = normalizeText(rawQuery).split(/\s+/).filter(Boolean);
-  if (!qTokens.length) return matchesFilter;
+  if (!qTokens.length) return matchesType;
 
   const fields = [e.title || '', e.location || '', categorias.join(' '), e.ownerName || ''];
 
-  return matchesFilter && qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
+  return matchesType && qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
 });
 
-  // Reiniciar página si cambian filtro o búsqueda
-  useEffect(() => { setPage(0); }, [filter, search]);
+  // Reiniciar página si cambian filtros o búsqueda
+  useEffect(() => { setPage(0); }, [scopeFilter, typeFilter, search]);
   const totalPages = Math.ceil(filteredEvents.length / pageSize) || 1;
   const pageEvents = filteredEvents.slice(page * pageSize, (page + 1) * pageSize);
   const canPrev = page > 0;
@@ -811,30 +821,71 @@ const filteredEvents = fuente.filter(e => {
           value={search}
           onChangeText={setSearch}
         />
-
-
-        {/* Filtros (revertido a una sola fila scrollable) */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters} contentContainerStyle={{ paddingRight: 8 }}>
-          {filters.map(f => (
+        {/* Compact row: two small buttons + arrow-only select on the right */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', paddingHorizontal: 8, marginTop: 8, gap: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
             <TouchableOpacity
-              key={f.key}
-              style={[styles.filterBtn, filter === f.key && styles.filterBtnActive]}
-              onPress={() => setFilter(f.key)}
+              style={[styles.smallBtn, scopeFilter === 'all' && styles.smallBtnActive]}
+              onPress={() => { setScopeFilter('all'); setTypeOpen(false); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
             >
-              <Text style={[styles.filterText, filter === f.key && styles.filterTextActive]}>{f.label}</Text>
+              <Text style={[styles.smallBtnText, scopeFilter === 'all' && styles.smallBtnTextActive]}>Todos</Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+            <TouchableOpacity
+              style={[styles.smallBtn, scopeFilter === 'nearby' && styles.smallBtnActive]}
+              onPress={() => { setScopeFilter('nearby'); setTypeOpen(false); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
+            >
+              <Text style={[styles.smallBtnText, scopeFilter === 'nearby' && styles.smallBtnTextActive]}>Cercanos a ti</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Arrow-only select */}
+          <View style={{ width: 48, alignItems: 'center', justifyContent: 'center' }}>
+            <TouchableOpacity
+              onPress={() => setTypeOpen(o => !o)}
+              style={[{ padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#334155', backgroundColor: '#0f172a' }, typeOpen && { borderColor: '#0ea5e9' }]}
+            >
+              <Text style={{ color: '#94a3b8', fontSize: 18 }}>{typeOpen ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            {typeOpen && (
+              <Modal
+                visible={typeOpen}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setTypeOpen(false)}
+              >
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPressOut={() => setTypeOpen(false)}>
+                  <View style={{ backgroundColor: '#1e293b', borderRadius: 0, paddingVertical: 12, paddingHorizontal: 12, width: '100%', maxHeight: '100%', alignSelf: 'stretch', alignItems: 'stretch', justifyContent: 'flex-start' }}> 
+                    <TouchableOpacity style={[styles.modalClose, { padding: 8 }]} onPress={() => setTypeOpen(false)}>
+                      <Ionicons name="close" size={28} color="#fff" />
+                    </TouchableOpacity>
+                    <ScrollView contentContainerStyle={{ paddingVertical: 8 }}>
+                      <TouchableOpacity onPress={() => { setTypeFilter('all'); setTypeOpen(false); }} style={{ paddingVertical: 14 }}>
+                        <Text style={{ color: typeFilter === 'all' ? '#0ea5e9' : '#cbd5e1', fontSize: 20, fontWeight: '600' }}>De todo tipo</Text>
+                      </TouchableOpacity>
+                      {sortedEventTypes.map(e => (
+                        <TouchableOpacity key={e.key} onPress={() => { setTypeFilter(e.key); setTypeOpen(false); }} style={{ paddingVertical: 14 }}>
+                          <Text style={{ color: typeFilter === e.key ? '#0ea5e9' : '#cbd5e1', fontSize: 20, fontWeight: '600' }}>{e.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                </TouchableOpacity>
+              </Modal>
+            )}
+          </View>
+        </View>
+
+
 
         {/* Eventos */}
         <Text style={styles.sectionTitle}>
-          {filter === 'all' && 'Próximos eventos'}
-          {filter === 'nearby' && 'Eventos cerca de ti'}
-          {filter !== 'all' && filter !== 'nearby' && `Eventos de ${filter}`}
+          {scopeFilter === 'nearby' && 'Eventos cerca de ti'}
+          {scopeFilter !== 'nearby' && typeFilter === 'all' && 'Próximos eventos'}
+          {scopeFilter !== 'nearby' && typeFilter !== 'all' && `Eventos de ${ (sortedEventTypes.find(t=>t.key===typeFilter)?.label) || typeFilter }`}
         </Text>
 
         {/* Mensaje de permiso de ubicación (placeholder) */}
-        {filter === 'nearby' && !userLocation && (
+        {scopeFilter === 'nearby' && !userLocation && (
           <View style={styles.permissionBox}>
             <Text style={styles.permissionText}>
               Debes otorgar permiso a RumbaCCS para acceder a tu ubicación y mostrar eventos cerca de ti.
@@ -862,7 +913,7 @@ const filteredEvents = fuente.filter(e => {
         )}
         
         {/* Lista de eventos (oculta si se requiere ubicación para 'nearby') */}
-        {!(filter === 'nearby' && !userLocation) && (
+        {!(scopeFilter === 'nearby' && !userLocation) && (
   <>
     <View style={styles.eventsGrid}>
 
@@ -874,15 +925,15 @@ const filteredEvents = fuente.filter(e => {
         </View>
       )}
 
-      {/* No hay eventos */}
-      {!loadingline && events.length === 0 && (
+      {/* No hay eventos (mensajes diferenciados según filtro) */}
+      {!loadingline && filteredEvents.length === 0 && (
         <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>
-          No hay eventos para mostrar.
+          {typeFilter && typeFilter !== 'all' ? 'No se han encontrado eventos de este tipo' : 'No hay eventos para mostrar.'}
         </Text>
       )}
 
-      {/* Lista de eventos */}
-      {!loadingline && events.map(event => (
+      {/* Lista de eventos (paginada cliente) */}
+      {!loadingline && pageEvents.map(event => (
         <View key={event.id} style={styles.eventCard}>
           <View style={styles.ownerRow}>
             {event.ownerLogo ? (
@@ -1106,6 +1157,17 @@ const styles = StyleSheet.create({
   filterBtnActive: { backgroundColor: '#0ea5e9' },
   filterText: { color: '#fff', fontWeight: 'bold' },
   filterTextActive: { color: '#fff' },
+  // Primary buttons for 'Todos' and 'Eventos cerca de mi'
+  primaryBtn: { backgroundColor: '#1f2937', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', marginRight: 8, borderWidth: 1, borderColor: 'transparent' },
+  primaryBtnActive: { backgroundColor: '#0ea5e9', borderColor: '#0891b2' },
+  primaryBtnText: { color: '#cbd5e1', fontWeight: '700' },
+  primaryBtnTextActive: { color: '#07102a', fontWeight: '800' },
+  // Small compact buttons (Todos / Cerca)
+  smallBtn: { backgroundColor: '#111827', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'transparent' },
+  smallBtnActive: { backgroundColor: '#0ea5e9', borderColor: '#0891b2' },
+  smallBtnText: { color: '#cbd5e1', fontWeight: '700', fontSize: 13 },
+  smallBtnTextActive: { color: '#07102a', fontWeight: '800', fontSize: 13 },
+  smallBtnTextLarge: { fontSize: 15 },
   sectionTitle: { fontSize: 20, color: '#fff', fontWeight: 'bold', marginVertical: 12 },
   eventsGrid: { flexDirection: width < 600 ? 'column' : 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
   eventCard: { backgroundColor: '#334155', borderRadius: 12, padding: 12, marginBottom: 16, position: 'relative', width: CARD_WIDTH, alignSelf: 'center', marginHorizontal: 4 },
@@ -1139,7 +1201,7 @@ const styles = StyleSheet.create({
   footerCopyright: { color: '#64748b', fontSize: 12, textAlign: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
-  modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
+  modalClose: {  right: 12, zIndex: 2, position: 'absolute' },
   loginTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
   loginInput: { backgroundColor: '#fff', borderRadius: 8, padding: 10, width: '100%', marginBottom: 12 },
   loginBtnModal: { backgroundColor: '#0ea5e9', borderRadius: 8, padding: 10, alignItems: 'center', width: '100%', marginTop: 8 },

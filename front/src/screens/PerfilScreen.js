@@ -2,9 +2,7 @@ import React, { useState, useEffect} from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import CalendarModal from '../components/CalendarModal';
 import StandardHeader from '../components/StandardHeader';
-import NotificationsModal from '../components/NotificationsModal';
 import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
@@ -883,11 +881,32 @@ useFocusEffect(
               onPress={async () => {
                 // Cerrar modal antes de abrir selector para evitar overlays
                 setProfilePicModal(false);
-                const id = userData?.id;
+
+                // Intentar obtener id desde state, si no existe revisar AsyncStorage
+                let id = userData?.id;
+                try {
+                  if (!id) {
+                    const storedId = await AsyncStorage.getItem('userId');
+                    if (storedId) {
+                      id = storedId;
+                      // intentar poblar userData para mantener congruencia en la UI
+                      try {
+                        const userRes = await api.get(`/api/usuarios/${id}/`);
+                        setUserData(userRes.data);
+                      } catch (_) {
+                        // no bloquear por este fallo
+                      }
+                    }
+                  }
+                } catch (e) {
+                  console.log('Error leyendo AsyncStorage userId:', e);
+                }
+
                 if (!id) {
                   Alert.alert('Error', 'Usuario no identificado');
                   return;
                 }
+
                 try {
                   const res = await handleUploadAvatar(id);
                   if (res?.ok) {
