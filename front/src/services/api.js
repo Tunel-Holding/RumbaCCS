@@ -1,4 +1,3 @@
-
 // src/services/api.js
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -88,4 +87,12 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+export const requestPasswordReset = async (email) => {
+  try {
+    await api.post('/api/password-reset/request/', { email });
+  } catch (error) {
+    throw error.response?.data?.detail || 'Error al solicitar el restablecimiento de contraseña';
+  }
+};
+
 export default api;

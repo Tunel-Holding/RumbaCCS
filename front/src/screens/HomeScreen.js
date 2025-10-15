@@ -4,7 +4,6 @@ import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { loginConFallback } from '../utils/auth';
 
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 
@@ -825,7 +824,14 @@ useEffect(() => {
             </TouchableOpacity>
 
             <View style={styles.loginLinks}>
-              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setLoginVisible(false);
+                  navigation.navigate('RecuperarContrasena');
+                }}
+              >
+                <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
+              </TouchableOpacity>
               <Text style={styles.loginLink}>|</Text>
               <TouchableOpacity
                 onPress={() => {

@@ -66,5 +66,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = Usuario.objects.create_user(password=password, **validated_data)
         return user
 
-# class UploadImageSerializer(serializers.Serializer):
-#     file = serializers.ImageField()
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6)
+    password = serializers.CharField(write_only=True, min_length=6)
+    password2 = serializers.CharField(write_only=True, min_length=6)
+
+    def validate(self, data):
+        if data['password'] != data['password2']:
+            raise serializers.ValidationError("Las contraseñas no coinciden.")
+        return data
