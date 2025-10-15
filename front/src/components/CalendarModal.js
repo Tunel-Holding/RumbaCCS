@@ -187,7 +187,6 @@ export default function CalendarModal({ visible, onClose, eventsByDate = {}, onP
           disableArrowLeft={false}
           disableArrowRight={false}
           disableAllTouchEventsForDisabledDays={true}
-          enableSwipeMonths={true}
           theme={{
             backgroundColor: 'transparent',
             calendarBackground: 'transparent',

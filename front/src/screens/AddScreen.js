@@ -156,6 +156,8 @@ export default function AddScreen() {
 
     if (uris.length === 0) return;
 
+    if(uris.length > 3) return Alert.alert("Límite de imágenes", "Solo puedes seleccionar hasta 3 imágenes a la vez.");
+
     setFormData(prev => ({
       ...prev,
       imagenesLocales: [...(prev.imagenesLocales || []), ...uris],
@@ -166,88 +168,6 @@ export default function AddScreen() {
   }
 };
 
-//   const uploadEventoImage = async (eventoId, uri, empresaId) => {
-
-//   const formData = new FormData();
-
-//   formData.append("file", {
-//     uri,
-//     name: `image_${Date.now()}.jpg`,
-//     type: "image/jpeg",
-//   });
-
-//   try {
-//     const token = await AsyncStorage.getItem("accesToken");
-
-//   const res = await api.post(
-//     `api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
-//     formData,
-//     {
-//       headers: {
-//         Authorization: `Bearer ${token}`,
-//         "Content-Type": "multipart/form-data",
-//       },
-//     }
-//   );
-
-//   // en axios, si hay error de status, lanza excepción, así que esta parte es innecesaria
-//   // pero si quieres validación extra:
-//   if (!res || res.status < 200 || res.status >= 300) {
-//     throw new Error(res?.data?.error || "Error al subir imagen");
-//   }
-
-//   // la respuesta ya está en res.data
-//   return res.data.url;
-//   } catch (e) {
-//     Alert.alert('Al subir la imagen', e.message);
-//     throw e; // relanzar para que el caller lo capture
-//   }
-// };
-
-// const uploadEventoImages = async (eventoId, uris, empresaId) => {
-//   const formData = new FormData();
-
-//   // ⬇️ Recorremos todas las imágenes y las agregamos al formData
-//   uris.forEach((uri, index) => {
-//     const filename = `image_${Date.now()}_${index}.jpg`;
-//     formData.append("files", {
-//       uri,
-//       name: filename,
-//       type: "image/jpeg", // ⚠️ si soportás png, webp, etc. conviene detectarlo dinámicamente
-//     });
-//   });
-
-//   try {
-//     const token = await AsyncStorage.getItem("accessToken"); // ojo: lo tenías escrito como "accesToken"
-
-//     const res = await api.post(
-//       `/api/empresas/${empresaId}/eventos/${eventoId}/imagenes/`,
-//       formData,
-//       {
-//         headers: {
-//           "Content-Type": "multipart/form-data",
-//         },
-//       }
-//     );
-
-//     // if (!res || res.status < 200 || res.status >= 300) {
-//     //   throw new Error(res?.data?.error || "Error al subir imágenes");
-//     // }
-//     if (res.status >= 200 && res.status < 300) {
-//       return res.data.urls || []; // éxito, retornamos array vacío si no hay urls
-//     } else {
-//       // mostrar alerta y retornar null
-//       Alert.alert("Error al subir imágenes", res?.data?.error || "Error desconocido");
-//       return null;
-//     }
-
-//     // ⬅️ backend devuelve { urls: [...] }
-//     return res.data.urls;
-//   } catch (e) {
-//     console.error("🔥 Error al subir imágenes:", e);
-//     Alert.alert("Error al subir imágenes", e.message || "Intenta de nuevo");
-//   }
-// };
 
 const uploadEventoImages = async (eventoId, uris, empresaId) => {
   const formData = new FormData();

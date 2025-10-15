@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { loginConFallback } from '../utils/auth';
 import axios from 'axios';
 
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 import EVENT_TYPES from '../constants/eventTypes';
@@ -1105,7 +1104,14 @@ const filteredEvents = fuente.filter(e => {
             </TouchableOpacity>
 
             <View style={styles.loginLinks}>
-              <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setLoginVisible(false);
+                  navigation.navigate('RecuperarContrasena');
+                }}
+              >
+                <Text style={styles.loginLink}>¿Olvidaste tu contraseña?</Text>
+              </TouchableOpacity>
               <Text style={styles.loginLink}>|</Text>
               <TouchableOpacity
                 onPress={() => {
