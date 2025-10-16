@@ -52,17 +52,28 @@ class RegistroUsuarioView(generics.CreateAPIView):
     def create(self, request, *args, **kwargs):
         data = request.data
         email = data.get('email')
+        phone = data.get('phone')
+        phone = str(phone)
+        print('Este es el telefono', phone)
         if not email:
             return Response({'error': 'Email requerido.'}, status=status.HTTP_400_BAD_REQUEST)
         code = str(random.randint(100000, 999999))
         expires_at = timezone.now() + timezone.timedelta(minutes=10)
         # Si ya existe, actualiza el código y la expiración
+        if Usuario.objects.filter(email=email).exists():
+            return Response({'error': 'El correo ya esta en uso.'}, status=status.HTTP_400_BAD_REQUEST)
+        if phone.startswith('0'):
+            phone = phone[1:]
+        if Usuario.objects.filter(phone=phone).exists():
+            return Response({'error': 'El numero de telefono ya esta en uso.'}, status=status.HTTP_400_BAD_REQUEST)
         EmailVerification.objects.update_or_create(
             email=email,
             defaults={
                 'code': code,
                 'expires_at': expires_at,
-                'is_verified': False
+                'is_verified': False,
+                'purpose': 'register'  # O el propósito que corresponda
+
             }
         )
         send_mail(
@@ -187,8 +198,8 @@ class FinalizeRegisterView(APIView):
         except EmailVerification.DoesNotExist:
             return Response({'error': 'Correo no verificado.'}, status=status.HTTP_400_BAD_REQUEST)
         # Crea el usuario si no existe
-        if Usuario.objects.filter(email=email).exists():
-            return Response({'error': 'El usuario ya existe.'}, status=status.HTTP_400_BAD_REQUEST)
+       #if Usuario.objects.filter(email=email).exists():
+        #    return Response({'error': 'El usuario ya existe.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = RegisterSerializer(data=data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()

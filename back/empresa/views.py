@@ -89,7 +89,19 @@ class EmpresaPreRegistroView(generics.CreateAPIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']  # ✅ mantenido porque empresa debe loguearse
         nombre = serializer.validated_data['nombre']
-        phone = serializer.validated_data.get('phone')
+        phone = serializer.validated_data.get('telefono')
+        if Usuario.objects.filter(email=email).exists():
+            return Response({'error': 'El correo ya esta en uso.'}, status=status.HTTP_400_BAD_REQUEST)
+        if phone:
+            phone = str(phone)
+            if phone.startswith('0'):
+                phoneStart0 = phone[1:]
+                print('Telefono modificado para quitar 0 inicial:', phoneStart0)
+            # Solo rechazar si el número ya está en uso por otro usuario distinto al actual
+            if Usuario.objects.filter(phone=phoneStart0).exclude(id=request.user.id).exists():
+                return Response({'error': 'El numero de telefono ya esta en uso.'}, status=status.HTTP_400_BAD_REQUEST)
+            if Empresa.objects.filter(telefono=phone).exists():
+                return Response({'error': 'El numero de telefono ya esta en uso por otra empresa.'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Generar y guardar pin y datos temporales
         pin = str(random.randint(100000, 999999))
@@ -100,6 +112,7 @@ class EmpresaPreRegistroView(generics.CreateAPIView):
                 'created_at': timezone.now(),
                 'expires_at': timezone.now() + timezone.timedelta(minutes=10),
                 'is_verified': False,
+                'purpose': 'empresa_register'
             }
         )
 

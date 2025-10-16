@@ -69,9 +69,10 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=100)
-    phone = models.BigIntegerField(
-        validators=[MinValueValidator(1000000000), MaxValueValidator(9999999999)]
-    )
+   # phone = models.BigIntegerField(
+       # validators=[MinValueValidator(1000000000), MaxValueValidator(9999999999)]
+   # )
+    phone = models.CharField(max_length=20, unique=True)
     birthday = models.DateField(null=True, blank=True)
     region = models.CharField(max_length=20, choices=ESTADO_CHOICES,null=True, blank=True)
     gender = models.CharField(max_length=9, choices=GENERO_CHOICES, null=True, blank=True)
@@ -97,6 +98,7 @@ class EmailVerification(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     is_verified = models.BooleanField(default=False)
+    purpose = models.CharField(max_length=50, null=True, blank=True)
 
     def __str__(self):
         return f"{self.email} - {self.code}"
