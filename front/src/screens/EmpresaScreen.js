@@ -364,30 +364,6 @@ useEffect(() => {
         <EmpresaMenu
           visible={mobileMenuVisible}
           setVisible={setMobileMenuVisible}
-          onMenuItemPress={item => {
-            setMobileMenuVisible(false);
-            if (item === 'agregar_evento') {
-              navigation.navigate('Add');
-            } else if (item === 'notifications') {
-              setModalVisible({ ...modalVisible, notifications: true });
-            } else if (item === 'inicio') {
-              navigation.navigate('HomeScreen');
-            } else if (item === 'register') {
-              setLoginVisible(true);
-            }
-          }}
-          onLogoutPress={async () => {
-            // limpiar datos de sesión y volver al home
-            await Promise.all([
-              AsyncStorage.removeItem('userName'),
-              AsyncStorage.removeItem('userEmail'),
-              AsyncStorage.removeItem('accessToken'),
-              AsyncStorage.removeItem('empresaId'),
-              AsyncStorage.removeItem('isEmpresaAccount'),
-              AsyncStorage.removeItem('userId'),
-            ]);
-            navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
-          }}
         />
       </View>
     </View>

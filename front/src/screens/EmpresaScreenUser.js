@@ -514,7 +514,7 @@ useEffect(() => {
                   setShowReviews(s => !s);
                 }
               }}>
-                <Text style={styles.ratingsCountText}>{ratingsCount} reseñas</Text>
+                <Text style={styles.ratingsCountText}>Ver reseña</Text>
               </TouchableOpacity></Text>
           ) : (
             <TouchableOpacity onPress={async () => {

@@ -12,7 +12,6 @@ export default function FormularioScreen({ navigation, route }) {
   const [focusedPinIndex, setFocusedPinIndex] = useState(-1); // para resaltar el dígito activo
   const insets = useSafeAreaInsets();
   const topSpacer = insets.top + 8; // pequeño margen superior
-  //  únicamente
   const [nombre, setNombre] = useState('');
   const [rif, setRif] = useState('');
   const [rifPrefix, setRifPrefix] = useState('J'); // Prefijo seleccionado (J o V)
@@ -20,7 +19,6 @@ export default function FormularioScreen({ navigation, route }) {
   const [lugar, setLugar] = useState('');
   const [telefono, setTelefono] = useState('');
   const [correo, setCorreo] = useState('');
-  const [redes, setRedes] = useState('');
   // Contraseña y repetir contraseña
   const [password, setPassword] = useState('');
   const [repeatPassword, setRepeatPassword] = useState('');

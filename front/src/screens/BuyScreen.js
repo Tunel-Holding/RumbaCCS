@@ -79,6 +79,7 @@ export default function BuyScreen() {
   const [eventoS,setEventoS] = useState(false); //Valida que los datos del evento fueron guardados
   const [hasEmpresa, setHasEmpresa] = useState(false); // True si el usuario logueado es una empresa (tiene empresaId)
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
+  const [isEmpresaAccount, setIsEmpresaAccount] = useState(false); // True si la sesión actual es de una cuenta empresa
 
 
 
@@ -134,6 +135,18 @@ export default function BuyScreen() {
         console.warn('No se pudo leer empresaId', e);
         setHasEmpresa(false);
         setOwnEmpresaId(null);
+      }
+    })();
+  }, [isLogged]);
+
+  // Leer si la sesión actual es una cuenta empresa (clave separada en AsyncStorage)
+  useEffect(() => {
+    (async () => {
+      try {
+        const v = await AsyncStorage.getItem('isEmpresaAccount');
+        setIsEmpresaAccount(v === 'true');
+      } catch (e) {
+        setIsEmpresaAccount(false);
       }
     })();
   }, [isLogged]);
@@ -502,8 +515,8 @@ if (loading) {
         onLoginPress={() => setLoginVisible(true)}
         onLogoutPress={handleLogout}
         hasEmpresa={hasEmpresa}
-        isEmpresaAccount={hasEmpresa}
-        isUserAccount={!hasEmpresa}
+        isEmpresaAccount={isEmpresaAccount}
+        isUserAccount={!isEmpresaAccount}
         userAvatarUrl={userAvatarUrl}
         empresaData={empresaData}
         isHomeScreen={false}
@@ -604,7 +617,7 @@ if (loading) {
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.label}>Categoría: </Text>
-            <Text style={styles.detail}>{eventDetails.categoria}</Text>
+            <Text style={styles.detail}>{Array.isArray(eventDetails.categoria) ? eventDetails.categoria.join(', ') : eventDetails.categoria} </Text>
           </View>
           <View style={styles.detailRow}>
             <Text style={styles.label}>Vestimenta: </Text>
@@ -734,8 +747,8 @@ if (loading) {
         )}
 
       <View style={styles.buttonContainer}>
-        {/* Mostrar botón Guardar para todos los usuarios logueados */}
-        {isLogged && isSaved !== null && (
+        {/* Mostrar botón Guardar solo para usuarios (no para cuentas empresa) */}
+  {isLogged && isSaved !== null && !isEmpresaAccount && (
           <TouchableOpacity
             style={[styles.reserveButton, isSaved ? styles.reserveButtonSaved : null]}
             onPress={handleSave}
