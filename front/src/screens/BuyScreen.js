@@ -321,6 +321,7 @@ export default function BuyScreen() {
         setSavedId(null);
         return;
       }
+      if(!isEmpresaAccount) {
       try {
         // Forzar recarga sin cache
         const res = await api.get('/api/eventos-guardados/?evento=' + idEvento + '&_=' + Date.now());
@@ -338,6 +339,7 @@ export default function BuyScreen() {
         setIsSaved(false);
         setSavedId(null);
       }
+    }
     };
     checkSaved();
   }, [isLogged, idEvento, refreshSaved]);

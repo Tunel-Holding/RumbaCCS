@@ -109,13 +109,14 @@ def validate_image_with_sightengine(file):
             data={"models": "nudity,wad,offensive", "api_user": api_user, "api_secret": api_secret},
         )
         result = response.json()
+        print("Sightengine result:", result)  # 👈 para depuración
 
         # 👇 Lógica simple: puedes ajustar los umbrales
         if result.get("status") != "success":
             return False
 
         nudity = result.get("nudity", {})
-        if nudity.get("safe", 0) < 0.85:  # menos del 85% seguro
+        if nudity.get("safe", 0) < 0.80:  # menos del 80% seguro
             return False
 
         return True

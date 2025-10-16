@@ -622,6 +622,8 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
         api_secret = settings.SIGHTENGINE_API_SECRET
 
         try:
+            # Asegurar que el puntero esté al inicio
+            file.seek(0)
             response = requests.post(
                 "https://api.sightengine.com/1.0/check.json",
                 files={"media": file},
