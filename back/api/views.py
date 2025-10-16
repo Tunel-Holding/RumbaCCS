@@ -65,8 +65,9 @@ class RegistroUsuarioView(generics.CreateAPIView):
             return Response({'error': 'El correo ya esta en uso.'}, status=status.HTTP_400_BAD_REQUEST)
         if phone.startswith('0'):
             phone = phone[1:]
-        if Usuario.objects.filter(phone=phone).exists():
+        if Usuario.objects.filter(phone=phone).exists() or Empresa.objects.filter(phone=phone).exists():
             return Response({'error': 'El numero de telefono ya esta en uso.'}, status=status.HTTP_400_BAD_REQUEST)
+        
         EmailVerification.objects.update_or_create(
             email=email,
             defaults={

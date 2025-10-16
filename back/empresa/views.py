@@ -89,20 +89,22 @@ class EmpresaPreRegistroView(generics.CreateAPIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']  # ✅ mantenido porque empresa debe loguearse
         nombre = serializer.validated_data['nombre']
-        phone = serializer.validated_data.get('telefono')
-        if Usuario.objects.filter(email=email).exists():
+        phone = serializer.validated_data.get('phone')
+        if Usuario.objects.filter(email=email).exists() or Empresa.objects.filter(email=email).exists():
             return Response({'error': 'El correo ya esta en uso.'}, status=status.HTTP_400_BAD_REQUEST)
         if phone:
             phone = str(phone)
-            if phone.startswith('0'):
-                phoneStart0 = phone[1:]
-                print('Telefono modificado para quitar 0 inicial:', phoneStart0)
-            # Solo rechazar si el número ya está en uso por otro usuario distinto al actual
-            if Usuario.objects.filter(phone=phoneStart0).exclude(id=request.user.id).exists():
-                return Response({'error': 'El numero de telefono ya esta en uso.'}, status=status.HTTP_400_BAD_REQUEST)
-            if Empresa.objects.filter(telefono=phone).exists():
-                return Response({'error': 'El numero de telefono ya esta en uso por otra empresa.'}, status=status.HTTP_400_BAD_REQUEST)
+            # 1. Verificar que no exista en otra empresa
+            if Empresa.objects.filter(phone=phone).exists():
+                return Response({'error': 'El número ya está en uso.'}, status=status.HTTP_400_BAD_REQUEST)
 
+            # 2. Verificar que no exista en Usuario, salvo que esté vinculado a esta empresa
+            usuario_con_phone = Usuario.objects.filter(phone=phone).first()
+            if usuario_con_phone:
+                # Si el usuario no está vinculado a esta empresa, error
+                if not Empresa.objects.filter(usuario_id=usuario_con_phone.id).exists():
+                    return Response({'error': 'El número ya está en uso.'}, status=status.HTTP_400_BAD_REQUEST)
+                
         # Generar y guardar pin y datos temporales
         pin = str(random.randint(100000, 999999))
         EmailVerification.objects.update_or_create(
@@ -139,13 +141,13 @@ class EmpresaValidarPinView(generics.CreateAPIView):
         pin = request.data.get('pin')
         empresa_data = request.data.get('empresa', {})
         empresa_fields = [
-            'nombre', 'rif', 'descripcion', 'lugar', 'telefono', 'email_contacto', 'logo',
+            'nombre', 'rif', 'descripcion', 'lugar', 'phone', 'email_contacto', 'logo',
         ]
         redes_sociales = empresa_data.get('redes_sociales', [])
         empresa_data = {k: v for k, v in empresa_data.items() if k in empresa_fields}
         empresa_data['email'] = email
 
-        print(f"[VALIDAR PIN] email={email}, pin={pin}, empresa_data={empresa_data}, redes_sociales={redes_sociales}")
+        print(f"[VALIDAR PIN] email={email}, pin={pin}, empresa_data={empresa_data}")
 
         # Validar pin
         try:
@@ -1007,7 +1009,7 @@ class EmpresaValidarPinConUsuarioView(generics.CreateAPIView):
         redes_sociales = empresa_data.pop("redes_sociales", [])
 
         # Filtrar campos válidos para Empresa
-        empresa_fields = ["nombre", "rif", "descripcion", "lugar", "telefono", "email_contacto", "logo"]
+        empresa_fields = ["nombre", "rif", "descripcion", "lugar", "phone", "email_contacto", "logo"]
         empresa_data = {k: v for k, v in empresa_data.items() if k in empresa_fields}
 
         # Crear empresa vinculada al usuario

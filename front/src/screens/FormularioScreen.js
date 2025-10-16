@@ -17,7 +17,7 @@ export default function FormularioScreen({ navigation, route }) {
   const [rifPrefix, setRifPrefix] = useState('J'); // Prefijo seleccionado (J o V)
   const [rifDropdownOpen, setRifDropdownOpen] = useState(false); // controla menú desplegable prefijo
   const [lugar, setLugar] = useState('');
-  const [telefono, setTelefono] = useState('');
+  const [phone, setphone] = useState('');
   const [correo, setCorreo] = useState('');
   // Contraseña y repetir contraseña
   const [password, setPassword] = useState('');
@@ -144,7 +144,7 @@ export default function FormularioScreen({ navigation, route }) {
     if (!nombre.trim()) nuevosErrores.nombre = 'Este campo es obligatorio';
     if (!rif.trim()) nuevosErrores.rif = 'Este campo es obligatorio';
     if (!lugar.trim()) nuevosErrores.lugar = 'Este campo es obligatorio';
-    if (!telefono.trim()) nuevosErrores.telefono = 'Este campo es obligatorio';
+    if (!phone.trim()) nuevosErrores.phone = 'Este campo es obligatorio';
     if (!correo.trim()) nuevosErrores.correo = 'Este campo es obligatorio';
     if (!password) passError = 'La contraseña es obligatoria';
     else if (password.length < 6) passError = 'La contraseña debe tener al menos 6 caracteres';
@@ -170,10 +170,10 @@ const handleEnviar = async () => {
     
     console.log("Entrando a handleEnviar, token:", token);
 
-      let telefonoValido = telefono;
-      if (!/^\+?\d{7,15}$/.test(telefono)) {
-        telefonoValido = telefono.replace(/[^\d+]/g, "");
-        if (telefonoValido.length < 7 || telefonoValido.length > 15) {
+      let phoneValido = phone;
+      if (!/^\+?\d{7,15}$/.test(phone)) {
+        phoneValido = phone.replace(/[^\d+]/g, "");
+        if (phoneValido.length < 7 || phoneValido.length > 15) {
           Alert.alert(
             "Error",
             "El teléfono debe tener entre 7 y 15 dígitos y solo puede contener números y un '+' opcional."
@@ -198,7 +198,7 @@ const handleEnviar = async () => {
         rif: rifFormateado,
         descripcion: descripcion || "",
         lugar,
-        telefono: telefonoValido,
+        phone: phoneValido,
         email_contacto: correo,
         redes_sociales: redesSocialesArr,
         email: correo,
@@ -226,44 +226,7 @@ const handleEnviar = async () => {
       });
 
     
-    // else {
-    //   // 🚀 Caso 2: Usuario ya existe → crear empresa vinculada (en este caso sí cerramos rápido el spinner porque no hay pantalla PIN)
-    //   console.log("Creando empresa para usuario existente, token:");
-    //   // Construir array de redes sociales con los seleccionados y sus links
-    //   const redesSocialesArr2 = [];
-    //   if (usaRedes === 'si') {
-    //     Object.keys(socialChecks).forEach(key => {
-    //       if (socialChecks[key] && socialLinks[key].trim()) {
-    //         redesSocialesArr2.push({ tipo: key, url: socialLinks[key].trim() });
-    //       }
-    //     });
-    //   }
-    //   const res = await api.post('/api/empresas/', {
-    //     rif: rifFormateado,
-    //     lugar,
-    //     telefono,
-    //     nombre,
-    //     descripcion: descripcion || "",
-    //     email_contacto: correo,
-    //     redes_sociales: redesSocialesArr2,
-    //     email: correo,
-    //     password: password,
-    //   });
 
-    //   console.log("Respuesta al crear empresa:", res);
-    //   const data = res.data;
-    //   if (!res.status || res.status >= 400) {
-    //     console.error("Error backend:", data);
-    //     Alert.alert("Error", data?.non_field_errors?.[0] || "No se pudo crear la empresa");
-    //     setCargando(false);
-    //     return;
-    //   }
-    //   if (data.id) {
-    //     await AsyncStorage.setItem("empresaId", data.id.toString());
-    //   }
-    //   navigation.navigate("Empresa", { empresaId: data.id });
-    //   setCargando(false);
-    // }
   } catch (error) {
     console.error("Error capturado en catch:", error);
     setCargando(false);
@@ -290,103 +253,6 @@ const handleEnviar = async () => {
     }
   }
 };
-
-
-// // Nueva función para validar el pin y crear usuario+empresa
-// const handleValidarPin = async () => {
-//   const pinIngresado = pinDigits.join('');
-//   if (pinIngresado.length !== PIN_LENGTH) {
-//     Alert.alert('PIN incompleto', 'Debe ingresar los 6 dígitos.');
-//     return;
-//   }
-//   if (!correo) {
-//   Alert.alert("Error", "El correo no está definido, vuelve a registrarte.");
-//   setCargando(false);
-//   return;
-// }
-//   const rifFormateado = /^\d{9}$/.test(rif)
-//         ? `${rifPrefix}-${rif.slice(0, 8)}-${rif.slice(8)}`
-//         : (rif ? `${rifPrefix}-${rif}` : '');
-//   try {
-//     setCargando(true);
-//     // Construir array de redes sociales con los seleccionados y sus links
-//     const redesSocialesArr = [];
-//     if (usaRedes === 'si') {
-//       Object.keys(socialChecks).forEach(key => {
-//         if (socialChecks[key] && socialLinks[key].trim()) {
-//           redesSocialesArr.push({ tipo: key, url: socialLinks[key].trim() });
-//         }
-//       });
-//     }
-
-//     const token = await AsyncStorage.getItem("accessToken");
-
-//     const endpoint = token 
-//       ? '/api/validar-pin-empresa-usuario/' 
-//       : '/api/validar-pin-empresa/';
-
-
-//     const res = await api.post(endpoint, {
-//       email: correo,
-//       pin: pinIngresado,
-//       password: password,
-//       empresa: {
-//         nombre,
-//         rif: rifFormateado,
-//         lugar,
-//         telefono,
-//         email_contacto: correo,
-//         redes_sociales: redesSocialesArr,
-//         descripcion,
-//       }
-//     }, {
-//       headers: {
-//         Authorization: `Bearer ${token}`, // 👈 necesario
-//       }
-//     });
-
-// const data = res.data;
-
-// if (!res.status || res.status >= 400) {
-//   Alert.alert("Error", data?.detail || "No se pudo validar el pin");
-//   setCargando(false);
-//   return;
-// }
-
-// console.log("PIN validado y empresa creada:", data);
-
-// if (data.empresa.id) {
-//   await AsyncStorage.setItem("empresaId", data.empresa.id.toString());
-//   if (data.usuario_id) {
-//     await AsyncStorage.setItem("usuarioId", data.usuario_id.toString());
-//   }
-// } else {
-//   Alert.alert("Error", "No se pudo obtener el ID de la empresa");
-//   setCargando(false);
-//   return;
-// }
-// await AsyncStorage.setItem('isEmpresaAccount', 'true');
-// await AsyncStorage.setItem('accessToken', data.access);
-// await AsyncStorage.setItem('refreshToken', data.refresh);
-// await AsyncStorage.setItem('empresa', JSON.stringify(data));
-// if (data.usuario_id) {
-//   await AsyncStorage.setItem('usuarioId', data.usuario_id.toString());
-// }
-
-// Alert.alert("Registro exitoso", "¡Bienvenido! Tu empresa ha sido registrada.");
-// setCargando(false);
-// navigation.reset({
-//   index: 0,
-//   routes: [{ name: 'HomeScreen', params: { empresaId: data.empresa.id, usuarioId: data.usuario_id } }],
-// });
-    
-//   } catch (error) {
-//     setCargando(false);
-//     // Marcar error de PIN si el backend devuelve 400/401 o respuesta esperada de PIN inválido
-//     setPinError(true);
-//   }
-
-// };
 
 const handleValidarPin = async () => {
   const pinIngresado = pinDigits.join('');
@@ -434,7 +300,7 @@ const handleValidarPin = async () => {
         nombre,
         rif: rifFormateado,
         lugar,
-        telefono,
+        phone,
         email_contacto: correo,
         redes_sociales: redesSocialesArr,
         descripcion,
@@ -749,19 +615,19 @@ const handleValidarPin = async () => {
             </View>
             {errores.lugar && <Text style={styles.errorText}>{errores.lugar}</Text>}
             <Text style={styles.label}>Teléfono del encargado</Text>
-            <View onLayout={e => registerFieldPosition('telefono', e.nativeEvent.layout.y)}>
+            <View onLayout={e => registerFieldPosition('phone', e.nativeEvent.layout.y)}>
               <TextInput
                 style={styles.input}
                 placeholder="Teléfono del encargado"
                 placeholderTextColor="#888"
-                value={telefono}
-                onChangeText={text => { setTelefono(text); if (errores.telefono) setErrores(e => ({ ...e, telefono: undefined })); }}
+                value={phone}
+                onChangeText={text => { setphone(text); if (errores.phone) setErrores(e => ({ ...e, phone: undefined })); }}
                 keyboardType="phone-pad"
-                onFocus={() => scrollToField('telefono')}
+                onFocus={() => scrollToField('phone')}
                 returnKeyType='next'
               />
             </View>
-            {errores.telefono && <Text style={styles.errorText}>{errores.telefono}</Text>}
+            {errores.phone && <Text style={styles.errorText}>{errores.phone}</Text>}
             <Text style={styles.label}>Correo de la empresa</Text>
             <View onLayout={e => registerFieldPosition('correo', e.nativeEvent.layout.y)}>
               <TextInput

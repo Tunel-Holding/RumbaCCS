@@ -66,7 +66,7 @@ class Empresa(models.Model):
         help_text="Ubicación o ciudad principal de la empresa"
     )
 
-    telefono = models.CharField(
+    phone = models.CharField(
         max_length=20,
         blank=True, null=True,
         validators=[RegexValidator(r'^\+?1?\d{7,15}$', message="El teléfono debe tener entre 7 y 15 dígitos.")]
