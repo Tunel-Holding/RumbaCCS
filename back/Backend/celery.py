@@ -5,4 +5,6 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Backend.settings')
 
 app = Celery('Backend')
 app.config_from_object('django.conf:settings', namespace='CELERY')
-app.autodiscover_tasks()
+app.autodiscover_tasks([
+    "api.notifications",
+])

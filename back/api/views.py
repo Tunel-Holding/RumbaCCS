@@ -8,8 +8,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import RegisterSerializer, UserPublicSerializer, MyTokenObtainPairSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer
-from .models import EmailVerification, Usuario
+from .serializers import RegisterSerializer, UserPublicSerializer, MyTokenObtainPairSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer, NotificacionUsuarioSerializer
+from .models import EmailVerification, Usuario, NotificacionUsuario
 from empresa.models import Empresa
 from django.core.mail import send_mail
 from django.utils import timezone
@@ -286,3 +286,9 @@ class PasswordResetConfirmView(APIView):
         verification.save()
         return Response({'message': 'Contraseña cambiada correctamente.'}, status=status.HTTP_200_OK)
 
+class NotificacionUsuarioListView(generics.ListAPIView):
+    serializer_class = NotificacionUsuarioSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return NotificacionUsuario.objects.filter(usuario=self.request.user).order_by('-creada_en')

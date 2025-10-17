@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import UsuarioViewSet, RegistroUsuarioView, SendVerificationCodeView, VerifyCodeView, FinalizeRegisterView
+from .views import NotificacionUsuarioListView, UsuarioViewSet, RegistroUsuarioView, SendVerificationCodeView, VerifyCodeView, FinalizeRegisterView
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import MyTokenObtainPairView, SafeTokenRefreshView  # Importa tu nueva vista personalizada
 from .views import PasswordResetRequestView, PasswordResetConfirmView  # Asegúrate de importar las vistas
@@ -19,4 +19,6 @@ urlpatterns = [
     path('finalize-register/', FinalizeRegisterView.as_view(), name='finalize-register'),
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
     path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    # Rutas para notificaciones de usuario
+     path('notificaciones/', NotificacionUsuarioListView.as_view(), name='notificaciones-usuario'),
 ]

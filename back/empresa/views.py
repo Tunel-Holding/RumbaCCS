@@ -6,7 +6,6 @@ from rest_framework import viewsets, permissions
 from .models import (
     Empresa, Evento2, Rating,
     EventoImagen,
-    NotificacionUsuario,
     EmpresaRedSocial,
     )
 from .serializers import (
@@ -16,8 +15,8 @@ from .serializers import (
     RatingSerializer,
     EventoImagenSerializer,
     TempImageSerializer,
-    EmpresaBulkSerializer,
-    NotificacionUsuarioSerializer
+    EmpresaBulkSerializer
+    
     )
 from api.models import EmailVerification
 from django.utils import timezone
@@ -1053,9 +1052,3 @@ class EmpresaValidarPinConUsuarioView(generics.CreateAPIView):
             status=201
         )
 
-class NotificacionUsuarioListView(generics.ListAPIView):
-    serializer_class = NotificacionUsuarioSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return NotificacionUsuario.objects.filter(usuario=self.request.user).order_by('-creada_en')

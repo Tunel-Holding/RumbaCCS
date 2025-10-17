@@ -410,9 +410,4 @@ class UsuarioEvento(models.Model):
         return f"{self.usuario.username} guardó {self.evento.titulo}"
 
 
-class NotificacionUsuario(models.Model):
-    usuario = models.ForeignKey('api.Usuario', on_delete=models.CASCADE)
-    mensaje = models.TextField()
-    tipo = models.CharField(max_length=50, choices=[('evento_proximo', 'Evento próximo'), ('nuevo_evento', 'Nuevo evento')])
-    leida = models.BooleanField(default=False)
-    creada_en = models.DateTimeField(auto_now_add=True)
+

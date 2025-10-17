@@ -3,7 +3,7 @@ from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import EmailVerification
+from .models import EmailVerification, NotificacionUsuario
 
 Usuario = get_user_model()
 
@@ -84,3 +84,8 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         if data['password'] != data['password2']:
             raise serializers.ValidationError("Las contraseñas no coinciden.")
         return data
+    
+class NotificacionUsuarioSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificacionUsuario
+        fields = ['id', 'mensaje', 'tipo', 'leida', 'creada_en']

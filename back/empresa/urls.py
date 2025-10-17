@@ -22,7 +22,6 @@ from .views import (
     UsuarioEventoViewSet,
     EmpresaValidarPinConUsuarioView,
     UsuarioComentariosView,
-    NotificacionUsuarioListView,
 )
 
 # 1) Router principal para empresas
@@ -85,6 +84,5 @@ urlpatterns = [
     # Imagenes de eventos
     path('api/eventos/<int:evento_id>/imagenes/', evento_imagenes, name='evento-imagenes'),
     
-    # Rutas para notificaciones de usuario
-     path('notificaciones/', NotificacionUsuarioListView.as_view(), name='notificaciones-usuario'),
+    
 ]

@@ -102,3 +102,10 @@ class EmailVerification(models.Model):
     def __str__(self):
         return f"{self.email} - {self.purpose}"
 
+class NotificacionUsuario(models.Model):
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE,related_name='notificaciones_usuario')
+    mensaje = models.TextField()
+    tipo = models.CharField(max_length=50, choices=[('evento_proximo', 'Evento próximo'), ('nuevo_evento', 'Nuevo evento')])
+    leida = models.BooleanField(default=False)
+    creada_en = models.DateTimeField(auto_now_add=True)
+    

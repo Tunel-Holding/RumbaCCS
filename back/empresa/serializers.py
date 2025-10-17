@@ -5,8 +5,8 @@ from .models import (
     EmpresaEvento, 
     EventoImagen, 
     UsuarioEvento, 
-    EmpresaRedSocial, 
-    NotificacionUsuario
+    EmpresaRedSocial
+    
 )
 # Serializer para eventos guardados por usuario
 
@@ -507,8 +507,3 @@ class EmpresaBulkSerializer(serializers.ModelSerializer):
     class Meta:
         model = Empresa
         fields = ['id', 'nombre', 'logo']
-
-class NotificacionUsuarioSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = NotificacionUsuario
-        fields = ['id', 'mensaje', 'tipo', 'leida', 'creada_en']
