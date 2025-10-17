@@ -11,7 +11,7 @@ export default function FormularioScreen({ navigation, route }) {
   const [mostrarPin, setMostrarPin] = useState(false);
   const [focusedPinIndex, setFocusedPinIndex] = useState(-1); // para resaltar el dígito activo
   const insets = useSafeAreaInsets();
-  const topSpacer = insets.top + 8; // pequeño margen superior
+  const topSpacer = insets.top + 8;
   const [nombre, setNombre] = useState('');
   const [rif, setRif] = useState('');
   const [rifPrefix, setRifPrefix] = useState('J'); // Prefijo seleccionado (J o V)
@@ -31,12 +31,14 @@ export default function FormularioScreen({ navigation, route }) {
     { key: 'x', label: 'X (Twitter)' },
     { key: 'youtube', label: 'YouTube' },
     { key: 'whatsapp', label: 'WhatsApp' },
+    { key: 'email', label: 'Correo alterno' },
   ];
-  const [socialChecks, setSocialChecks] = useState({ instagram:false, facebook:false, tiktok:false, x:false, youtube:false, whatsapp:false });
-  const [socialLinks, setSocialLinks] = useState({ instagram:'', facebook:'', tiktok:'', x:'', youtube:'', whatsapp:'' });
+  const [socialChecks, setSocialChecks] = useState({ instagram:false, facebook:false, tiktok:false, x:false, youtube:false, whatsapp:false, email:false });
+  const [socialLinks, setSocialLinks] = useState({ instagram:'', facebook:'', tiktok:'', x:'', youtube:'', whatsapp:'', email:'' });
   const [descripcion, setDescripcion] = useState(''); // si lo necesitas en actualizar
   const [errores, setErrores] = useState({});
   const [passwordError, setPasswordError] = useState('');
+  const [generalError, setGeneralError] = useState('');
   const [cargando, setCargando] = useState(false);
   const [verificado, setVerificado] = useState(false);
   const [pinDigits, setPinDigits] = useState(['','','','','','']);
@@ -66,6 +68,13 @@ export default function FormularioScreen({ navigation, route }) {
   const pollitoAnim = useRef(new Animated.Value(0)).current;
   
   const normalizeSocialLink = (platform, input) => {
+  // Manejo especial para correo alterno: generar mailto:
+  if (platform === 'email') {
+    const v = (input || '').trim();
+    if (!v) return '';
+    if (v.toLowerCase().startsWith('mailto:')) return v;
+    return `mailto:${v}`;
+  }
   const baseUrls = {
     instagram: 'https://instagram.com/',
     facebook: 'https://facebook.com/',
@@ -132,7 +141,7 @@ export default function FormularioScreen({ navigation, route }) {
     if (usaRedes === 'si') {
       const first = SOCIAL_OPTIONS.map(o => socialChecks[o.key] && socialLinks[o.key].trim()).find(v => v && v.length > 0);
       if (first) {
-        setRedes(first); // backend seguirá recibiendo 'redes'
+        // setRedes(first); // backend seguirá recibiendo 'redes' (comentado: ya enviamos redes_sociales)
       }
     }
   }, [usaRedes, socialChecks, socialLinks]);
@@ -146,13 +155,19 @@ export default function FormularioScreen({ navigation, route }) {
     if (!lugar.trim()) nuevosErrores.lugar = 'Este campo es obligatorio';
     if (!phone.trim()) nuevosErrores.phone = 'Este campo es obligatorio';
     if (!correo.trim()) nuevosErrores.correo = 'Este campo es obligatorio';
+    if (usaRedes === null) nuevosErrores.usaRedes = 'Selecciona si agregarás redes sociales';
     if (!password) passError = 'La contraseña es obligatoria';
     else if (password.length < 6) passError = 'La contraseña debe tener al menos 6 caracteres';
     else if (password !== repeatPassword) passError = 'Las contraseñas no coinciden';
     setErrores(nuevosErrores);
     setPasswordError(passError);
     console.log("Errores de validación:", nuevosErrores, passError);
-    return Object.keys(nuevosErrores).length === 0 && !passError;
+    const ok = Object.keys(nuevosErrores).length === 0 && !passError;
+    if (!ok) {
+      const firstErrorKey = ['nombre','rif','lugar','phone','correo','usaRedes'].find(k => nuevosErrores[k]);
+      if (firstErrorKey) scrollToField(firstErrorKey);
+    }
+    return ok;
   };
 
 const handleEnviar = async () => {
@@ -160,6 +175,7 @@ const handleEnviar = async () => {
 
   try {
     setCargando(true);
+    setGeneralError('');
 
     const token = await AsyncStorage.getItem("accessToken");
 
@@ -174,11 +190,13 @@ const handleEnviar = async () => {
       if (!/^\+?\d{7,15}$/.test(phone)) {
         phoneValido = phone.replace(/[^\d+]/g, "");
         if (phoneValido.length < 7 || phoneValido.length > 15) {
-          Alert.alert(
-            "Error",
-            "El teléfono debe tener entre 7 y 15 dígitos y solo puede contener números y un '+' opcional."
-          );
+          setErrores(prev => ({
+            ...prev,
+            phone: "El teléfono debe tener entre 7 y 15 dígitos y solo puede contener números y un '+' opcional."
+          }));
           setCargando(false);
+          // desplazar al campo con error
+          scrollToField('phone');
           return;
         }
       }
@@ -211,7 +229,8 @@ const handleEnviar = async () => {
       const data = res.data;
 
       if (!res.status || res.status >= 400) {
-        Alert.alert("Error", JSON.stringify(data));
+        // Mostrar error general si llegara aquí
+        setGeneralError(typeof data === 'string' ? data : JSON.stringify(data));
         setCargando(false);
         return;
       }
@@ -232,24 +251,54 @@ const handleEnviar = async () => {
     setCargando(false);
     // Si es un error de Axios con respuesta del servidor
     if (error?.response && error.response.data) {
-      const resp = error.response.data;
-      // Mensajes comunes: { email: ["El correo ya está registrado"] } o { detail: '...' }
-      if (resp.email && Array.isArray(resp.email) && resp.email[0]) {
-        Alert.alert('Error', 'El correo ya está en uso. Intenta con otro o inicia sesión.');
-        return;
+      const resp = error.response.data || {};
+      const nuevosErrores = { ...errores };
+      const mapMsg = (msg) => {
+        if (!msg) return '';
+        const s = String(msg);
+        if (/ya\s*est[aá]|already|exist/i.test(s)) return 'El correo ya está en uso. Intenta con otro o inicia sesión.';
+        return s;
+      };
+      // Mapear campos comunes
+      if (Array.isArray(resp.nombre) && resp.nombre[0]) nuevosErrores.nombre = String(resp.nombre[0]);
+      if (Array.isArray(resp.rif) && resp.rif[0]) nuevosErrores.rif = String(resp.rif[0]);
+      if (Array.isArray(resp.lugar) && resp.lugar[0]) nuevosErrores.lugar = String(resp.lugar[0]);
+      if (Array.isArray(resp.phone) && resp.phone[0]) nuevosErrores.phone = String(resp.phone[0]);
+      if (Array.isArray(resp.email_contacto) && resp.email_contacto[0]) nuevosErrores.correo = mapMsg(resp.email_contacto[0]);
+      if (Array.isArray(resp.email) && resp.email[0]) nuevosErrores.correo = mapMsg(resp.email[0]);
+      if (Array.isArray(resp.password) && resp.password[0]) setPasswordError(String(resp.password[0]));
+
+      // Errores genéricos o no mapeados
+      if (typeof resp.detail === 'string') setGeneralError(resp.detail);
+      if (Array.isArray(resp.non_field_errors) && resp.non_field_errors[0]) setGeneralError(String(resp.non_field_errors[0]));
+
+      // Si aún no hay ningún error mapeado, intentar mapear dinámicamente
+      if (Object.keys(nuevosErrores).length === Object.keys(errores).length) {
+        try {
+          for (const key of Object.keys(resp)) {
+            const val = resp[key];
+            if (Array.isArray(val) && val.length > 0) {
+              const msg = String(val[0]);
+              if (/email|correo/i.test(key)) nuevosErrores.correo = mapMsg(msg);
+              else if (/password/i.test(key)) setPasswordError(msg);
+              else if (/rif/i.test(key)) nuevosErrores.rif = msg;
+              else if (/phone|telefono/i.test(key)) nuevosErrores.phone = msg;
+              else if (/nombre/i.test(key)) nuevosErrores.nombre = msg;
+              else if (/lugar|ubicaci[oó]n/i.test(key)) nuevosErrores.lugar = msg;
+              else setGeneralError(msg);
+            } else if (typeof val === 'string') {
+              setGeneralError(String(val));
+            }
+          }
+        } catch {}
       }
-      // Si el backend devuelve errores agrupados por campo
-      for (const key of Object.keys(resp)) {
-        const val = resp[key];
-        if (Array.isArray(val) && val.length > 0 && /correo|email|ya está|already|exist/i.test(String(val[0]))) {
-          Alert.alert('Error', 'El correo ya está en uso. Intenta con otro o inicia sesión.');
-          return;
-        }
-      }
-      // Fallback: mostrar el mensaje que envió el servidor
-      Alert.alert('Error', JSON.stringify(resp));
+
+      setErrores(nuevosErrores);
+      // Desplazar al primer campo con error visible
+      const firstErrorKey = ['nombre','rif','lugar','phone','correo'].find(k => nuevosErrores[k]);
+      if (firstErrorKey) scrollToField(firstErrorKey);
     } else {
-      Alert.alert('Error', error?.message || 'Error inesperado');
+      setGeneralError(error?.message || 'Error inesperado');
     }
   }
 };
@@ -380,7 +429,26 @@ const handleValidarPin = async () => {
       <View style={styles.header} />
       <View style={styles.body}>
         {mostrarPin && !verificado ? (
-          // Pantalla de PIN
+          // Pantalla de PIN con KeyboardAvoidingView para que el teclado no tape
+          <KeyboardAvoidingView
+            style={{ flex: 1, width: '100%' }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 24 : insets.bottom + 24}
+          >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            style={{ flex: 1, width: '100%' }}
+            contentContainerStyle={{
+              flexGrow: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              paddingTop: topSpacer,
+              paddingBottom: insets.bottom + 24,
+              paddingHorizontal: 16,
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           <View style={styles.loadingContainer}>
             <TouchableOpacity
               style={styles.pinBackBtn}
@@ -516,6 +584,9 @@ const handleValidarPin = async () => {
               </>
             )}
           </View>
+          </ScrollView>
+          </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
         ) : verificado ? (
           <View style={styles.loadingContainer}>
             <Text style={styles.successTitle}>Registro exitoso</Text>
@@ -524,8 +595,8 @@ const handleValidarPin = async () => {
         ) : (
           <KeyboardAvoidingView
             style={{ flex:1, width:'100%' }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 24 : insets.bottom + 24}
           >
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
@@ -675,13 +746,14 @@ const handleValidarPin = async () => {
             {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
             <Text style={styles.label}>¿Agregar redes sociales?</Text>
-            <View style={{ flexDirection:'row', marginBottom: 12 }}>
+            <View onLayout={e => registerFieldPosition('usaRedes', e.nativeEvent.layout.y)} style={{ flexDirection:'row', marginBottom: 12 }}>
               {['si','no'].map(op => (
                 <TouchableOpacity
                   key={op}
                   onPress={() => {
-                    setUsaRedes(op); 
-                    if (op === 'no') { setSocialChecks({ instagram:false, facebook:false, tiktok:false, x:false, youtube:false, whatsapp:false }); setSocialLinks({ instagram:'', facebook:'', tiktok:'', x:'', youtube:'', whatsapp:'' }); setRedes(''); }
+                    setUsaRedes(op);
+                    if (errores.usaRedes) setErrores(prev => ({ ...prev, usaRedes: undefined }));
+                    if (op === 'no') { setSocialChecks({ instagram:false, facebook:false, tiktok:false, x:false, youtube:false, whatsapp:false, email:false }); setSocialLinks({ instagram:'', facebook:'', tiktok:'', x:'', youtube:'', whatsapp:'', email:'' }); /* setRedes(''); */ }
                   }}
                   style={{ flexDirection:'row', alignItems:'center', marginRight: 24 }}
                   activeOpacity={0.8}
@@ -691,9 +763,10 @@ const handleValidarPin = async () => {
                 </TouchableOpacity>
               ))}
             </View>
+            {errores.usaRedes ? <Text style={styles.errorText}>{errores.usaRedes}</Text> : null}
             {usaRedes === 'si' && (
               <View style={{ marginBottom: 8 }}>
-                <Text style={{ color:'#94a3b8', marginBottom: 8, fontSize:13 }}>Selecciona las redes y coloca el enlace o usuario (solo se enviará la primera con enlace válido por ahora).</Text>
+                <Text style={{ color:'#94a3b8', marginBottom: 8, fontSize:13 }}>Selecciona las redes y coloca el enlace, usuario o correo (se enviarán las seleccionadas).</Text>
                 {SOCIAL_OPTIONS.map(opt => {
                   const checked = socialChecks[opt.key];
                   return (
@@ -712,7 +785,7 @@ const handleValidarPin = async () => {
                         <View onLayout={e => registerFieldPosition(`social_${opt.key}`, e.nativeEvent.layout.y)}>
                           <TextInput
                             style={[styles.input, { marginTop:6 }]}
-                            placeholder={`Enlace o usuario de ${opt.label}`}
+                            placeholder={opt.key === 'email' ? 'correo@dominio.com' : `Enlace o usuario de ${opt.label}`}
                             placeholderTextColor="#888"
                             value={socialLinks[opt.key]}
                             onChangeText={txt => {
@@ -744,6 +817,9 @@ const handleValidarPin = async () => {
                 <Text style={styles.enviarBtnText}>Enviar formulario</Text>
               )}
             </TouchableOpacity>
+            {generalError ? (
+              <Text style={[styles.errorText, { textAlign: 'center', marginTop: 8 }]}>{generalError}</Text>
+            ) : null}
           </ScrollView>
           </TouchableWithoutFeedback>
           </KeyboardAvoidingView>
