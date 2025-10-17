@@ -26,16 +26,19 @@ Usuario = get_user_model()
 
 class SafeTokenRefreshView(TokenViewBase):
     """
-    Custom TokenRefreshView that handles Usuario.DoesNotExist gracefully.
+    TokenRefreshView que funciona tanto para Usuario como para Empresa.
+    Solo captura el caso en que el token apunta a un objeto que ya no existe.
     """
-
-    _serializer_class = api_settings.TOKEN_REFRESH_SERIALIZER
+    serializer_class = api_settings.TOKEN_REFRESH_SERIALIZER
 
     def post(self, request, *args, **kwargs):
         try:
             return super().post(request, *args, **kwargs)
-        except Usuario.DoesNotExist:
-            return Response({'detail': 'Usuario no existe'}, status=status.HTTP_401_UNAUTHORIZED)
+        except (Usuario.DoesNotExist, Empresa.DoesNotExist):
+            return Response(
+                {'detail': 'Usuario o Empresa no existe'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
 class MeView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
