@@ -145,6 +145,10 @@ export default function AddScreen() {
     // result.assets es un array; guardamos solo las URIs
     const uris = (result.assets || []).map(a => a.uri).filter(Boolean);
 
+    if (uris.length > 3) {
+      return Alert.alert("Límite de imágenes", `Solo puedes seleccionar hasta ${MAX_IMAGES} imágenes por evento.`);
+    }
+
     if (uris.length === 0) {
       setErrors((prev) => ({ ...prev, imagenes: 'El evento debe tener al menos una imagen válida.' }));
       return;
