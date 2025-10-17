@@ -749,41 +749,6 @@ def get_tokens_for_user(user):
         'access': str(refresh.access_token),
     }
 
-class EmpresaLoginView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        email = request.data.get("email")
-        password = request.data.get("password")
-
-        if not email or not password:
-            return Response(
-                {"detail": "Email y password requeridos."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            empresa = Empresa.objects.get(email_contacto=email)
-        except Empresa.DoesNotExist:
-            return Response({"detail": "Empresa no encontrada."}, status=status.HTTP_404_NOT_FOUND)
-
-        if not empresa.check_password(password):
-            return Response({"detail": "Contraseña incorrecta."}, status=status.HTTP_401_UNAUTHORIZED)
-
-        # Generar tokens con SimpleJWT
-        refresh = RefreshToken.for_user(empresa)
-        refresh["empresa_id"] = empresa.id
-        refresh["email"] = empresa.email_contacto
-        refresh["is_empresa"] = True
-
-        empresa_data = EmpresaSerializer(empresa, context={"request": request}).data
-
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "empresa": empresa_data
-        }, status=status.HTTP_200_OK)
-
     
 class EmpresaMiPerfilView(APIView):
     permission_classes = [IsAuthenticated]

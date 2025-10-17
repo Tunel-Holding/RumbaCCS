@@ -5,57 +5,32 @@ export const loginConFallback = async (email, password) => {
   if (!email.trim() || !password.trim()) {
     return { error: 'Campos vacíos', tipo: 'validacion' };
   }
-  let usuarioFalló = false;
+
   try {
-    const resUser = await api.post('/api/login/', { email, password });
-    // Si el interceptor devolvió una respuesta simulada
-    if (resUser?.data?.loggedOut) {
-      usuarioFalló = true;
-      throw new Error('Usuario no válido');
-    }
+    // Llamada al endpoint unificado
+    const res = await api.post('/api/login/', { email, password });
+    const data = res.data;
 
-    const data = resUser.data;
-
-    console.log('token access:', data.access);
+    // Determinar si es empresa o usuario según la respuesta
+    const isEmpresa = !!data.empresa;
 
     await AsyncStorage.multiSet([
       ['accessToken', data.access],
       ['refreshToken', data.refresh],
       ['userEmail', email],
-      ['empresaId', data.empresa_id?.toString() || ''],
-      ['userName', data.user?.username || email],
-      ['userKind', 'usuario'],
+      ['empresaId', isEmpresa 
+          ? data.empresa?.id?.toString() || '' 
+          : data.empresa_id?.toString() || ''],
+      ['userName', !isEmpresa 
+          ? data.user?.username || email 
+          : data.empresa?.nombre || email],
+      ['userKind', isEmpresa ? 'empresa' : 'usuario'],
     ]);
 
-    return { success: true, tipo: 'usuario', data };
+    return { success: true, tipo: isEmpresa ? 'empresa' : 'usuario', data };
 
-  } catch (errorUser) {
-    const status = errorUser.response?.status;
-    const msg = errorUser.response?.data?.detail || errorUser.message;
-
-
-    // Si no es 401 o no es un logout silencioso, devolver error
-    if (!usuarioFalló && status !== 401 && !errorUser?.config?._fromSilentLogout) {
-      return { error: msg, tipo: 'error' };
-    }
-    
-    try {
-      const resEmpresa = await api.post('/api/empresa/login/', { email, password });
-      const data = resEmpresa.data;
-
-      await AsyncStorage.multiSet([
-        ['accessToken', data.token || data.access],
-        ['refreshToken', data.refresh],
-        ['empresaId', data.empresa?.id?.toString() || ''],
-        ['userEmail', email],
-        ['userKind', 'empresa'],
-      ]);
-
-      return { success: true, tipo: 'empresa', data };
-
-    } catch (errorEmpresa) {
-      const msgEmpresa = errorEmpresa.response?.data?.detail || errorEmpresa.message;
-      return { error: msgEmpresa, tipo: 'credenciales' };
-    }
+  } catch (error) {
+    const msg = error.response?.data?.detail || error.message;
+    return { error: msg, tipo: 'credenciales' };
   }
 };
