@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import RegisterSerializer, UserPublicSerializer, MyTokenObtainPairSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer, NotificacionUsuarioSerializer
+from .serializers import LoginUnificadoSerializer, RegisterSerializer, UserPublicSerializer, MyTokenObtainPairSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer, NotificacionUsuarioSerializer
 from .models import EmailVerification, Usuario, NotificacionUsuario
 from empresa.models import Empresa
 from django.core.mail import send_mail
@@ -19,22 +19,26 @@ from empresa.services import validate_image_with_sightengine
 from .services import upload_user_profile_picture, delete_user_profile_picture
 from rest_framework_simplejwt.views import TokenViewBase
 from rest_framework_simplejwt.settings import api_settings
+from rest_framework.permissions import AllowAny
 
 
 Usuario = get_user_model()
 
 class SafeTokenRefreshView(TokenViewBase):
     """
-    Custom TokenRefreshView that handles Usuario.DoesNotExist gracefully.
+    TokenRefreshView que funciona tanto para Usuario como para Empresa.
+    Solo captura el caso en que el token apunta a un objeto que ya no existe.
     """
-
-    _serializer_class = api_settings.TOKEN_REFRESH_SERIALIZER
+    serializer_class = api_settings.TOKEN_REFRESH_SERIALIZER
 
     def post(self, request, *args, **kwargs):
         try:
             return super().post(request, *args, **kwargs)
-        except Usuario.DoesNotExist:
-            return Response({'detail': 'Usuario no existe'}, status=status.HTTP_401_UNAUTHORIZED)
+        except (Usuario.DoesNotExist, Empresa.DoesNotExist):
+            return Response(
+                {'detail': 'Usuario o Empresa no existe'},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
 
 class MeView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -46,6 +50,49 @@ class MeView(generics.RetrieveUpdateAPIView):
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+
+class UnifiedLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        password = request.data.get("password")
+
+        if not email or not password:
+            return Response(
+                {"detail": "Email y password requeridos."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # 🔹 Intentar autenticación como usuario normal
+        user = authenticate(request, email=email, password=password)
+        if user:
+            serializer = MyTokenObtainPairSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            return Response(serializer.validated_data, status=status.HTTP_200_OK)
+
+        # 🔹 Si no es usuario, intentar con empresa
+        try:
+            empresa = Empresa.objects.get(email_contacto=email)
+        except Empresa.DoesNotExist:
+            return Response({"detail": "Credenciales inválidas."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        if not empresa.check_password(password):
+            return Response({"detail": "Contraseña incorrecta."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        # 🔹 Generar tokens (igual que el endpoint viejo de empresa)
+        refresh = RefreshToken.for_user(empresa)
+        refresh["empresa_id"] = empresa.id
+        refresh["email"] = empresa.email_contacto
+        refresh["is_empresa"] = True
+
+        empresa_data = EmpresaSerializer(empresa, context={"request": request}).data
+
+        return Response({
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "empresa": empresa_data
+        }, status=status.HTTP_200_OK)
 
 class RegistroUsuarioView(generics.CreateAPIView):
     serializer_class = RegisterSerializer

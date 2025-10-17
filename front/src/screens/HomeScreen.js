@@ -8,6 +8,7 @@ import axios from 'axios';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
+import { formatPrice } from '../utils/priceUtils';
 import EVENT_TYPES from '../constants/eventTypes';
 
 import * as Location from 'expo-location';
@@ -100,7 +101,7 @@ export default function HomeScreen() {
               })
             : null,
           location: ev.ubicacion || "Ubicación no definida",
-          price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+          price: formatPrice(ev.precio, ev.moneda || 'USD'),
           type: Array.isArray(ev.categoria) ? ev.categoria : ev.categoria ? [ev.categoria] : ["Sin categoría"],
           tag: Array.isArray(ev.categoria) ? ev.categoria[0] : ev.categoria || "Sin categoría",
           imagenes: ev.imagenes,
@@ -495,7 +496,7 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
           })
         : null,
       location: ev.ubicacion || "Ubicación no definida",
-      price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+          price: formatPrice(ev.precio, ev.moneda || 'USD'),
       type: Array.isArray(ev.categoria) ? ev.categoria : ev.categoria ? [ev.categoria] : ["Sin categoría"],
       tag: Array.isArray(ev.categoria) ? ev.categoria[0] : ev.categoria || "Sin categoría",
       imagenes: ev.imagenes,
@@ -566,7 +567,7 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
           ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
           : null,
         location: ev.ubicacion || "Ubicación no definida",
-        price: ev.precio === "0.00" ? "Entrada libre" : `$${parseFloat(ev.precio).toLocaleString()}`,
+  price: formatPrice(ev.precio, ev.moneda || 'USD'),
         type: Array.isArray(ev.categoria) ? ev.categoria : ev.categoria ? [ev.categoria] : ["Sin categoría"],
         tag: Array.isArray(ev.categoria) ? ev.categoria[0] : ev.categoria || "Sin categoría",
         imagenes: ev.imagenes,

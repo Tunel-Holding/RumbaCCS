@@ -1,22 +1,4 @@
-// --- INSTRUCCIONES PARA EL BACKEND (Django REST Framework) ---
-// 1. Agrega este endpoint en tu archivo views.py:
-//
-// from rest_framework.views import APIView
-// from rest_framework.response import Response
-// from rest_framework import status
-// from django.contrib.auth import get_user_model
-//
-// class CheckEmailView(APIView):
-//     def post(self, request):
-//         email = request.data.get('email')
-//         exists = get_user_model().objects.filter(email=email).exists()
-//         return Response({'exists': exists}, status=status.HTTP_200_OK)
-//
-// 2. Agrega la ruta en urls.py:
-//     path('api/check-email/', CheckEmailView.as_view()),
-//
-// 3. Reinicia el servidor backend.
-//
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Alert } from 'react-native';
 import { Modal } from 'react-native';
@@ -69,7 +51,8 @@ export const registerUser = async (formData) => {
 export default function RegisterScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const topSpacer = insets.top + 8;
-  const bottomSpacer = insets.bottom + 24; // espacio para no tapar botón final
+  const bottomSpacer = insets.bottom + 24;
+  const scrollRef = useRef();
   const [showEdadModal, setShowEdadModal] = useState(false);
   const [sexo, setSexo] = useState('masculino');
   const [user, setUser] = useState('');
@@ -193,9 +176,6 @@ export default function RegisterScreen({ navigation, route }) {
           return;
         }
         await AsyncStorage.setItem('pending_user', JSON.stringify(formData));
-        if (res && res.message) {
-          Alert.alert('Verificación', res.message);
-        }
         // No guardar access, refresh ni user aquí
       } catch (e) {
         setCargando(false);
@@ -204,6 +184,13 @@ export default function RegisterScreen({ navigation, route }) {
       }
     } catch (err) {
       Alert.alert('Error', err.message || 'Algo salió mal');
+    }
+  };
+
+  // Función para hacer scroll automático al input activo
+  const scrollToInput = (reactNode) => {
+    if (scrollRef.current && reactNode) {
+      scrollRef.current.scrollTo({ y: reactNode, animated: true });
     }
   };
 
@@ -302,12 +289,7 @@ export default function RegisterScreen({ navigation, route }) {
 
                   const res = await api.post(endpoint, { email });
                   const result = res.data;
-                  
-                  if (res.status === 200) {
-                    // Alert.alert('PIN enviado', result.detail || result.message || 'Se ha enviado un nuevo PIN a tu correo.');
-                  } else {
-                    Alert.alert('Error', result.detail || result.message || 'No se pudo reenviar el PIN.');
-                  }
+                
                 } catch (err) {
                   Alert.alert('Error', err.message || 'No se pudo reenviar el PIN.');
                 }
@@ -440,10 +422,11 @@ export default function RegisterScreen({ navigation, route }) {
         <KeyboardAvoidingView
           style={{ flex:1, width:'100%' }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 24 : insets.bottom + 24}
         >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView
+          ref={scrollRef}
           style={{ flex: 1, width: '100%' }}
           contentContainerStyle={{
             alignItems: 'center',
@@ -478,6 +461,7 @@ export default function RegisterScreen({ navigation, route }) {
               placeholderTextColor="#888"
               value={user}
               onChangeText={text => { setUser(text); if (errors.user) setErrors(e => ({ ...e, user: undefined })); }}
+              onFocus={e => scrollToInput(e.nativeEvent.target)}
             />
             {errors.user && <Text style={styles.errorMsg}>{errors.user}</Text>}
           </View>
@@ -490,6 +474,7 @@ export default function RegisterScreen({ navigation, route }) {
               onChangeText={text => { setTelefono(text); if (errors.telefono) setErrors(e => ({ ...e, telefono: undefined })); }}
               keyboardType="phone-pad"
               maxLength={15}
+              onFocus={e => scrollToInput(e.nativeEvent.target)}
             />
             {errors.telefono && <Text style={styles.errorMsg}>{errors.telefono}</Text>}
           </View>
@@ -624,6 +609,7 @@ export default function RegisterScreen({ navigation, route }) {
               onChangeText={text => { setEmail(text); if (errors.email) setErrors(e => ({ ...e, email: undefined })); }}
               keyboardType="email-address"
               autoCapitalize="none"
+              onFocus={e => scrollToInput(e.nativeEvent.target)}
             />
             {checkingEmail && <Text style={{ color: '#0ea5e9', fontSize: 12, marginTop: 2 }}>Verificando correo…</Text>}
             {errors.email && <Text style={styles.errorMsg}>{Array.isArray(errors.email) ? errors.email[0] : errors.email}</Text>}
@@ -638,6 +624,7 @@ export default function RegisterScreen({ navigation, route }) {
                 value={pass}
                 onChangeText={text => { setPass(text); if (errors.pass) setErrors(e => ({ ...e, pass: undefined })); }}
                 secureTextEntry={!showPass}
+                onFocus={e => scrollToInput(e.nativeEvent.target)}
               />
               <TouchableOpacity onPress={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 12 }}>
                 <Ionicons name={showPass ? 'eye-off' : 'eye'} size={24} color="#888" />
@@ -654,6 +641,7 @@ export default function RegisterScreen({ navigation, route }) {
                 value={repeatPass}
                 onChangeText={text => { setRepeatPass(text); if (errors.repeatPass) setErrors(e => ({ ...e, repeatPass: undefined })); }}
                 secureTextEntry={!showRepeatPass}
+                onFocus={e => scrollToInput(e.nativeEvent.target)}
               />
               <TouchableOpacity onPress={() => setShowRepeatPass(!showRepeatPass)} style={{ position: 'absolute', right: 12 }}>
                 <Ionicons name={showRepeatPass ? 'eye-off' : 'eye'} size={24} color="#888" />

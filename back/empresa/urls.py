@@ -9,8 +9,6 @@ from .views import (
     EventosPublicosViewSet,
     EmpresaPreRegistroView,
     EmpresaValidarPinView,
-    EmpresaTokenObtainPairView,
-    EmpresaLoginView,
     EmpresaReenviarPinView,
     EmpresaPublicDetailView,
     EmpresaPublicEventosView,
@@ -68,10 +66,6 @@ urlpatterns = [
     
     # Flujo C: Registro de empresa vinculada a usuario
     path('validar-pin-empresa-usuario/', EmpresaValidarPinConUsuarioView.as_view(), name='validar-pin-empresa-usuario'),
-
-    # Login de empresa
-    # path('login-empresa/', EmpresaLoginView.as_view(), name='login-empresa'),
-    path("empresa/login/", EmpresaLoginView.as_view(), name="empresa_token_obtain_pair"),
     
     #Calificaciones
     path('empresas/<int:empresa_pk>/ratings/', EmpresaRatingsListCreateView.as_view(), name='empresa-ratings'),
@@ -83,6 +77,5 @@ urlpatterns = [
     
     # Imagenes de eventos
     path('api/eventos/<int:evento_id>/imagenes/', evento_imagenes, name='evento-imagenes'),
-    
     
 ]

@@ -25,6 +25,7 @@ import NotificationsModal from '../components/NotificationsModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
+import { formatPrice } from '../utils/priceUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -32,22 +33,53 @@ export default function EmpresaScreen() {
   // Estado y lógica para seguidores
   const [seguidores, setSeguidores] = useState([]);
   const [seguidoresModal, setSeguidoresModal] = useState(false);
+  const [seguidoresLoading, setSeguidoresLoading] = useState(false);
+  const [seguidoresPage, setSeguidoresPage] = useState(1);
+  const [seguidoresHasMore, setSeguidoresHasMore] = useState(true);
   const [empresaReady, setEmpresaReady] = useState(false);
 
 
   // Función para obtener los seguidores de la empresa
-  const fetchSeguidores = async () => {
+  const fetchSeguidores = async (page = 1) => {
+    setSeguidoresLoading(true);
     try {
       const empresaId = await AsyncStorage.getItem('empresaId');
-      if (!empresaId) return setSeguidores([]);
-      const res = await api.get(`/api/empresas/${empresaId}/seguidores/`);
-      setSeguidores(res.data || []);
+      if (!empresaId) {
+        setSeguidores([]);
+        setSeguidoresLoading(false);
+        setSeguidoresHasMore(false);
+        return;
+      }
+      const res = await api.get(`/api/empresas/${empresaId}/seguidores/?limit=10&offset=${(page-1)*10}`);
+      const data = res.data || [];
+      
+      // Si la API devuelve { results: [...] } usa eso
+      const items = Array.isArray(data) ? data : (data.results || []);
+      setSeguidores(prev => page === 1 ? items : [...prev, ...items]);
+      setSeguidoresHasMore(items.length === 10);
     } catch (e) {
       setSeguidores([]);
+      setSeguidoresHasMore(false);
+    } finally {
+      setSeguidoresLoading(false);
     }
   };
 
+
   // Modal para mostrar los seguidores
+  const seguidoresScrollRef = useRef();
+  const handleSeguidoresScroll = ({ nativeEvent }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    const isBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 20;
+    if (isBottom && seguidoresHasMore && !seguidoresLoading) {
+      setSeguidoresPage(prev => {
+        const next = prev + 1;
+        fetchSeguidores(next);
+        return next;
+      });
+    }
+  };
+
   const renderSeguidoresModal = () => (
     <Modal
       visible={seguidoresModal}
@@ -55,28 +87,45 @@ export default function EmpresaScreen() {
       transparent
       onRequestClose={() => setSeguidoresModal(false)}
     >
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
-        <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: 320, alignItems: 'center', position: 'relative' }}>
-          <TouchableOpacity style={{ position: 'absolute', top: 8, right: 12, zIndex: 2 }} onPress={() => setSeguidoresModal(false)}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <TouchableOpacity style={styles.modalClose} onPress={() => setSeguidoresModal(false)}>
             <Text style={{ fontSize: 24, color: '#0ea5e9' }}>×</Text>
           </TouchableOpacity>
-          <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Usuarios que te siguen</Text>
-          <ScrollView style={{ maxHeight: 300, width: '100%' }}>
-            {seguidores.length === 0 ? (
-              <Text style={{ color: '#888', textAlign: 'center', marginTop: 16 }}>No tienes seguidores aún.</Text>
+          <Text style={{ color: '#fff', fontWeight: '700', fontSize: 18, marginBottom: 12 }}>Usuarios que te siguen</Text>
+
+          <ScrollView
+            style={{ maxHeight: 320, width: '100%' }}
+            ref={seguidoresScrollRef}
+            onScroll={handleSeguidoresScroll}
+            scrollEventThrottle={100}
+            showsVerticalScrollIndicator={false}
+          >
+            {seguidores.length === 0 && !seguidoresLoading ? (
+              <View style={{ paddingVertical: 28 }}>
+                <Text style={{ color: '#94a3b8', textAlign: 'center' }}>No tienes seguidores aún.</Text>
+              </View>
             ) : (
               seguidores.map((seguidor, idx) => (
-                <View key={seguidor.id || idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                  {seguidor.avatar_url ? (
-                    <Image source={{ uri: seguidor.avatar_url }} style={{ width: 40, height: 40, borderRadius: 20, marginRight: 12 }} />
-                  ) : (
-                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#e5e7eb', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                      <Text style={{ fontSize: 20, color: '#6b7280' }}>👤</Text>
+                <View key={seguidor.id || idx} style={styles.seguidorCard}>
+                  
+                    <View style={styles.seguidorAvatarPlaceholder}>
+                      <Text style={{ fontSize: 20, color: '#94a3b8' }}>👤</Text>
                     </View>
-                  )}
-                  <Text style={{ fontSize: 16, color: '#111827' }}>{seguidor.username || seguidor.nombre || 'Usuario'}</Text>
+                  
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.seguidorName}>{seguidor.username || seguidor.nombre || 'Usuario'}</Text>
+                    {seguidor.email && <Text style={styles.seguidorMeta}>{seguidor.email}</Text>}
+                  </View>
                 </View>
               ))
+            )}
+
+            {seguidoresLoading && (
+              <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#0ea5e9" />
+                <Text style={{ color: '#94a3b8', marginTop: 8 }}>Cargando...</Text>
+              </View>
             )}
           </ScrollView>
         </View>
@@ -205,7 +254,9 @@ const handleUploadFoto = async (empresaId) => {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images,
+      mediaTypes: ImagePicker?.MediaType?.Images
+        ? ImagePicker.MediaType.Images
+        : (ImagePicker?.MediaTypeOptions?.Images || undefined),
       quality: 0.9,
       allowsEditing: true,
       aspect: [1, 1],
@@ -302,9 +353,9 @@ useEffect(() => {
           : null,
         // fecha: ev.fecha_evento || "Fecha no definida",
         // hora: ev.hora_evento || "Hora no definida",
-        ubicacion: ev.ubicacion,
-        precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
-        categoria: ev.categoria || "Sin categoría",
+  ubicacion: ev.ubicacion,
+  precio: formatPrice(ev.precio, ev.moneda || 'USD'),
+        categoria: Array.isArray(ev.categoria) ? ev.categoria.join(' ') : (ev.categoria || "Sin categoría"),
         categoriaColor: ev.categoriaColor || "#4f46e5",
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
         imagenes: ev.imagenes,
@@ -431,8 +482,12 @@ useEffect(() => {
               <TouchableOpacity
                 style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 12, alignItems: 'center', marginVertical: 10 }}
                 onPress={async () => {
-                  await fetchSeguidores();
+                  setSeguidores([]);
+                  setSeguidoresPage(1);
+                  setSeguidoresHasMore(true);
+                  setSeguidoresLoading(true);
                   setSeguidoresModal(true);
+                  await fetchSeguidores(1);
                 }}
               >
                 <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ver usuarios que te siguen</Text>
@@ -490,13 +545,26 @@ useEffect(() => {
 
   // ...
 const renderSocialCircles = () => {
-  if (!empresaReady) return null;
-  
+  // Mostrar siempre la sección, incluso si aún no está "ready"
 
   const redesMap = {};
-  empresaData.redes_sociales.forEach(red => {
-    const key = red.tipo === 'x' ? 'twitter' : red.tipo;
-    redesMap[key] = red.url;
+  const normalizeSocialType = (t) => {
+    const v = String(t || '').toLowerCase();
+    if (v === 'x' || v === 'twitter') return 'twitter';
+    if (v === 'ig' || v === 'instagram') return 'instagram';
+    if (v === 'fb' || v === 'facebook') return 'facebook';
+    if (v === 'tt' || v === 'tiktok') return 'tiktok';
+    if (v === 'yt' || v === 'youtube') return 'youtube';
+    if (v === 'wa' || v === 'whatsapp') return 'whatsapp';
+    if (v === 'mail' || v === 'email' || v === 'correo') return 'email';
+    if (v === 'web' || v === 'website' || v === 'pagina' || v === 'página') return 'website';
+    return v; // fallback to original
+  };
+
+  const redesFromEmpresa = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
+  redesFromEmpresa.forEach(red => {
+    const key = normalizeSocialType(red.tipo);
+    if (key) redesMap[key] = red.url;
   });
 
   const redes = [
@@ -506,15 +574,26 @@ const renderSocialCircles = () => {
     { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap?.tiktok || null },
     { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap?.youtube || null },
     { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap?.whatsapp || null },
+    { id: 'email', label: 'Email', icon: '✉️', color: '#f97316', url: redesMap?.email || null },
     { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap?.website || null },
   ];
 
   const hasAny = redes.some(r => !!r.url);
+
   if (!hasAny) return null;
 
   return (
     <View style={styles.socialStripContainer}>
-      <Text style={styles.socialStripTitle}>Redes sociales</Text>
+      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginRight:4 }}>
+        <Text style={styles.socialStripTitle}>Redes sociales</Text>
+        {/*
+        {!isBlocked && (
+          <TouchableOpacity onPress={() => setManageSocialModal(true)}>
+            <Text style={{ color:'#0ea5e9', fontWeight:'700' }}>Editar/Eliminar</Text>
+          </TouchableOpacity>
+        )}
+        */}
+      </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         {redes.filter(r => r.url).map(r => (
           <TouchableOpacity
@@ -526,9 +605,122 @@ const renderSocialCircles = () => {
             <Text style={styles.socialIcon}>{r.icon}</Text>
           </TouchableOpacity>
         ))}
+        {/*
+        <TouchableOpacity
+          style={[styles.socialCircle, { borderColor: '#9ca3af' }]}
+          onPress={() => setAddSocialModal(true)}
+        >
+          <Text style={[styles.socialIcon, { fontSize: 20 }]}>+</Text>
+        </TouchableOpacity>
+        */}
       </ScrollView>
     </View>
   );}
+
+  // Social add modal state
+  const [addSocialModal, setAddSocialModal] = useState(false);
+  const [newSocialType, setNewSocialType] = useState('ig');
+  const [newSocialUrl, setNewSocialUrl] = useState('');
+  const [savingSocial, setSavingSocial] = useState(false);
+  const [manageSocialModal, setManageSocialModal] = useState(false);
+  const [editingSocialIndex, setEditingSocialIndex] = useState(-1);
+
+  const availableSocials = [
+    { id: 'instagram', label: 'Instagram', key: 'ig' },
+    { id: 'x', label: 'X / Twitter', key: 'x' },
+    { id: 'facebook', label: 'Facebook', key: 'fb' },
+    { id: 'tiktok', label: 'TikTok', key: 'tt' },
+    { id: 'youtube', label: 'YouTube', key: 'yt' },
+    { id: 'whatsapp', label: 'WhatsApp', key: 'wa' },
+    { id: 'website', label: 'Website', key: 'web' },
+  ];
+
+  const handleSaveSocial = async () => {
+    if (!newSocialUrl || !newSocialType) return;
+    setSavingSocial(true);
+    try {
+      // Update local state
+      const canonicalType = (type => {
+        const v = String(type || '').toLowerCase();
+        if (v === 'x' || v === 'twitter') return 'twitter';
+        if (v === 'ig' || v === 'instagram') return 'instagram';
+        if (v === 'fb' || v === 'facebook') return 'facebook';
+        if (v === 'tt' || v === 'tiktok') return 'tiktok';
+        if (v === 'yt' || v === 'youtube') return 'youtube';
+        if (v === 'wa' || v === 'whatsapp') return 'whatsapp';
+        if (v === 'web' || v === 'website' || v === 'pagina' || v === 'página') return 'website';
+        return v;
+      })(newSocialType);
+      const entry = { tipo: canonicalType, url: newSocialUrl.trim() };
+      let next;
+      if (editingSocialIndex >= 0 && Array.isArray(empresaData?.redes_sociales)) {
+        next = [...empresaData.redes_sociales];
+        next[editingSocialIndex] = entry;
+      } else {
+        const prev = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
+        // replace any existing entry with same tipo
+        const filtered = prev.filter(i => String(i?.tipo || '').toLowerCase() !== canonicalType);
+        next = [...filtered, entry];
+      }
+      setEmpresaData(prev => ({ ...prev, redes_sociales: next }));
+
+      // Try to persist to backend if empresa id exists
+      const empresaId = empresaData?.id || await AsyncStorage.getItem('empresaId');
+      if (empresaId) {
+        try {
+          await api.patch(`/api/empresas/${empresaId}/`, { redes_sociales: next });
+        } catch (err) {
+          console.log('No se pudo persistir redes sociales', err?.response?.data || err.message || err);
+        }
+      }
+
+      setAddSocialModal(false);
+      setEditingSocialIndex(-1);
+      setNewSocialUrl('');
+      setNewSocialType('ig');
+    } finally {
+      setSavingSocial(false);
+    }
+  };
+
+  const startEditSocial = (index) => {
+    if (!Array.isArray(empresaData?.redes_sociales)) return;
+    const item = empresaData.redes_sociales[index];
+    if (!item) return;
+    setEditingSocialIndex(index);
+    setNewSocialType(item.tipo);
+    setNewSocialUrl(item.url);
+    setManageSocialModal(false);
+    setAddSocialModal(true);
+  };
+
+  const handleDeleteSocial = async (index) => {
+    if (!Array.isArray(empresaData?.redes_sociales)) return;
+    Alert.alert(
+      'Eliminar red social',
+      '¿Deseas eliminar esta red social?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            const prev = empresaData.redes_sociales;
+            const next = prev.filter((_, i) => i !== index);
+            setEmpresaData(old => ({ ...old, redes_sociales: next }));
+            const empresaId = empresaData?.id || await AsyncStorage.getItem('empresaId');
+            if (empresaId) {
+              try {
+                await api.patch(`/api/empresas/${empresaId}/`, { redes_sociales: next });
+              } catch (err) {
+                console.log('Error eliminando red social', err?.response?.data || err.message || err);
+              }
+            }
+          }
+        }
+      ]
+    );
+  };
 
 
 
@@ -654,6 +846,7 @@ const renderSocialCircles = () => {
 
     return (
       <View style={styles.eventosContainer}>
+        {/* Botón superior para agregar red social (eliminado por solicitud) */}
         <View style={styles.eventosHeader}>
           <View style={{ flex:1 }}>
             <Text style={styles.eventosTitle}>Eventos publicados</Text>
@@ -871,6 +1064,89 @@ const renderSocialCircles = () => {
                 onPress={() => setProfilePicEditVisible(false)}
               >
                 <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para gestionar redes sociales (editar/eliminar) */}
+      <Modal
+        visible={manageSocialModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setManageSocialModal(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#0b1220', borderRadius:16, padding:20, width: width < 400 ? width - 32 : 360, borderWidth:1, borderColor:'#111827' }}>
+            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <Text style={{ color:'#fff', fontWeight:'700', fontSize:16 }}>Gestionar redes</Text>
+              <TouchableOpacity onPress={() => setManageSocialModal(false)}>
+                <Text style={{ color:'#0ea5e9', fontSize:18 }}>×</Text>
+              </TouchableOpacity>
+            </View>
+            {(!empresaData?.redes_sociales || empresaData.redes_sociales.length === 0) ? (
+              <Text style={{ color:'#94a3b8' }}>No hay redes sociales agregadas.</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
+                {empresaData.redes_sociales.map((r, i) => (
+                  <View key={`${r.tipo}-${i}`} style={styles.manageSocialRow}>
+                    <View style={{ flex:1 }}>
+                      <Text style={{ color:'#e2e8f0', fontWeight:'600' }}>{String(r.tipo).toUpperCase()}</Text>
+                      <Text style={{ color:'#94a3b8' }} numberOfLines={1}>{r.url}</Text>
+                    </View>
+                    <TouchableOpacity style={[styles.manageSocialBtn, { backgroundColor:'#0ea5e9' }]} onPress={() => startEditSocial(i)}>
+                      <Text style={styles.manageSocialBtnText}>Editar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.manageSocialBtn, { backgroundColor:'#ef4444' }]} onPress={() => handleDeleteSocial(i)}>
+                      <Text style={styles.manageSocialBtnText}>Eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para añadir red social */}
+      <Modal
+        visible={addSocialModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setAddSocialModal(false)}
+      >
+        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
+          <View style={{ backgroundColor:'#0b1220', borderRadius:12, padding:18, width:320, borderWidth:1, borderColor:'#111827' }}>
+            <Text style={{ color:'#fff', fontWeight:'700', fontSize:16, marginBottom:8 }}>Añadir red social</Text>
+
+            <Text style={{ color:'#cbd5e1', marginBottom:6 }}>Red</Text>
+            <View style={{ backgroundColor:'#071029', padding:8, borderRadius:8, marginBottom:12 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {availableSocials.map(s => (
+                  <TouchableOpacity key={s.key} onPress={() => setNewSocialType(s.key)} style={{ padding:8, marginRight:8, borderRadius:8, borderWidth: newSocialType === s.key ? 2 : 1, borderColor: newSocialType === s.key ? '#0ea5e9' : 'rgba(255,255,255,0.04)' }}>
+                    <Text style={{ color: newSocialType === s.key ? '#0ea5e9' : '#cbd5e1' }}>{s.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            <Text style={{ color:'#cbd5e1', marginBottom:6 }}>URL</Text>
+            <TextInput
+              value={newSocialUrl}
+              onChangeText={setNewSocialUrl}
+              placeholder="https://..."
+              placeholderTextColor="#6b7280"
+              style={{ backgroundColor:'#071029', color:'#e2e8f0', padding:10, borderRadius:8, marginBottom:12 }}
+              autoCapitalize="none"
+            />
+
+            <View style={{ flexDirection:'row', justifyContent:'flex-end', gap:8 }}>
+              <TouchableOpacity style={{ padding:10, borderRadius:8, marginRight:8 }} onPress={() => setAddSocialModal(false)}>
+                <Text style={{ color:'#9ca3af' }}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={{ backgroundColor:'#0ea5e9', padding:10, borderRadius:8 }} onPress={handleSaveSocial} disabled={savingSocial}>
+                {savingSocial ? <ActivityIndicator color="#fff" /> : <Text style={{ color:'#fff', fontWeight:'700' }}>{editingSocialIndex >= 0 ? 'Actualizar' : 'Guardar'}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -1119,8 +1395,79 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  // Top button to add social
+  addSocialTopButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  addSocialTopText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
   // Estilos para el modal (agrega al final del objeto styles):
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
+  modalContent: { backgroundColor: '#0b1220', borderRadius: 16, padding: 20, width: width < 400 ? width - 32 : 360, alignItems: 'center', position: 'relative', borderWidth:1, borderColor:'#111827' },
   modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
+  seguidorCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.03)'
+  },
+  seguidorAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: '#0ea5e9',
+    backgroundColor: '#334155'
+  },
+  seguidorAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+    backgroundColor: '#334155',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#0ea5e9'
+  },
+  seguidorName: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  seguidorMeta: { color: '#94a3b8', fontSize: 12, marginTop: 2 },
+  socialLinksList: { marginTop: 8 },
+  socialLinkRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  socialLinkLabel: { color: '#cbd5e1', marginRight: 6, fontWeight: '600', width: 88 },
+  socialLinkUrl: { color: '#0ea5e9', flexShrink: 1 },
+  manageSocialRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)'
+  },
+  manageSocialBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  manageSocialBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+  },
 });

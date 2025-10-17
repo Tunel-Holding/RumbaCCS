@@ -2,8 +2,7 @@ Para el correcto funcionamiento de la app, deben iniciar en terminales distintas
 el servidor de django y el npx expo start
 
 NOTA:
-Se tiene que cambiar la dirección ip en los archivos screens para el funcionanmiento de la app
-(proximamente se creará la fx para automatizar el proceso)
+Se tiene que cambiar la dirección ip en front/src/services/api.js
 
 Para crear el entorno virtual: python -m venv venv
 
@@ -12,7 +11,7 @@ Para activar el entorno virtual en la carpeta back (Debes tenerlo creado):
 
 Para iniciar el servidor de django, si están usando un telefono para correr la app
 usar este comando:
-python manage.py runserver 0.0.0.0:8000 
+python manage.py runserver 0.0.0.0:8000
 
 Para iniciar el servidor del front:
 npx expo start 

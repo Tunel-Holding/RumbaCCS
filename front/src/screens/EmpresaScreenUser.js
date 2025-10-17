@@ -12,6 +12,7 @@ import PersonIcon from '../components/PersonIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api'; // ✅ Tu instancia centralizada
 import NotificationsModal from '../components/NotificationsModal';
+import { formatPrice } from '../utils/priceUtils';
 
 const { width } = Dimensions.get('window');
 
@@ -46,7 +47,10 @@ export default function EmpresaScreenUser() {
   // Estado para panel de reseñas
   const [showReviews, setShowReviews] = useState(false);
   const [reviewsLoading, setReviewsLoading] = useState(false);
-  const [reviews, setReviews] = useState([]);
+  const [reviews, setReviews] = useState([]); // current page slice
+  const [allReviews, setAllReviews] = useState([]); // full list
+  const [reviewsPage, setReviewsPage] = useState(0);
+  const REVIEWS_PAGE_SIZE = 3;
   // Cache local de usuarios para evitar múltiples peticiones
   const usersCacheRef = useRef({});
 
@@ -233,25 +237,38 @@ console.log('🏢 Datos de la empresa:', empresaData1);
 
 
   const [eventos, setEventos] = useState([]);
+  const [eventosPage, setEventosPage] = useState(1);
+  const [eventosHasMore, setEventosHasMore] = useState(true);
+  const [eventosLoading, setEventosLoading] = useState(false);
 
-useEffect(() => {
-  const fetchEventos = async () => {
+  const fetchEventos = async (page = 1) => {
     try {
-      const empresaId = empresaIdParam || await AsyncStorage.getItem("empresaId");
-
+      const empresaId = empresaIdParam || await AsyncStorage.getItem('empresaId');
       if (!empresaId) {
         setEventos([]);
+        setEventosHasMore(false);
         return;
       }
 
-      const res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
+      setEventosLoading(true);
+      const limit = 5;
+      const offset = (page - 1) * limit;
 
-      const eventos = Array.isArray(res.data) ? res.data : res.data.results || res.data.eventos || [];
+      let res;
+      try {
+        res = await api.get(`/api/public/empresas/${empresaId}/eventos/?limit=${limit}&offset=${offset}`);
+      } catch (e) {
+        // Fallback si el backend no acepta paginación por query
+        res = await api.get(`/api/public/empresas/${empresaId}/eventos/`);
+      }
 
-      const eventosTransformados = eventos.map(ev => {
+      const raw = Array.isArray(res.data) ? res.data : (res.data.results || res.data.eventos || []);
+      const pageItems = Array.isArray(raw) ? (raw.slice ? raw.slice(offset, offset + limit) : raw) : [];
+
+      const items = pageItems.map(ev => {
         // Separar fecha y hora si viene en formato ISO
-        let fecha = "Fecha no definida";
-        let hora = "Hora no definida";
+        let fecha = 'Fecha no definida';
+        let hora = 'Hora no definida';
         if (ev.fecha_evento) {
           const match = ev.fecha_evento.match(/(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})/);
           if (match) {
@@ -274,35 +291,67 @@ useEffect(() => {
           id: ev.id,
           titulo: ev.titulo,
           fecha: ev.fecha_evento
-              ? new Date(ev.fecha_evento).toLocaleDateString()
-              : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+            ? new Date(ev.fecha_evento).toLocaleDateString()
+            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
           hora: ev.fecha_evento
             ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             : null,
-          // fecha: ev.fecha_evento || "Fecha no definida",
-          // hora: ev.hora_evento || "Hora no definida",
           ubicacion: ev.ubicacion,
-          precio: ev.precio === 0 ? "Entrada libre" : `$${ev.precio.toLocaleString()}`,
-          categoria: ev.categoria || "Sin categoría",
-          categoriaColor: ev.categoriaColor || "#4f46e5",
+          precio: formatPrice(ev.precio, ev.moneda || 'USD'),
+          categoria: Array.isArray(ev.categoria) ? ev.categoria.join(' ') : (ev.categoria || "Sin categoría"),
+          categoriaColor: ev.categoriaColor || '#4f46e5',
           imagenes: ev.imagenes,
         };
       });
 
-      setEventos(eventosTransformados);
+      setEventos(prev => {
+        const merged = [...prev, ...items];
+        const unique = [];
+        const seen = new Set();
+        for (const it of merged) {
+          const key = it.id ?? `${it.titulo}-${it.fecha}-${it.hora}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            unique.push(it);
+          }
+        }
+        return unique;
+      });
+
+      const hasMore = Array.isArray(raw)
+        ? (raw.slice ? raw.length > offset + items.length : items.length === limit)
+        : items.length === limit;
+      setEventosHasMore(hasMore);
     } catch (error) {
       if (error.response) {
-        console.error("❌ Error HTTP:", error.response.status, error.response.data);
+        console.error('❌ Error HTTP:', error.response.status, error.response.data);
       } else {
-        console.error("❌ Error:", error.message);
+        console.error('❌ Error:', error.message);
       }
+      setEventosHasMore(false);
+    } finally {
+      setEventosLoading(false);
     }
   };
 
-  fetchEventos();
-
+  useEffect(() => {
+    // Reset y cargar primera página al cambiar de empresa
+    setEventos([]);
+    setEventosPage(1);
+    setEventosHasMore(true);
+    fetchEventos(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [empresaIdParam]);
 
+  const handleMainScroll = ({ nativeEvent }) => {
+    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+    const nearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 200;
+    if (nearBottom && eventosHasMore && !eventosLoading) {
+      const next = eventosPage + 1;
+      setEventosPage(next);
+      fetchEventos(next);
+    }
+  };
   // Animación de notificaciones
   useEffect(() => {
     if (modalVisible.notifications) {
@@ -500,10 +549,12 @@ useEffect(() => {
                       ...it,
                       author_name: usersMap[it.usuario] || usersMap[it.usuario_id] || it.usuario_nombre || it.username || it.author_name || `Usuario #${it.usuario || it.usuario_id || 'desconocido'}`
                     }));
-                    // Ordenar por fecha ascendente (más antiguas primero) y tomar las 3 primeras
+                    // Ordenar por fecha ascendente (más antiguas primero) y paginar de 3 en 3
                     const parseTime = (x) => new Date(x?.creado_en || x?.created_at || x?.createdAt || 0).getTime();
                     const sorted = itemsConAutor.sort((a,b) => parseTime(a) - parseTime(b));
-                    setReviews(sorted.slice(0,3));
+                    setAllReviews(sorted);
+                    setReviews(sorted.slice(0, REVIEWS_PAGE_SIZE));
+                    setReviewsPage(0);
                   } catch (e) {
                     setReviews([]);
                   } finally {
@@ -552,10 +603,12 @@ useEffect(() => {
                     ...it,
                     author_name: usersMap[it.usuario] || usersMap[it.usuario_id] || it.usuario_nombre || it.username || it.author_name || `Usuario #${it.usuario || it.usuario_id || 'desconocido'}`
                   }));
-                  // Ordenar asc y guardar solo 3 más antiguas
+                  // Ordenar ascendente y preparar paginado de 3 en 3
                   const parseTime = (x) => new Date(x?.creado_en || x?.created_at || x?.createdAt || 0).getTime();
                   const sorted = itemsConAutor.sort((a,b) => parseTime(a) - parseTime(b));
-                  setReviews(sorted.slice(0,3));
+                  setAllReviews(sorted);
+                  setReviews(sorted.slice(0, REVIEWS_PAGE_SIZE));
+                  setReviewsPage(0);
                 } catch (e) {
                   setReviews([]);
                 } finally {
@@ -570,23 +623,7 @@ useEffect(() => {
             </TouchableOpacity>
           )}
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
-          {/* Redes sociales debajo del RIF */}
-          {empresaData?.redes_sociales && empresaData.redes_sociales.length > 0 && (
-            <View style={{ marginTop: 6 }}>
-              {empresaData.redes_sociales.map((r, i) => (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => {
-                    const href = r.url;
-                    if (href) Linking.openURL(href).catch(() => {});
-                  }}
-                  style={{ paddingVertical: 4 }}
-                >
-                  <Text style={{ color: '#60a5fa' }}>{r.tipo} — {r.url}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+          
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
           <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
           {!isEmpresaAccount && (
@@ -629,25 +666,54 @@ useEffect(() => {
         </View>
         {reviewsLoading ? (
           <ActivityIndicator color="#fff" />
-        ) : reviews.length === 0 ? (
+        ) : (allReviews?.length || 0) === 0 ? (
           <Text style={{ color: '#94a3b8', textAlign: 'center', marginVertical: 12 }}>No hay reseñas todavía.</Text>
         ) : (
-          <ScrollView style={{ maxHeight: 300 }}>
-            {reviews.map((r, idx) => (
-              <View key={r.id || idx} style={styles.reviewCard}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text style={styles.reviewUser}>{ r.author_name || 'Usuario'}</Text>
-                  <Text style={styles.reviewRating}>{(r.rating || r.valor || r.score) ? `${Number(r.rating || r.valor || r.score).toFixed(1)} / 5` : ''}</Text>
+          <View>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {reviews.map((r, idx) => (
+                <View key={r.id || idx} style={styles.reviewCard}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.reviewUser}>{ r.author_name || 'Usuario'}</Text>
+                    <Text style={styles.reviewRating}>{(r.rating || r.valor || r.score) ? `${Number(r.rating || r.valor || r.score).toFixed(1)} / 5` : ''}</Text>
+                  </View>
+                  {r.comentario ? (
+                    <Text style={styles.reviewComment}>{r.comentario}</Text>
+                  ) : null}
+                  {r.creado_en || r.created_at ? (
+                    <Text style={styles.reviewDate}>{new Date(r.creado_en || r.created_at).toLocaleString()}</Text>
+                  ) : null}
                 </View>
-                {r.comentario ? (
-                  <Text style={styles.reviewComment}>{r.comentario}</Text>
-                ) : null}
-                {r.creado_en || r.created_at ? (
-                  <Text style={styles.reviewDate}>{new Date(r.creado_en || r.created_at).toLocaleString()}</Text>
-                ) : null}
-              </View>
-            ))}
-          </ScrollView>
+              ))}
+            </ScrollView>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  const prev = Math.max(0, reviewsPage - 1);
+                  setReviewsPage(prev);
+                  const start = prev * REVIEWS_PAGE_SIZE;
+                  setReviews(allReviews.slice(start, start + REVIEWS_PAGE_SIZE));
+                }}
+                disabled={reviewsPage === 0}
+                style={{ padding: 8, opacity: reviewsPage === 0 ? 0.5 : 1 }}
+              >
+                <Text style={{ color: '#60a5fa', fontSize: 16 }}>{'← Anteriores'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  const maxPage = Math.max(0, Math.ceil(allReviews.length / REVIEWS_PAGE_SIZE) - 1);
+                  const next = Math.min(maxPage, reviewsPage + 1);
+                  setReviewsPage(next);
+                  const start = next * REVIEWS_PAGE_SIZE;
+                  setReviews(allReviews.slice(start, start + REVIEWS_PAGE_SIZE));
+                }}
+                disabled={(reviewsPage + 1) * REVIEWS_PAGE_SIZE >= allReviews.length}
+                style={{ padding: 8, opacity: (reviewsPage + 1) * REVIEWS_PAGE_SIZE >= allReviews.length ? 0.5 : 1 }}
+              >
+                <Text style={{ color: '#60a5fa', fontSize: 16 }}>{'Siguientes →'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         )}
       </View>
     );
@@ -690,7 +756,12 @@ const renderSocialCircles = () => {
 
   const normalizeUrl = (u) => {
     if (!u) return null;
-    let url = u.trim();
+    let url = String(u).trim();
+    // Mantener mailto: tal cual
+    if (/^mailto:/i.test(url)) return url;
+    // Si parece un correo y no tiene esquema, construir mailto:
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(url)) return `mailto:${url}`;
+    // Asegurar http(s) para enlaces web
     if (!/^https?:\/\//i.test(url)) {
       url = 'https://' + url.replace(/^\/+/, '');
     }
@@ -704,9 +775,10 @@ const renderSocialCircles = () => {
     if (['x','twitter'].includes(key)) key = 'twitter';
     if (['fb','face'].includes(key)) key = 'facebook';
     if (['tt','tik_tok','tiktoc'].includes(key)) key = 'tiktok';
-    if (['yt','you_tube'].includes(key)) key = 'youtube';
+  if (['yt','you_tube'].includes(key)) key = 'youtube';
     if (['wa','wasap','whats','whatsapp'].includes(key)) key = 'whatsapp';
-    if (['web','site','pagina','website'].includes(key)) key = 'website';
+  if (['mail','correo','email'].includes(key)) key = 'email';
+  if (['web','site','pagina','website'].includes(key)) key = 'website';
 
     const rawUrl = red?.url || red?.link || red?.enlace || red?.full_url;
     const finalUrl = normalizeUrl(rawUrl);
@@ -716,7 +788,7 @@ const renderSocialCircles = () => {
   });
 
   // Merge fallback direct fields
-  ['instagram','twitter','facebook','tiktok','youtube','whatsapp','website'].forEach(k => {
+  ['instagram','twitter','facebook','tiktok','youtube','whatsapp','website','email'].forEach(k => {
     if (!redesMap[k] && empresaData?.[k]) {
       const u = normalizeUrl(empresaData[k]);
       if (u) redesMap[k] = u;
@@ -730,6 +802,7 @@ const renderSocialCircles = () => {
     { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap.tiktok },
     { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap.youtube },
     { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap.whatsapp },
+    { id: 'email', label: 'Email', icon: '✉️', color: '#f97316', url: redesMap.email },
     { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap.website },
   ];
 
@@ -765,7 +838,12 @@ const renderSocialCircles = () => {
       </View>
 
       <View style={styles.eventosGrid}>
-        {eventos.length === 0 ? (
+        {eventosLoading && eventos.length === 0 ? (
+          <View style={{ width: '100%', alignItems: 'center', paddingVertical: 24 }}>
+            <ActivityIndicator size="large" color="#0ea5e9" />
+            <Text style={{ color: '#94a3b8', marginTop: 8 }}>Cargando eventos…</Text>
+          </View>
+        ) : eventos.length === 0 ? (
           <Text style={styles.eventosEmptyText}>Esta empresa no tiene eventos publicados</Text>
         ) : (
               eventos.map((evento) => (
@@ -892,12 +970,23 @@ const renderSocialCircles = () => {
       {renderNotificationsModal()}
       {renderRatingModal()}
       
-      <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false} onScroll={handleMainScroll} scrollEventThrottle={100}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
           {renderReviewsPanel()}
           {renderSocialCircles()}
           {renderEventos()}
+          {eventosLoading && eventos.length > 0 && (
+            <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#0ea5e9" />
+              <Text style={{ color: '#94a3b8', marginTop: 8 }}>Cargando más eventos…</Text>
+            </View>
+          )}
+          {!eventosLoading && !eventosHasMore && eventos.length > 0 && (
+            <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+              <Text style={{ color: '#64748b' }}>Has llegado al final</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>

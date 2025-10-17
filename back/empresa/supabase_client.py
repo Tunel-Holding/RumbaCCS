@@ -54,11 +54,20 @@ def upload_image_to_supabase(file, empresa_id, evento_id):
     return path, public_url
 
 
+def delete_file_from_supabase(path):
+    """Elimina un archivo individual del bucket de Supabase."""
+    bucket = "eventos_publicos"
+    if not path:
+        return
+    try:
+        supabase.storage.from_(bucket).remove([path])
+        print(f"🗑️ Eliminado de Supabase: {path}")
+    except Exception as e:
+        print(f"⚠️ Error al borrar de Supabase: {e}")
+
+
+# Señal que usa la función anterior
 @receiver(post_delete, sender=EventoImagen)
-def delete_file_from_supabase(sender, instance, **kwargs):
-    bucket = "eventos"
-    if instance.path:
-        try:
-            supabase.storage.from_(bucket).remove([instance.path])
-        except Exception as e:
-            print(f"Error al borrar de Supabase: {e}")
+def auto_delete_file_from_supabase(sender, instance, **kwargs):
+    """Se ejecuta automáticamente al eliminar una imagen individual"""
+    delete_file_from_supabase(instance.path)

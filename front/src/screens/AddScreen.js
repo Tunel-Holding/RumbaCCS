@@ -71,6 +71,11 @@ export default function AddScreen() {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const MAX_IMAGES = 3;
+  const [submitting, setSubmitting] = useState(false);
+  const [submitMsg, setSubmitMsg] = useState('Creando evento...');
+  const MAX_DESC_CHARS = 500;
+  const [errors, setErrors] = useState({});
   
 
   
@@ -121,30 +126,16 @@ export default function AddScreen() {
     categoria.toLowerCase().includes(categoriaSearchText.toLowerCase())
   );
 
-  // const uploadImage = async (fileUri) => {
-  //   try {
-  //     const base64 = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
-  //     const fileBuffer = Buffer.from(base64, 'base64');
-  //     const fileName = `temp/evento_${Date.now()}.jpg`;
-
-  //     const { data, error } = await supabase.storage
-  //       .from('eventos')
-  //       .upload(fileName, fileBuffer, { contentType: 'image/jpeg', upsert: true });
-
-  //     if (error) throw error;
-
-  //     const { data: urlData } = supabase.storage.from('eventos').getPublicUrl(fileName);
-  //     return urlData.publicUrl;
-  //   } catch (err) {
-  //     console.error("Error al subir imagen:", err);
-  //     return null;
-  //   }
-  // };
 
   const handlePickImages = async () => {
   try {
+    const currentTotal = (formData.imagenesLocales?.length || 0) + (formData.imagenesTemp?.length || 0);
+    if (currentTotal >= MAX_IMAGES) {
+      setErrors((prev) => ({ ...prev, imagenes: `Solo puedes agregar hasta ${MAX_IMAGES} imágenes.` }));
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
-  mediaTypes: ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images,
+      ...getMediaTypesOption(),
       allowsMultipleSelection: true,
       quality: 0.8,
     });
@@ -154,17 +145,41 @@ export default function AddScreen() {
     // result.assets es un array; guardamos solo las URIs
     const uris = (result.assets || []).map(a => a.uri).filter(Boolean);
 
-    if (uris.length === 0) return Alert.alert("Selecciona imágenes", "El evento debe tener al menos una imagen válida");
+    if (uris.length > 3) {
+      return Alert.alert("Límite de imágenes", `Solo puedes seleccionar hasta ${MAX_IMAGES} imágenes por evento.`);
+    }
 
-    if(uris.length > 3) return Alert.alert("Límite de imágenes", "Solo puedes seleccionar hasta 3 imágenes a la vez.");
+    if (uris.length === 0) {
+      setErrors((prev) => ({ ...prev, imagenes: 'El evento debe tener al menos una imagen válida.' }));
+      return;
+    }
+
+    // Limitar por lote y por total restante
+    const remaining = MAX_IMAGES - currentTotal;
+    if (uris.length > remaining) {
+      setErrors((prev) => ({ ...prev, imagenes: `Solo puedes agregar ${remaining} imagen(es) más.` }));
+    }
+    const toAdd = uris.slice(0, remaining);
+
+    // Dedupe contra existentes (locales y ya subidas)
+    const existingSet = new Set([...(formData.imagenesLocales || []), ...(formData.imagenesTemp || [])]);
+    const uniqueToAdd = toAdd.filter(u => !existingSet.has(u));
+
+    if (uniqueToAdd.length === 0) {
+      // No hay nada nuevo que agregar
+      setErrors((prev) => ({ ...prev, imagenes: 'Estas imágenes ya fueron agregadas.' }));
+      return;
+    }
 
     setFormData(prev => ({
       ...prev,
-      imagenesLocales: [...(prev.imagenesLocales || []), ...uris],
+      imagenesLocales: [...(prev.imagenesLocales || []), ...uniqueToAdd],
     }));
+    // limpiar error si ya se agregaron
+    setErrors((prev) => ({ ...prev, imagenes: undefined }));
   } catch (err) {
     console.error("Error al seleccionar imágenes:", err);
-    Alert.alert("Error", "No se pudieron seleccionar las imágenes");
+    setErrors((prev) => ({ ...prev, imagenes: 'No se pudieron seleccionar las imágenes.' }));
   }
 };
 
@@ -197,10 +212,9 @@ const uploadEventoImages = async (eventoId, uris, empresaId) => {
     return res.data.urls || [];
 
   } catch (error) {
-    // ⚠️ solo mostramos alerta y no relanzamos excepción
+    // ⚠️ Propagar el error para manejarlo como mensaje inline en el UI
     const message = error.response?.data?.error || error.message || "Error desconocido";
-    Alert.alert("Error al subir imágenes", message);
-    return null; // indicamos fallo sin romper el flujo
+    throw new Error(message);
   }
 };
 
@@ -218,57 +232,64 @@ const createEvento = async (payload, empresaId) => {
 };
 
   const handleCreateEvent = async () => {
+    // limpiar errores previos
+    setErrors({});
     const empresaId = await AsyncStorage.getItem('empresaId');
 
   if (!empresaId) {
-    Alert.alert('Error', 'No se ha recuperado el ID de tu empresa');
+    setErrors((prev)=> ({ ...prev, global: 'No se ha recuperado el ID de tu empresa.' }));
     return;
   }
-    if (!formData.titulo || formData.categoria.length === 0 || !formData.ubicacion) {
-      Alert.alert('Error', 'Por favor completa los campos obligatorios (título, categoría y ubicación)');
-      return;
-    }
+    const newErrors = {};
+    if (!formData.titulo) newErrors.titulo = 'El título es obligatorio.';
+    if (formData.categoria.length === 0) newErrors.categoria = 'Debes seleccionar al menos una categoría.';
+    if (!formData.ubicacion) newErrors.ubicacion = 'La ubicación es obligatoria.';
     // Validar fecha y hora (solo front, opcional si backend lo usa)
-    if (!formData.fecha_evento_fecha || !formData.fecha_evento_hora) {
-      Alert.alert('Fecha/hora faltante', 'Debes ingresar la fecha y la hora del evento');
-      return;
-    }
+    if (!formData.fecha_evento_fecha) newErrors.fecha = 'Debes ingresar la fecha del evento.';
+    if (!formData.fecha_evento_hora) newErrors.hora = 'Debes ingresar la hora del evento.';
     const fechaRegex = /^\d{4}-\d{2}-\d{2}$/;
     const horaRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
-    if (!fechaRegex.test(formData.fecha_evento_fecha)) {
-      Alert.alert('Formato inválido', 'La fecha debe tener formato YYYY-MM-DD');
-      return;
+    if (formData.fecha_evento_fecha && !fechaRegex.test(formData.fecha_evento_fecha)) {
+      newErrors.fecha = 'La fecha debe tener formato YYYY-MM-DD.';
     }
     if (formData.fecha_evento_hora && !horaRegex.test(formData.fecha_evento_hora)) {
-      Alert.alert('Formato inválido', 'La hora debe tener formato HH:MM (24h)');
-      return;
+      newErrors.hora = 'La hora debe tener formato HH:MM (24h).';
     }
     const fechaISOBase = `${formData.fecha_evento_fecha}T${formData.fecha_evento_hora}:00`;
     const fechaDate = new Date(fechaISOBase);
-    if (isNaN(fechaDate.getTime())) {
-      Alert.alert('Error', 'Fecha y hora inválidas');
-      return;
-    }
-    if (fechaDate.getTime() < Date.now()) {
-      Alert.alert('Fecha pasada', 'La fecha del evento debe ser futura');
-      return;
+    if (formData.fecha_evento_fecha && formData.fecha_evento_hora) {
+      if (isNaN(fechaDate.getTime())) {
+        newErrors.fecha = 'Fecha y hora inválidas.';
+      } else if (fechaDate.getTime() < Date.now()) {
+        newErrors.fecha = 'La fecha del evento debe ser futura.';
+      }
     }
     // Validar precio > 0 si el modo precio está activo (showPrecio) y no es entrada libre
     if (showPrecio && formData.precio !== 'Entrada libre') {
       const numericPrice = parseFloat(cleanPrice(formData.precio || '0')) || 0;
       if (numericPrice <= 0) {
-        Alert.alert('Precio inválido', 'Debes ingresar un precio mayor a 0.');
-        return;
+        newErrors.precio = 'Debes ingresar un precio mayor a 0.';
       }
     }
     
+    // Validar límite de caracteres de la descripción
+    const descLen = (formData.descripcion || '').length;
+    if (descLen > MAX_DESC_CHARS) {
+      newErrors.descripcion = `Máximo ${MAX_DESC_CHARS} caracteres. Actualmente tienes ${descLen}.`;
+    }
+
     // Validar capacidad si se ingresó
     if (formData.capacidad) {
       const capacidadNum = parseInt(formData.capacidad.replace(/,/g, ''));
       if (capacidadNum < 10 || capacidadNum > 50000) {
-        Alert.alert('Error', 'La capacidad debe estar entre 10 y 50,000 personas');
-        return;
-    }}
+        newErrors.capacidad = 'La capacidad debe estar entre 10 y 50,000 personas';
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors((prev) => ({ ...prev, ...newErrors }));
+      return;
+    }
   // Construye payload (JSON o FormData si llevas archivo)
   const payload = {
     titulo: formData.titulo,
@@ -295,6 +316,8 @@ const createEvento = async (payload, empresaId) => {
   
 
     try {
+      setSubmitMsg('Creando evento...');
+      setSubmitting(true);
       // 1) crear evento
       const newEvent = await createEvento(payload, empresaId);
       const eventoId = newEvent.id;
@@ -304,6 +327,7 @@ const createEvento = async (payload, empresaId) => {
       const localImgs = formData.imagenesLocales || [];
       if (localImgs.length > 0) {
         setUploadingImages(true);
+        setSubmitMsg('Subiendo imágenes...');
 
         try {
           // ⬇️ Usamos la nueva función de múltiples imágenes
@@ -313,37 +337,37 @@ const createEvento = async (payload, empresaId) => {
             empresaId
           );
 
-          if (!uploadedUrls) {
-          // backend ya borró el evento si alguna imagen falló
-          setUploadingImages(false);
-          return; // solo salir, alert ya se mostró
-        }
-
-          // actualizar estado
-          setFormData((prev) => ({
-            ...prev,
-            imagenesLocales: [],
-            imagenesTemp: [...(prev.imagenesTemp || []), ...uploadedUrls],
-          }));
+          // actualizar estado con dedupe y respetando MAX_IMAGES
+          setFormData((prev) => {
+            const merged = [...(prev.imagenesTemp || []), ...(uploadedUrls || [])];
+            const unique = Array.from(new Set(merged)).slice(0, MAX_IMAGES);
+            return {
+              ...prev,
+              imagenesLocales: [],
+              imagenesTemp: unique,
+            };
+          });
 
           setUploadingImages(false);
         } catch (err) {
-
           // Si falla el upload múltiple, backend ya habrá borrado el evento
           setUploadingImages(false);
-          Alert.alert(
-            "Error",
-            "El evento fue eliminado porque una de las imágenes no pasó la verificación."
-          );
+          setSubmitting(false);
+          setErrors((prev)=> ({
+            ...prev,
+            imagenes: err?.message || 'Falló la verificación de una imagen. El evento pudo haber sido eliminado.'
+          }));
           return;
         }
       }
 
+      setSubmitting(false);
       Alert.alert("Éxito", "Evento agregado correctamente", [
         { text: "OK", onPress: () => navigation.navigate("Empresa") },
       ]);
     } catch (e) {
-      Alert.alert("Error de red", e.message);
+      setSubmitting(false);
+      setErrors((prev) => ({ ...prev, global: e.message || 'Error de red.' }));
     }
   };
 
@@ -352,16 +376,15 @@ const createEvento = async (payload, empresaId) => {
  * o un objeto vacío (sin mediaTypes) si no hay una opción segura.
  */
 function getMediaTypesOption() {
-  // Expo antiguas: ImagePicker.MediaTypeOptions.Images
+  // Preferir el API moderno: arreglo con ImagePicker.MediaType.Images
+  if (ImagePicker?.MediaType?.Images) {
+    return { mediaTypes: [ImagePicker.MediaType.Images] };
+  }
+  // Fallback legacy: algunas versiones antiguas exponen MediaTypeOptions
   if (ImagePicker?.MediaTypeOptions?.Images) {
     return { mediaTypes: ImagePicker.MediaTypeOptions.Images };
   }
-  // Variantes intermedias: ImagePicker.MediaType.Images (o array)
-  if (ImagePicker?.MediaType?.Images) {
-    // Algunas versiones esperan un array, otras un valor directo. Intentamos usar array.
-    return { mediaTypes: [ImagePicker.MediaType.Images] };
-  }
-  // No hay mediaTypes seguro -> devolvemos vacío (fallback)
+  // Último recurso: no pasar mediaTypes (dejar valor por defecto de la plataforma)
   return {};
 }
 /**
@@ -475,23 +498,6 @@ const searchAddress = async (query) => {
       const addr = item.address || {};
 
       // // Prioridad para sitio específico
-      // const site =
-      //   addr.house ||
-      //   addr.building ||
-      //   addr.attraction ||
-      //   addr.amenity ||
-      //   addr.tourism ||
-      //   addr.leisure ||
-      //   addr.historic ||
-      //   addr.shop ||
-      //   '';
-
-      // const road = addr.road || addr.pedestrian || '';
-      // const suburb = addr.suburb || addr.neighbourhood || '';
-      // const city = addr.city || addr.town || addr.village || '';
-
-      // // Combinar solo los que existan
-      // const name = [site, road, suburb, city].filter(Boolean).join(', ');
 
       // 1. Construimos la dirección ideal por partes, dando prioridad a los campos más específicos.
       const placeName = addr.amenity || addr.shop || addr.tourism || addr.leisure || addr.building || addr.house_number;
@@ -589,8 +595,10 @@ useEffect(() => {
                     // Agregar si no está seleccionada y no se ha alcanzado el límite
                     if (newCategorias.length < 6) {
                       newCategorias.push(item);
+                      // limpiar error si ahora hay alguna categoría
+                      setErrors((prev)=> ({ ...prev, categoria: undefined }));
                     } else {
-                      Alert.alert('Límite alcanzado', 'Solo puedes seleccionar hasta 6 categorías');
+                      setErrors((prev)=> ({ ...prev, categoria: 'Solo puedes seleccionar hasta 6 categorías.' }));
                       return;
                     }
                   }
@@ -624,6 +632,9 @@ useEffect(() => {
             <Text style={styles.selectionInfoSubtext}>
               Mínimo 1, máximo 6 categorías
             </Text>
+            {!!errors?.categoria && (
+              <Text style={styles.errorText}>{errors.categoria}</Text>
+            )}
           </View>
 
           {/* Botón de confirmar */}
@@ -636,8 +647,9 @@ useEffect(() => {
               if (formData.categoria.length > 0) {
                 setCategoriaModalVisible(false);
                 setCategoriaSearchText('');
+                setErrors((prev)=> ({ ...prev, categoria: undefined }));
               } else {
-                Alert.alert('Error', 'Debes seleccionar al menos una categoría');
+                setErrors((prev)=> ({ ...prev, categoria: 'Debes seleccionar al menos una categoría.' }));
               }
             }}
             disabled={formData.categoria.length === 0}
@@ -824,7 +836,7 @@ useEffect(() => {
               <Text style={styles.label}>Imagen del evento</Text>
               {/* Si hay imágenes, no debe ser presionable: usar View para permitir deslizar */}
               {((formData.imagenesLocales?.length || 0) + (formData.imagenesTemp?.length || 0)) > 0 ? (
-                <View style={styles.imageUploadButton}>
+                <View style={[styles.imageUploadButton, !!errors?.imagenes && styles.inputError]}>
                   <ScrollView
                     horizontal
                     pagingEnabled
@@ -836,7 +848,7 @@ useEffect(() => {
                   >
                     {/* mostrar primero las locales (no subidas) y luego las subidas */}
                     {formData.imagenesLocales?.map((uri, index) => (
-                      <View key={`local-${index}`} style={[styles.imagePreviewContainer, { width: 120, height: 120, marginRight: 12 }]}> 
+                      <View key={`local-${uri}`} style={[styles.imagePreviewContainer, { width: 120, height: 120, marginRight: 12 }]}> 
                         <Image source={{ uri }} style={{ width: '100%', height: '100%', borderRadius: 12 }} resizeMode="cover" />
                         <TouchableOpacity
                           style={styles.removeImageButton}
@@ -852,7 +864,7 @@ useEffect(() => {
                       </View>
                     ))}
                     {formData.imagenesTemp?.map((url, index) => (
-                      <View key={`uploaded-${index}`} style={[styles.imagePreviewContainer, { width: 120, height: 120, marginRight: 12 }]}> 
+                      <View key={`uploaded-${url}`} style={[styles.imagePreviewContainer, { width: 120, height: 120, marginRight: 12 }]}> 
                         <Image source={{ uri: url }} style={{ width: '100%', height: '100%', borderRadius: 12 }} resizeMode="cover" />
                         <TouchableOpacity
                           style={styles.removeImageButton}
@@ -871,7 +883,7 @@ useEffect(() => {
                 </View>
               ) : (
                 <TouchableOpacity
-                  style={styles.imageUploadButton}
+                  style={[styles.imageUploadButton, !!errors?.imagenes && styles.inputError]}
                   onPress={handlePickImages}
                 >
                   <View style={styles.imageUploadPlaceholder}>
@@ -882,14 +894,19 @@ useEffect(() => {
                 </TouchableOpacity>
               )}
 
-              {/* Si ya hay imágenes, mostrar botón para agregar más abajo */}
-              {((formData.imagenesLocales?.length || 0) + (formData.imagenesTemp?.length || 0)) > 0 && (
+              {/* Si ya hay imágenes y no se alcanzó el tope, mostrar botón para agregar más */}
+              {((formData.imagenesLocales?.length || 0) + (formData.imagenesTemp?.length || 0)) > 0 &&
+               ((formData.imagenesLocales?.length || 0) + (formData.imagenesTemp?.length || 0)) < MAX_IMAGES && (
                 <TouchableOpacity
                   style={styles.addMoreButton}
                   onPress={handlePickImages}
                 >
                   <Text style={styles.addMoreButtonText}>➕ Agregar más imágenes</Text>
                 </TouchableOpacity>
+              )}
+
+              {!!errors?.imagenes && (
+                <Text style={styles.errorText}>{errors.imagenes}</Text>
               )}
 
 
@@ -899,7 +916,7 @@ useEffect(() => {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Categoría *</Text>
               <TouchableOpacity
-                style={styles.selectorButton}
+                style={[styles.selectorButton, !!errors?.categoria && styles.inputError]}
                 onPress={() => setCategoriaModalVisible(true)}
               >
                 <Text style={formData.categoria ? styles.selectorButtonText : styles.selectorButtonPlaceholder}>
@@ -907,6 +924,9 @@ useEffect(() => {
                 </Text>
                 <Text style={styles.selectorArrow}>▼</Text>
               </TouchableOpacity>
+              {!!errors?.categoria && (
+                <Text style={styles.errorText}>{errors.categoria}</Text>
+              )}
             </View>
 
                          {/* Código de vestimenta */}
@@ -958,7 +978,7 @@ useEffect(() => {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Ubicación *</Text>
               <TouchableOpacity
-                style={styles.selectorButton}
+                style={[styles.selectorButton, !!errors?.ubicacion && styles.inputError]}
                 onPress={() => setUbicacionModalVisible(true)}
               >
                 <Text style={formData.ubicacion ? styles.selectorButtonText : styles.selectorButtonPlaceholder}>
@@ -966,13 +986,16 @@ useEffect(() => {
                 </Text>
                 <Text style={styles.selectorArrow}>🗺️</Text>
               </TouchableOpacity>
+              {!!errors?.ubicacion && (
+                <Text style={styles.errorText}>{errors.ubicacion}</Text>
+              )}
             </View>
 
             {/* Capacidad del lugar */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Capacidad del lugar</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, !!errors?.capacidad && styles.inputError]}
                 value={formData.capacidad}
                 onChangeText={(text) => {
                   // Solo permitir números (sin comas)
@@ -980,6 +1003,7 @@ useEffect(() => {
                   // Formatear con comas automáticamente
                   const formatted = cleanText.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
                   setFormData({...formData, capacidad: formatted});
+                  setErrors((prev)=> ({ ...prev, capacidad: undefined }));
                 }}
                 placeholder="Ej: 1,000 personas"
                 placeholderTextColor="#64748b"
@@ -1002,21 +1026,38 @@ useEffect(() => {
                   )}
                 </View>
               )}
+              {!!errors?.capacidad && (
+                <Text style={styles.errorText}>{errors.capacidad}</Text>
+              )}
             </View>
 
             {/* Descripción */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Descripción del evento</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[styles.input, styles.textArea, !!errors?.descripcion && styles.inputError]}
                 value={formData.descripcion}
-                onChangeText={(text) => setFormData({...formData, descripcion: text})}
+                onChangeText={(text) => {
+                  if ((text || '').length <= MAX_DESC_CHARS) {
+                    setFormData({ ...formData, descripcion: text });
+                  } else {
+                    setFormData({ ...formData, descripcion: (text || '').slice(0, MAX_DESC_CHARS) });
+                  }
+                  setErrors((prev)=> ({ ...prev, descripcion: undefined }));
+                }}
                 placeholder="Describe tu evento..."
                 placeholderTextColor="#64748b"
                 multiline
                 numberOfLines={4}
                 textAlignVertical="top"
               />
+              {/* Contador de caracteres */}
+              <Text style={{ color:'#94a3b8', fontSize:12, marginTop:4 }}>
+                {(formData.descripcion?.length) || 0}/{MAX_DESC_CHARS}
+              </Text>
+              {!!errors?.descripcion && (
+                <Text style={styles.errorText}>{errors.descripcion}</Text>
+              )}
             </View>
 
             {/* Fecha y hora del evento (FRONT) */}
@@ -1024,7 +1065,7 @@ useEffect(() => {
               <Text style={styles.label}>Fecha y hora del evento *</Text>
               <View style={{ flexDirection:'row', gap:12 }}>
                 <TouchableOpacity
-                  style={[styles.selectorButton, { flex:1 }]}
+                  style={[styles.selectorButton, { flex:1 }, !!errors?.fecha && styles.inputError]}
                   onPress={() => { setCalendarLoading(true); setCalendarVisible(true); setTimeout(()=>setCalendarLoading(false),400); }}
                 >
                   <Text style={formData.fecha_evento_fecha ? styles.selectorButtonText : styles.selectorButtonPlaceholder}>
@@ -1033,7 +1074,7 @@ useEffect(() => {
                   <Text style={styles.selectorArrow}>📅</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.selectorButton, { width:120 }]}
+                  style={[styles.selectorButton, { width:120 }, !!errors?.hora && styles.inputError]}
                   onPress={() => setTimePickerVisible(true)}
                 >
                   <Text style={formData.fecha_evento_hora ? styles.selectorButtonText : styles.selectorButtonPlaceholder}>
@@ -1047,6 +1088,8 @@ useEffect(() => {
                   Selecciona fecha y hora (24h).
                 </Text>
               )}
+              {!!errors?.fecha && (<Text style={styles.errorText}>{errors.fecha}</Text>)}
+              {!!errors?.hora && (<Text style={styles.errorText}>{errors.hora}</Text>)}
             </View>
 
             {/* Precio */}
@@ -1061,6 +1104,7 @@ useEffect(() => {
                   onPress={() => {
                     setShowPrecio(false);
                     setFormData({ ...formData, precio: 'Entrada libre' });
+                    setErrors((prev)=> ({ ...prev, precio: undefined }));
                   }}
                 >
                   <Text style={[
@@ -1088,6 +1132,7 @@ useEffect(() => {
                         setFormData({ ...formData, precio: '', moneda: 'USD' });
                       }
                     }
+                    setErrors((prev)=> ({ ...prev, precio: undefined }));
                   }}
                 >
                   <Text style={[
@@ -1116,11 +1161,12 @@ useEffect(() => {
                     </TouchableOpacity>
                   </View>
                   <TextInput
-                    style={styles.precioInput}
+                    style={[styles.precioInput, !!errors?.precio && styles.inputError]}
                     value={formData.precio}
                     onChangeText={(text) => {
                       const formatted = formatPrice(text);
                       setFormData({ ...formData, precio: formatted });
+                      setErrors((prev)=> ({ ...prev, precio: undefined }));
                     }}
                     placeholder={formData.moneda === 'USD' ? 'Ej: 25,000.00' : 'Ej: 1,250,000.00'}
                     placeholderTextColor="#64748b"
@@ -1132,6 +1178,9 @@ useEffect(() => {
                         Precio: {formData.moneda === 'USD' ? '$' : 'Bs '}{formData.precio}
                       </Text>
                     </View>
+                  )}
+                  {!!errors?.precio && (
+                    <Text style={styles.errorText}>{errors.precio}</Text>
                   )}
                 </View>
               )}
@@ -1146,7 +1195,9 @@ useEffect(() => {
                   borderRadius: responsiveStyles.button.borderRadius,
                   marginBottom: getBottomSafeAreaHeight() + 20
                 }
-              ]} 
+              , submitting && styles.submitButtonDisabled
+              ]}
+              disabled={submitting}
               onPress={handleCreateEvent}
             >
               <Text style={[styles.submitButtonText, responsiveStyles.text.large]}>
@@ -1174,6 +1225,7 @@ useEffect(() => {
                const hh = selectedDate.getHours().toString().padStart(2,'0');
                const mm = selectedDate.getMinutes().toString().padStart(2,'0');
                setFormData({ ...formData, fecha_evento_hora: `${hh}:${mm}` });
+               setErrors((prev)=> ({ ...prev, hora: undefined }));
              }
            }}
          />
@@ -1201,6 +1253,7 @@ useEffect(() => {
                <Calendar
                  onDayPress={(day) => {
                    setFormData({ ...formData, fecha_evento_fecha: day.dateString });
+                   setErrors((prev)=> ({ ...prev, fecha: undefined }));
                    setCalendarVisible(false);
                  }}
                  minDate={new Date().toISOString().split('T')[0]}
@@ -1221,6 +1274,19 @@ useEffect(() => {
            </View>
          </View>
        </Modal>
+
+        {/* Overlay de envío */}
+        <Modal visible={submitting || uploadingImages} transparent animationType="fade">
+          <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
+            <View style={{ backgroundColor:'#1e293b', padding:24, borderRadius:12, alignItems:'center', minWidth:220 }}>
+              <ActivityIndicator size="large" color="#6366f1" />
+              <Text style={{ color:'#fff', marginTop:12, fontSize:16, fontWeight:'600', textAlign:'center' }}>
+                {submitMsg || 'Procesando...'}
+              </Text>
+              <Text style={{ color:'#94a3b8', marginTop:4, fontSize:12, textAlign:'center' }}>Por favor espera un momento</Text>
+            </View>
+          </View>
+        </Modal>
     </SafeAreaView>
   );
 }
@@ -1382,10 +1448,22 @@ const styles = StyleSheet.create({
     minHeight: 56,
     justifyContent: 'center',
   },
+  submitButtonDisabled: {
+    opacity: 0.7,
+  },
   submitButtonText: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  // Inline errors
+  errorText: {
+    color: '#ef4444',
+    fontSize: 12,
+    marginTop: 6,
+  },
+  inputError: {
+    borderColor: '#ef4444',
   },
   // Estilos para modales
   modalOverlay: {

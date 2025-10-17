@@ -92,7 +92,9 @@ const handleUploadAvatar = async (userId) => {
       return { ok: false, cancelled: true };
     }
 
-    const mediaTypesOption = ImagePicker.MediaType?.Images ?? ImagePicker.MediaTypeOptions?.Images;
+    const mediaTypesOption = ImagePicker?.MediaType?.Images
+      ? ImagePicker.MediaType.Images
+      : (ImagePicker?.MediaTypeOptions?.Images || undefined);
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: mediaTypesOption,
       quality: 0.9,

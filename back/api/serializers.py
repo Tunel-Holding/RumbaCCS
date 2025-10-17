@@ -3,6 +3,10 @@ from rest_framework.validators import UniqueValidator
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+
+from empresa.models import Empresa
+from empresa.serializers import EmpresaSerializer
 from .models import EmailVerification, NotificacionUsuario
 
 Usuario = get_user_model()
@@ -35,7 +39,66 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
             data['empresa_id'] = self.user.empresa.id
         return data
 
+class LoginUnificadoSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField()
 
+    def validate(self, attrs):
+        request = self.context.get("request")
+        email = attrs.get("email")
+        password = attrs.get("password")
+
+        # Intentar login como Empresa
+        try:
+            empresa = Empresa.objects.get(email=email)
+            if empresa.check_password(password):
+                self.user = empresa
+                refresh = self.get_token(empresa)
+                empresa_data = EmpresaSerializer(empresa, context={"request": request}).data
+                return {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                    "tipo": "empresa",
+                    "empresa": empresa_data
+                }
+        except Empresa.DoesNotExist:
+            pass
+
+        # Intentar login como Usuario
+        try:
+            usuario = Usuario.objects.get(email=email)
+            if usuario.check_password(password):
+                self.user = usuario
+                refresh = self.get_token(usuario)
+                return {
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                    "tipo": "usuario",
+                    "user": {
+                        "id": usuario.id,
+                        "email": usuario.email,
+                        "username": usuario.username,
+                        "phone": usuario.phone,
+                        "birthday": str(usuario.birthday),
+                        "region": usuario.region,
+                        "gender": usuario.gender,
+                        "avatar_url": usuario.avatar_url,
+                    }
+                }
+        except Usuario.DoesNotExist:
+            pass
+
+        raise serializers.ValidationError("Credenciales inválidas.")
+
+    @classmethod
+    def get_token(cls, user):
+        token = RefreshToken.for_user(user)
+        token["email"] = user.email
+        token["username"] = getattr(user, "username", None)
+        token["is_empresa"] = hasattr(user, "nombre")  # o isinstance(user, Empresa)
+        if hasattr(user, "id"):
+            token["id"] = user.id
+        return token
 
 class UserPublicSerializer(serializers.ModelSerializer):
     class Meta:

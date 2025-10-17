@@ -55,7 +55,7 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db.models.expressions import RawSQL
 from rest_framework.parsers import MultiPartParser, FormParser
-from .supabase_client import supabase, upload_image_to_supabase
+from .supabase_client import supabase, upload_image_to_supabase, auto_delete_file_from_supabase, delete_file_from_supabase
 from .services import upload_empresa_profile_picture, delete_empresa_profile_picture, CustomPagination
 from django.conf import settings
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -67,6 +67,7 @@ from .notifications import notificar_asignacion_empresa
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from api.serializers import RegisterSerializer
+from django.db import transaction
 
 Usuario = get_user_model()
 
@@ -520,7 +521,22 @@ class EventoViewSet(viewsets.ModelViewSet):
         serializer.save(empresa_id=empresa_id)
         print("CREANDO EVENTO PARA EMPRESA ID:", empresa_id)
 
-        
+
+    
+    # def destroy(self, request, *args, **kwargs):
+    #     evento = self.get_object()
+    #     print(f"🗑️ Eliminando evento: {evento.titulo} (ID: {evento.id})")
+
+    #     # Borrar imágenes de Supabase antes de eliminar el evento
+    #     for imagen in evento.imagenes.all():
+    #         delete_file_from_supabase(imagen.path)
+
+    #     # Borrar evento (y registros asociados en BD)
+    #     self.perform_destroy(evento)
+    #     return Response(status=status.HTTP_204_NO_CONTENT)
+
+    
+    
 class TempImageUploadView(APIView):
     def post(self, request):
         serializer = TempImageSerializer(data=request.data)
@@ -557,37 +573,38 @@ class EventoImagenViewSet(viewsets.ModelViewSet):
         saved_records = []
 
         try:
-            for file in files:
-                
-                is_valid = self.validate_image_with_sightengine(file)
-                print(f"Validación {file.name}: {is_valid}")
-                # 1. Validar con Sightengine (tu lógica aquí)
-                if not is_valid:
-                    # rollback: borrar imágenes ya subidas
-                    self.rollback_supabase(uploaded_paths)
-                    # borrar registros creados
-                    for r in saved_records:
-                        r.delete()
+            with transaction.atomic():
+                for file in files:
                     
-                    evento.delete()
+                    is_valid = self.validate_image_with_sightengine(file)
+                    print(f"Validación {file.name}: {is_valid}")
+                    # 1. Validar con Sightengine (tu lógica aquí)
+                    if not is_valid:
+                        # rollback: borrar imágenes ya subidas
+                        self.rollback_supabase(uploaded_paths)
+                        # borrar registros creados
+                        for r in saved_records:
+                            r.delete()
+                        
+                        evento.delete()
+                        
+                        return Response(
+                            {"error": f"La imagen {file.name} no pasó validación. Se canceló la operación."},
+                            status=400,
+                        )
+
+                    # 2. Subir a Supabase
+                    path, url = upload_image_to_supabase(file, empresa_id, evento_id)
+                    print("Subida correcta:", path, url)
+                    uploaded_paths.append(path)
+                    uploaded_urls.append(url)
                     
-                    return Response(
-                        {"error": f"La imagen {file.name} no pasó validación. Se canceló la operación."},
-                        status=400,
-                    )
 
-                # 2. Subir a Supabase
-                path, url = upload_image_to_supabase(file, empresa_id, evento_id)
-                print("Subida correcta:", path, url)
-                uploaded_paths.append(path)
-                uploaded_urls.append(url)
-                saved_records.append(evento.imagenes.create(path=path, url=url))
-
-                
-                print("Creando registro en DB:", {"path": path, "url": url})
-                # 3. Crear registro en DB
-                record = evento.imagenes.create(path=path, url=url)
-                saved_records.append(record)
+                    
+                    print("Creando registro en DB:", {"path": path, "url": url})
+                    # 3. Crear registro en DB
+                    record = evento.imagenes.create(path=path, url=url)
+                    saved_records.append(record)
 
             return Response({"urls": uploaded_urls}, status=201)
 
@@ -731,41 +748,6 @@ def get_tokens_for_user(user):
         'refresh': str(refresh),
         'access': str(refresh.access_token),
     }
-
-class EmpresaLoginView(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        email = request.data.get("email")
-        password = request.data.get("password")
-
-        if not email or not password:
-            return Response(
-                {"detail": "Email y password requeridos."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            empresa = Empresa.objects.get(email_contacto=email)
-        except Empresa.DoesNotExist:
-            return Response({"detail": "Empresa no encontrada."}, status=status.HTTP_404_NOT_FOUND)
-
-        if not empresa.check_password(password):
-            return Response({"detail": "Contraseña incorrecta."}, status=status.HTTP_401_UNAUTHORIZED)
-
-        # Generar tokens con SimpleJWT
-        refresh = RefreshToken.for_user(empresa)
-        refresh["empresa_id"] = empresa.id
-        refresh["email"] = empresa.email_contacto
-        refresh["is_empresa"] = True
-
-        empresa_data = EmpresaSerializer(empresa, context={"request": request}).data
-
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "empresa": empresa_data
-        }, status=status.HTTP_200_OK)
 
     
 class EmpresaMiPerfilView(APIView):
