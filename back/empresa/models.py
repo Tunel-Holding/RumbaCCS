@@ -40,7 +40,8 @@ class Empresa(models.Model):
         validators=[MinLengthValidator(2)],
         help_text="Nombre legal de la empresa (único)",
         blank=False,
-        null=False
+        null=False,
+        db_index=True
     )
 
     rif = models.CharField(
@@ -110,7 +111,7 @@ class Empresa(models.Model):
 
 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
-    activo = models.BooleanField(default=True)
+    activo = models.BooleanField(default=True, db_index=True)
     
     # Asignación de responsable de verificación
     assigned_to = models.ForeignKey(

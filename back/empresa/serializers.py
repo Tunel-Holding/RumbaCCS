@@ -243,15 +243,6 @@ class EmpresaSerializer(serializers.ModelSerializer):
         # renderizar hipervínculos fácilmente.
         return [{'tipo': r.tipo, 'url': r.url} for r in obj.redes.all()]
     
-    # def validate(self, attrs):
-    #     user = self.context["request"].user
-    #     if self.instance is None:
-    #         try:
-    #             _ = user.empresa  # intenta acceder
-    #             raise ValidationError("Ya tienes una empresa registrada con este usuario.")
-    #         except Empresa.DoesNotExist:
-    #             pass  # no tiene empresa → OK
-    #     return attrs
     
 
 class EmpresaRegistroSerializer(serializers.ModelSerializer):

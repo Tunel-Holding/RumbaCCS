@@ -20,6 +20,8 @@ from .services import upload_user_profile_picture, delete_user_profile_picture
 from rest_framework_simplejwt.views import TokenViewBase
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework.permissions import AllowAny
+from django.core.cache import cache
+from django.db.models import Count, Avg, Exists, OuterRef
 
 
 Usuario = get_user_model()
@@ -186,11 +188,40 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"], url_path="empresas-seguidas")
     def empresas_seguidas(self, request, pk=None):
         usuario = self.get_object()
-        empresas = usuario.empresas_que_sigue.all().order_by('-nombre')
-        serializer = EmpresaSerializer(empresas, many=True, context={"request": request})
-        return Response({
-            "empresas": serializer.data
-        }, status=status.HTTP_200_OK)
+        cache_key = f"empresas_seguidas_{usuario.id}_mini"
+        data = cache.get(cache_key)
+        if data:
+            return Response(data)
+
+        # 🚀 Query mínima y altamente optimizada
+        empresas = (
+            usuario.empresas_que_sigue
+            .annotate(
+                total_seguidores_annotated=Count("seguidores", distinct=True),
+                is_following_annotated=Exists(
+                    usuario.empresas_que_sigue.filter(pk=OuterRef("pk"))
+                ),
+            )
+            .only("id", "nombre", "logo")  # ⚡ solo los campos necesarios
+            .order_by("-id")
+        )
+
+        # 🔹 Serializador liviano solo con los campos esenciales
+        data = {
+            "empresas": [
+                {
+                    "id": e.id,
+                    "nombre": e.nombre,
+                    "logo": e.logo or "",
+                    "total_seguidores": getattr(e, "total_seguidores_annotated", 0),
+                    "is_following": getattr(e, "is_following_annotated", False),
+                }
+                for e in empresas
+            ]
+        }
+
+        cache.set(cache_key, data, timeout=60)
+        return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get"], url_path="total-empresas-seguidas")
     def total_empresas_seguidas(self, request, pk=None):

@@ -850,7 +850,7 @@ const renderSocialCircles = () => {
         <View style={styles.eventosHeader}>
           <View style={{ flex:1 }}>
             <Text style={styles.eventosTitle}>Eventos publicados</Text>
-            <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData.total_eventos || 0}</Text></Text>
+            <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
           </View>
           <TouchableOpacity
             style={styles.agregarButton}
