@@ -9,14 +9,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import StandardHeader from '../components/StandardHeader';
 
 
-// Footer links (copiados de HomeScreen.js)
-const footerLinks = [
-  { title: 'Reservas' },
-  { title: 'Promoción de eventos' },
-  { title: 'Soporte al organizador' },
-  { title: 'API para desarrolladores' }
-];
-
 // Paleta de colores (ajusta según HomeScreen.js)
 const COLORS = {
   background: '#181A20',
@@ -283,6 +275,8 @@ export default function BuyScreen() {
       vestimenta: evento?.codigo_vestimenta ?? 'sin definir',
       empresa: empresaData?.nombre ?? 'sin definir',
       empresaId: evento?.empresa,
+      price: evento?.precio ?? 'sin definir',
+      moneda: evento?.moneda ?? 'sin definir',
       // imagenes: evento.imagenes,
       fecha,
       hora,
@@ -485,29 +479,6 @@ export default function BuyScreen() {
   // Use shared HeaderBase component
 
   // Footer de HomeScreen.js
-  const Footer = () => (
-     <View style={styles.footer}>
-              <Text style={styles.footerTitle}>RumbaCCS</Text>
-              <Text style={styles.footerDesc}>Tu plataforma de confianza para reservas de eventos y experiencias memorables.</Text>
-              <View style={styles.footerLinks}>
-                {footerLinks.map((l, i) => (
-                  <Text key={i} style={styles.footerLink}>{l.title}</Text>
-                ))}
-              </View>
-              <Text style={styles.footerCopyright}>© 2025 Tunel Holding. Todos los derechos reservados.</Text>
-            </View>
-  );
-if (loading) {
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#00ff00" /> 
-        <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
-      </View>
-    </SafeAreaView>
-  );
-}
 
   return (
       <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}> 
@@ -624,6 +595,12 @@ if (loading) {
           <View style={styles.detailRow}>
             <Text style={styles.label}>Vestimenta: </Text>
             <Text style={styles.detail}>{eventDetails.vestimenta}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.label}>Precio: </Text>
+            <Text style={styles.detail}>
+              {parseFloat(eventDetails.price) === 0 || eventDetails.price === 0 || eventDetails.price === '0' ? 'Entrada libre' : `${eventDetails.moneda} ${eventDetails.price}`}
+            </Text>
           </View>
           {/* Ubicación eliminado */}
           {eventDetails.empresa && (
@@ -750,7 +727,7 @@ if (loading) {
 
       <View style={styles.buttonContainer}>
         {/* Mostrar botón Guardar solo para usuarios (no para cuentas empresa) */}
-  {isLogged && isSaved !== null && !isEmpresaAccount && (
+        {isLogged && isSaved !== null && !isEmpresaAccount ? (
           <TouchableOpacity
             style={[styles.reserveButton, isSaved ? styles.reserveButtonSaved : null]}
             onPress={handleSave}
@@ -767,9 +744,14 @@ if (loading) {
               )}
             </View>
           </TouchableOpacity>
+        ) : (
+          <View>
+            <Text style={{ textAlign: 'center', color: '#ffffffff', marginTop: 12 }}>
+              Inicia sesión con una cuenta RUMBERA para guardar eventos.
+            </Text>
+          </View>
         )}
       </View>
-        <Footer />
       </ScrollView>
       {/* Modal de Login (traído desde prueba.js) */}
       <Modal
@@ -1172,12 +1154,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: 'bold',
   },
-  footer: { backgroundColor: '#1e293b', borderRadius: 16, padding: 20, marginTop: 24, alignItems: 'center', marginBottom: 32 },
-  footerTitle: { fontSize: 18, fontWeight: 'bold', color: '#0ea5e9', marginBottom: 8 },
-  footerDesc: { color: '#cbd5e1', textAlign: 'center', marginBottom: 12 },
-  footerLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 8 },
-  footerLink: { color: '#cbd5e1', marginHorizontal: 8, marginBottom: 4 },
-  footerCopyright: { color: '#64748b', fontSize: 12, textAlign: 'center' },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',

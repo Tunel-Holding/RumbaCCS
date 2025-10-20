@@ -147,6 +147,14 @@ export default function HomeScreen() {
   const pageSize = 10; // Consistente con el backend
 
   let searchTimeout;
+
+  // Estado y helpers para status de empresa sin depender de empresaData
+  const [empresaStatus, setEmpresaStatus] = useState(null); // string normalizada
+  const normalizeStatus = (s) => (s || '').toString().trim().toLowerCase();
+  const isStatusAprobada = (statusStr) => {
+    const s = normalizeStatus(statusStr);
+    return s === 'verificado' || s === 'verificada' || s === 'aceptado' || s === 'aceptada' || s === 'aprobado' || s === 'aprobada' || s === 'approved' || s === 'accepted' || s === 'verified';
+  };
   
 // useEffect(() => {
 //   if (filter === "nearby" && !userLocation) return; // espera ubicación
@@ -169,12 +177,21 @@ export default function HomeScreen() {
         console.log(`Refrescando datos para empresaId: ${empresaId}`);
         const response = await api.get(`/api/public/empresas/${empresaId}/`);
         setEmpresaData(response.data);
+        const statusFromApi = (response?.data?.estado ?? response?.data?.status) || null;
+        if (statusFromApi != null) {
+          const normalized = (statusFromApi || '').toString().trim().toLowerCase();
+          setEmpresaStatus(normalized);
+          try { await AsyncStorage.setItem('empresaStatus', normalized); } catch (e) {}
+        }
       } catch (error) {
         console.error("Error refrescando datos de la empresa:", error);
         setEmpresaData(null); // Limpiamos si hay error
+        // Intentar leer último status cacheado
+        try { const cached = await AsyncStorage.getItem('empresaStatus'); setEmpresaStatus(cached); } catch (e) {}
       }
     } else {
       setEmpresaData(null); // Limpiamos si no hay ID o token
+      setEmpresaStatus(null);
     }
     setLoading(false);
   }, []);
@@ -188,6 +205,7 @@ export default function HomeScreen() {
         const isEmpresaAcc = await AsyncStorage.getItem('isEmpresaAccount'); // Leemos el valor guardado
         const isUserAcc = await AsyncStorage.getItem('isUserAccount'); // <-- AÑADE ESTA LÍNEA
         const userId = await AsyncStorage.getItem('userId');
+  const cachedEmpresaStatus = await AsyncStorage.getItem('empresaStatus');
 
         if (userId) {
             const userResponse = await api.get(`/api/usuarios/${userId}/`);
@@ -195,8 +213,9 @@ export default function HomeScreen() {
           }
         
         setIsLogged(!!token); // Primero, actualiza el estado de login
-        setIsEmpresaAccount(isEmpresaAcc === 'true'); // Actualizamos el estado de tipo de cuenta
+  setIsEmpresaAccount(isEmpresaAcc === 'true'); // Actualizamos el estado de tipo de cuenta
         setIsUserAccount(isUserAcc === 'true');
+  if (cachedEmpresaStatus) setEmpresaStatus(cachedEmpresaStatus);
        
 
         if (token) {
@@ -271,6 +290,14 @@ const handleLogin = async () => {
 
       // Actualizamos el estado del componente
       setEmpresaData(empresa);
+      try {
+        const st = (empresa?.estado ?? empresa?.status) || null;
+        if (st != null) {
+          const norm = (st || '').toString().trim().toLowerCase();
+          setEmpresaStatus(norm);
+          await AsyncStorage.setItem('empresaStatus', norm);
+        }
+      } catch (e) {}
       setHasEmpresa(true);
       setIsEmpresaAccount(true);
       setIsUserAccount(false);
@@ -294,6 +321,8 @@ const handleLogin = async () => {
       if (resultado.data?.empresa_id) {
         console.log("Usuario con empresa vinculada (ID):", resultado.data.empresa_id);
         await AsyncStorage.setItem('empresaId', resultado.data.empresa_id.toString());
+        // No tenemos el objeto empresa aquí; pediremos en refresh, pero limpiamos status previo
+        try { await AsyncStorage.removeItem('empresaStatus'); setEmpresaStatus(null); } catch (e) {}
         setHasEmpresa(true);
       } else {
         console.log("Usuario sin empresa vinculada.");
@@ -327,6 +356,7 @@ const handleLogin = async () => {
   // Estados de ubicación (placeholder, sin llamadas nativas todavía)
   const [userLocation, setUserLocation] = useState(null); // { latitude, longitude }
   const [locationStatus, setLocationStatus] = useState('idle'); // idle | requesting | granted | denied
+
 
   // Función real para solicitar permisos y ubicación usando expo-location
   const solicitarUbicacion = async () => {
@@ -655,6 +685,7 @@ const filteredEvents = fuente.filter(e => {
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 32 + insets.bottom, paddingTop: 32 }}
         showsVerticalScrollIndicator={false}
+         keyboardShouldPersistTaps="handled"
       >
         <StandardHeader
           isLogged={isLogged}
@@ -1056,6 +1087,20 @@ const filteredEvents = fuente.filter(e => {
         </View>
       </ScrollView>
 
+      {/* FAB: solo para cuentas de empresa APROBADAS/ACEPTADAS/VERIFICADAS */}
+      {isEmpresaAccount && isStatusAprobada(empresaStatus) && (
+        <TouchableOpacity
+          accessibilityLabel="Agregar evento"
+          accessibilityRole="button"
+          style={[styles.fab, { bottom: 16 + insets.bottom }]}
+          onPress={() => {
+            try { navigation.navigate('Add'); } catch (e) {}
+          }}
+        >
+          <Text style={styles.fabLabel}>Agregar evento +</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Modal de Login */}
       <Modal
         visible={loginVisible}
@@ -1216,4 +1261,22 @@ const styles = StyleSheet.create({
   loginLink: { color: '#0ea5e9', marginHorizontal: 6 },
   eventoInfo: { marginBottom: 4 },
   eventoInfoText: { color: '#ffffff', fontSize: 14 },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#0ea5e9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 8,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+  },
+  fabLabel: { color: '#fff', fontSize: 15, fontWeight: '700', marginLeft: 8 },
 });

@@ -13,6 +13,8 @@ export default function EmpresaMenu({ visible, setVisible, onMenuItemPress, onLo
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [isBlocked, setIsBlocked] = useState(true); // ocultar extras hasta confirmar verificación
   const [statusLoaded, setStatusLoaded] = useState(false); // indica si ya se comprobó el estado
+  const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
+  const [sessionClosedVisible, setSessionClosedVisible] = useState(false);
 
   // Cuando se abre el menú, verificar estado de la empresa para ocultar opciones si no está verificada
   useEffect(() => {
@@ -95,29 +97,9 @@ export default function EmpresaMenu({ visible, setVisible, onMenuItemPress, onLo
   };
 
   const handleLogout = async () => {
-    // Close menu
+    // close menu and open our inline confirmation modal
     try { setVisible(false); } catch (_) {}
-    try {
-      await Promise.all([
-        AsyncStorage.removeItem('userName'),
-        AsyncStorage.removeItem('userEmail'),
-        AsyncStorage.removeItem('accessToken'),
-        AsyncStorage.removeItem('refreshToken'),
-        AsyncStorage.removeItem('empresaId'),
-        AsyncStorage.removeItem('isEmpresaAccount'),
-        AsyncStorage.removeItem('userId'),
-        AsyncStorage.removeItem('isUserAccount'),
-        AsyncStorage.removeItem('sessionMode'),
-      ]);
-    } catch (e) {
-      // ignore
-    }
-    try {
-      navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
-    } catch (e) {
-      // fallback: navigate
-      try { navigation.navigate('HomeScreen'); } catch (_) {}
-    }
+    setLogoutConfirmVisible(true);
   };
 
   return (
@@ -158,6 +140,57 @@ export default function EmpresaMenu({ visible, setVisible, onMenuItemPress, onLo
 
       {/* Internal notifications modal */}
       <NotificationsModal visible={notificationsVisible} onClose={() => setNotificationsVisible(false)} pageSize={5} />
+
+      {/* Logout confirmation modal */}
+      <Modal visible={logoutConfirmVisible} transparent animationType="fade">
+        <View style={styles.backdropCentered}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Cerrar sesión</Text>
+            <Text style={styles.alertMessage}>¿Estás seguro que deseas cerrar sesión?</Text>
+            <View style={styles.alertBtnsRow}>
+              <TouchableOpacity onPress={() => setLogoutConfirmVisible(false)} style={[styles.alertBtn, styles.alertCancel]}>
+                <Text style={[styles.alertBtnText, styles.alertCancelText]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={async () => {
+                try {
+                  await Promise.all([
+                    AsyncStorage.removeItem('userName'),
+                    AsyncStorage.removeItem('userEmail'),
+                    AsyncStorage.removeItem('accessToken'),
+                    AsyncStorage.removeItem('empresaId'),
+                    AsyncStorage.removeItem('isEmpresaAccount'),
+                    AsyncStorage.removeItem('userId'),
+                    AsyncStorage.removeItem('isUserAccount'),
+                    AsyncStorage.removeItem('sessionMode'),
+                  ]);
+                } catch (e) {
+                  console.log('EmpresaMenu: error clearing session storage', e);
+                }
+                try { onLogoutPress && onLogoutPress(); } catch (_) {}
+                setLogoutConfirmVisible(false);
+                setSessionClosedVisible(true);
+              }} style={[styles.alertBtn, styles.alertConfirm]}>
+                <Text style={[styles.alertBtnText, styles.alertConfirmText]}>Cerrar sesión</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Session closed modal */}
+      <Modal visible={sessionClosedVisible} transparent animationType="fade">
+        <View style={styles.backdropCentered}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Sesión cerrada</Text>
+            <Text style={styles.alertMessage}>Has cerrado sesión correctamente</Text>
+            <View style={[styles.alertBtnsRow, { justifyContent: 'center' }]}>
+              <TouchableOpacity onPress={() => { setSessionClosedVisible(false); navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] }); }} style={[styles.alertBtn, styles.alertConfirm]}>
+                <Text style={[styles.alertBtnText, styles.alertConfirmText]}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -208,5 +241,42 @@ const styles = StyleSheet.create({
   closeText: { color: '#ff007f', fontSize: 16, marginTop: 12 },
   logoutItem: { backgroundColor: 'transparent' },
   logoutText: { color: '#ef4444', fontSize: 20, fontWeight: '700' },
+  backdropCentered: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  alertBox: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#0f172a',
+    padding: 18,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+  },
+  alertTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  alertMessage: {
+    color: '#cbd5e1',
+    fontSize: 15,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  alertBtnsRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+  alertBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, marginLeft: 10 },
+  alertCancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#334155' },
+  alertConfirm: { backgroundColor: '#0ea5e9' },
+  alertBtnText: { fontSize: 15, fontWeight: '600' },
+  alertCancelText: { color: '#94a3b8' },
+  alertConfirmText: { color: '#012a36' },
 });
 

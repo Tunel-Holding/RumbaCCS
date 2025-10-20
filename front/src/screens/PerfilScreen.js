@@ -3,7 +3,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StandardHeader from '../components/StandardHeader';
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator, TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -29,6 +30,9 @@ export default function PerfilScreen({ navigation }) {
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [isLogged, setIsLogged] = useState(false);
   const [profilePicModal, setProfilePicModal] = useState(false);
+  const [editNameModal, setEditNameModal] = useState(false);
+  const [editNameText, setEditNameText] = useState('');
+  const [editNameLoading, setEditNameLoading] = useState(false);
   // Estado para empresas seguidas (usuario normal)
   const [empresasSeguidas, setEmpresasSeguidas] = useState([]);
   const [empresasModal, setEmpresasModal] = useState(false);
@@ -177,6 +181,35 @@ const handleUploadAvatar = async (userId) => {
       Alert.alert('Error de red', 'No se pudo conectar con el servidor. Revisa la URL y la conexión.');
     }
     return { ok: false, error: err?.message || String(err) };
+  }
+};
+
+const openEditName = () => {
+  const current = userData?.nombre || userData?.name || userName || '';
+  setEditNameText(current);
+  setEditNameModal(true);
+};
+
+const handleSaveName = async () => {
+  setEditNameLoading(true);
+  try {
+    let id = userData?.id;
+    if (!id) id = await AsyncStorage.getItem('userId');
+    if (!id) return Alert.alert('Error', 'Usuario no identificado');
+
+    // Intentar parchear el nombre
+    const payload = { nombre: editNameText };
+    await api.patch(`/api/usuarios/${id}/`, payload);
+
+    // Actualizar estado local
+    setUserData(prev => ({ ...(prev || {}), nombre: editNameText, name: editNameText }));
+    setUserName(editNameText);
+    setEditNameModal(false);
+  } catch (err) {
+    console.log('Error actualizando nombre:', err);
+    Alert.alert('Error', 'No se pudo actualizar el nombre. Intenta de nuevo.');
+  } finally {
+    setEditNameLoading(false);
   }
 };
 
@@ -875,60 +908,111 @@ useFocusEffect(
         transparent
         onRequestClose={() => setProfilePicModal(false)}
       >
-        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
-          <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:300 }}>
-            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Ajustes de cuenta</Text>
-            <TouchableOpacity
-              style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }}
-              onPress={async () => {
-                // Cerrar modal antes de abrir selector para evitar overlays
-                setProfilePicModal(false);
+        <View style={styles.modalBackdrop}>
+          
+          <View style={styles.settingsCard}>
+            <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setProfilePicModal(false)}>
+              <Text style={{ color:'#ffffffff', fontSize: 18, fontWeight:'700' }}>X</Text>
+            </TouchableOpacity>
+            <Text style={styles.settingsTitle}>Ajustes de cuenta</Text>
+            <View style={styles.settingsAvatarRow}>
+              <View style={styles.avatarPreviewOuter}>
+                {avatarLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : avatarSrc ? (
+                  <Image source={{ uri: avatarSrc }} style={styles.avatarPreview} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}><Text style={{ color:'#94a3b8' }}>👤</Text></View>
+                )}
+              </View>
+              <View style={{ marginLeft: 12, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.settingsName}>{userData?.nombre || userData?.name || userName || 'Usuario'}</Text>
+                    <TouchableOpacity onPress={openEditName} style={{ marginLeft: 8 }} accessibilityLabel="Editar nombre">
+                      <Ionicons name="pencil" size={16} color="#9ca3af" />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.settingsEmail}>{userData?.email || 'Correo no disponible'}</Text>
+                </View>
 
-                // Intentar obtener id desde state, si no existe revisar AsyncStorage
-                let id = userData?.id;
-                try {
-                  if (!id) {
-                    const storedId = await AsyncStorage.getItem('userId');
-                    if (storedId) {
-                      id = storedId;
-                      // intentar poblar userData para mantener congruencia en la UI
+                <TouchableOpacity style={styles.deleteLink} onPress={async () => {
+                  Alert.alert('Borrar cuenta', '¿Estás seguro? Esta acción es irreversible.', [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Borrar', style: 'destructive', onPress: async () => {
                       try {
-                        const userRes = await api.get(`/api/usuarios/${id}/`);
-                        setUserData(userRes.data);
-                      } catch (_) {
-                        // no bloquear por este fallo
+                        let id = userData?.id;
+                        if (!id) id = await AsyncStorage.getItem('userId');
+                        if (!id) return Alert.alert('Error', 'Usuario no identificado');
+                        const token = await AsyncStorage.getItem('accessToken');
+                        const base = api.defaults?.baseURL || 'http://localhost:8000';
+                        const url = `${base.replace(/\/$/, '')}/api/usuarios/${id}/`;
+                        const resp = await fetch(url, { method: 'DELETE', headers: { Authorization: token ? `Bearer ${token}` : undefined } });
+                        if (!resp.ok) {
+                          const txt = await resp.text().catch(() => '');
+                          return Alert.alert('Error', `No se pudo borrar la cuenta (${resp.status}) ${txt}`);
+                        }
+                        await Promise.all([
+                          AsyncStorage.removeItem('userName'),
+                          AsyncStorage.removeItem('userEmail'),
+                          AsyncStorage.removeItem('accessToken'),
+                          AsyncStorage.removeItem('empresaId'),
+                          AsyncStorage.removeItem('isEmpresaAccount'),
+                          AsyncStorage.removeItem('userId'),
+                        ]);
+                        setProfilePicModal(false);
+                        Alert.alert('Cuenta borrada', 'Tu cuenta ha sido eliminada.');
+                        navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
+                      } catch (e) {
+                        console.log('Error borrando cuenta:', e);
+                        Alert.alert('Error', 'No se pudo borrar la cuenta. Intenta de nuevo.');
                       }
-                    }
-                  }
-                } catch (e) {
-                  console.log('Error leyendo AsyncStorage userId:', e);
-                }
+                    }}
+                  ]);
+                }}>
+                  <Text style={{ color: '#fecaca', fontWeight: '700' }}>Borrar</Text>
+                  <Text style={{ color: '#fecaca', fontWeight: '700' }}>cuenta</Text>
+                  
+                </TouchableOpacity>
+              </View>
+            </View>
 
-                if (!id) {
-                  Alert.alert('Error', 'Usuario no identificado');
-                  return;
-                }
-
-                try {
-                  const res = await handleUploadAvatar(id);
-                  if (res?.ok) {
-                    Alert.alert('Éxito', 'Foto de perfil actualizada correctamente.');
-                  } else if (res?.cancelled) {
-                    // usuario canceló la selección, no mostramos alerta
-                  } else {
-                    Alert.alert('Error', res?.error || 'No se pudo actualizar la foto de perfil');
-                  }
-                } catch (e) {
-                  console.log('Error al seleccionar imagen desde modal:', e);
-                  Alert.alert('Error', 'Ocurrió un error al actualizar la foto de perfil.');
-                }
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={async () => {
+                setProfilePicModal(false);
+                let id = userData?.id;
+                try { if (!id) id = await AsyncStorage.getItem('userId'); } catch(_){}
+                if (!id) { Alert.alert('Error','Usuario no identificado'); return; }
+                const res = await handleUploadAvatar(id);
+                if (res?.ok) Alert.alert('Éxito','Foto de perfil actualizada correctamente.');
               }}
             >
-              <Text style={{ color:'#fff', textAlign:'center' }}>Cambiar foto de perfil</Text>
+              <Text style={styles.settingsButtonText}>Cambiar foto de perfil</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
-              <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
-            </TouchableOpacity>
+           
+
+            
+
+            
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para editar nombre de usuario */}
+      <Modal visible={editNameModal} animationType="fade" transparent onRequestClose={() => setEditNameModal(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.settingsCard}>
+            <Text style={styles.settingsTitle}>Editar nombre</Text>
+            <TextInput value={editNameText} onChangeText={setEditNameText} placeholder="Tu nombre" placeholderTextColor="#94a3b8" style={{ backgroundColor: '#0b1220', color:'#fff', padding:10, borderRadius:8 }} />
+            <View style={{ flexDirection:'row', marginTop:12 }}>
+              <TouchableOpacity style={[styles.settingsButton, { flex:1, marginRight:8 }]} onPress={handleSaveName} disabled={editNameLoading}>
+                {editNameLoading ? <ActivityIndicator color="#051025" /> : <Text style={styles.settingsButtonText}>Guardar</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.settingsButton, { flex:1, backgroundColor:'#374151' }]} onPress={() => setEditNameModal(false)}>
+                <Text style={[styles.settingsButtonText, { color:'#fff' }]}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1133,4 +1217,24 @@ const styles = StyleSheet.create({
   eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
   eventInfo: { color: '#fff', marginBottom: 4 },
   eventPrice: { color: '#bef264', fontWeight: 'bold', marginBottom: 8 },
+  modalBackdrop: { flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' },
+  settingsCard: { width: 340, backgroundColor: '#071029', borderRadius: 14, padding: 18, alignItems: 'stretch' },
+  settingsTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
+  settingsAvatarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  avatarPreviewOuter: { width: 72, height: 72, borderRadius: 36, overflow: 'hidden', backgroundColor: '#0b1220', alignItems: 'center', justifyContent: 'center' },
+  avatarPreview: { width: 72, height: 72, borderRadius: 36 },
+  avatarPlaceholder: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1220' },
+  settingsName: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  settingsEmail: { color: '#9ca3af', fontSize: 13 },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
+  deleteLink: {
+    marginLeft: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+  },
+  settingsButton: { backgroundColor: '#0ea5e9', paddingVertical: 10, borderRadius: 10, marginTop: 8, alignItems: 'center' },
+  settingsButtonText: { color: '#051025', fontWeight: '700' },
+  logoutBtn: { backgroundColor: '#ef4444' },
 });
