@@ -437,7 +437,9 @@ useEffect(() => {
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
       <View style={styles.perfilContent}>
-
+ <View style={{ marginBottom: 8 }}>
+          <Text style={styles.profileHintText}>Presione aquí para ver ajustes de cuenta</Text>
+        </View>
         {/* Foto de perfil */}
         <View style={styles.fotoContainer}>
           <TouchableOpacity
@@ -1518,6 +1520,7 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#0b1220', borderRadius: 16, padding: 20, width: width < 400 ? width - 32 : 360, alignItems: 'center', position: 'relative', borderWidth:1, borderColor:'#111827' },
   modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
+  profileHintText: { color: '#cbd5e1', textAlign: 'center', marginBottom: 6 },
   seguidorCard: {
     flexDirection: 'row',
     alignItems: 'center',

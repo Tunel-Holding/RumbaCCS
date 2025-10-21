@@ -281,22 +281,6 @@ useFocusEffect(
   ]);
 
   setUserName('');
-
-  Alert.alert(
-    'Sesión cerrada',
-    'Has cerrado sesión correctamente',
-    [
-      {
-        text: 'OK',
-        onPress: () => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'HomeScreen' }], // nombre exacto en el Stack
-          });
-        },
-      },
-    ]
-  );
 };
   const [notifAnim] = useState(new Animated.Value(0));
   const [menuVisible, setMenuVisible] = useState(false);
@@ -622,7 +606,11 @@ useFocusEffect(
         />
 
       {/* Perfil principal móvil */}
+      
       <View style={styles.profileContainer}>
+        <View style={{ marginBottom: 8 }}>
+          <Text style={styles.profileHintText}>Presione aquí para ver ajustes de cuenta</Text>
+        </View>
         <TouchableOpacity
           style={styles.profileImage}
           onPress={() => setProfilePicModal(true)}
@@ -640,7 +628,7 @@ useFocusEffect(
             />
           ) : (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
-              <Text style={{ color: '#fff', textAlign: 'center' }}>Presione aqui para ver los ajustes de cuenta</Text>
+              <Text style={{ color: '#fff', textAlign: 'center' }}>Presione aquí para ver ajustes de cuenta</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -1073,6 +1061,7 @@ const styles = StyleSheet.create({
   menuItem: { color: '#fff', fontSize: 16, marginHorizontal: 8 },
   profileContainer: { alignItems: 'center', padding: 16, backgroundColor: '#1e293b', borderRadius: 16, margin: 16 },
   profileImage: { width: 128, height: 128, borderRadius: 64, borderWidth: 4, borderColor: '#e5e7eb', marginBottom: 12 },
+  profileHintText: { color: '#cbd5e1', textAlign: 'center', marginBottom: 6 },
   editButton: { borderWidth: 1, borderColor: '#d1d5db', padding: 8, borderRadius: 8, backgroundColor: '#f3f4f6', marginBottom: 8 },
   editButtonText: { color: '#374151', fontSize: 14 },
   userName: { fontSize: 24, fontWeight: '600', color: '#fff', marginBottom: 4 },
