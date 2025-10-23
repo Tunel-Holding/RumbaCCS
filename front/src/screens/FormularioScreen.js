@@ -614,7 +614,7 @@ const handleValidarPin = async () => {
               <Text style={styles.backArrow}>←</Text>
               <Text style={styles.backText}>Volver</Text>
             </TouchableOpacity>
-            <Text style={styles.formTitle}>Formulario de empresa</Text>
+            <Text style={styles.formTitle}>Solicitud de empresa</Text>
             <Text style={styles.label}>Nombre de la empresa</Text>
             <View onLayout={e => registerFieldPosition('nombre', e.nativeEvent.layout.y)}>
               <TextInput
@@ -814,7 +814,7 @@ const handleValidarPin = async () => {
               {cargando ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.enviarBtnText}>Enviar formulario</Text>
+                <Text style={styles.enviarBtnText}>Enviar solicitud</Text>
               )}
             </TouchableOpacity>
             {generalError ? (

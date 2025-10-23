@@ -428,26 +428,29 @@ useEffect(() => {
   const [profilePicLoading, setProfilePicLoading] = useState(false);
   const [profilePicEdit, setProfilePicEdit] = useState(null); // { uri }
   const [profilePicEditVisible, setProfilePicEditVisible] = useState(false);
+  // Settings modal for empresa (similar to PerfilScreen)
+  const [settingsModal, setSettingsModal] = useState(false);
+  const [editNameModalEmpresa, setEditNameModalEmpresa] = useState(false);
+  const [editEmpresaNameText, setEditEmpresaNameText] = useState('');
+  const [editEmpresaNameLoading, setEditEmpresaNameLoading] = useState(false);
 
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
       <View style={styles.perfilContent}>
-
+ <View style={{ marginBottom: 8 }}>
+          <Text style={styles.profileHintText}>Presione aquí para ver ajustes de cuenta</Text>
+        </View>
         {/* Foto de perfil */}
         <View style={styles.fotoContainer}>
           <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={async () => { // <-- Convertir a async
-              // Bloquear actualización si la cuenta no está verificada
+            onPress={async () => {
+              // Abrir modal de ajustes en vez de iniciar la carga directa
               if (isBlocked) {
-                Alert.alert('Aviso', 'No se puede actualizar la foto hasta que este verificado');
+                Alert.alert('Aviso', 'No se puede acceder a los ajustes hasta que la empresa esté verificada');
                 return;
               }
-              const success = await handleUploadFoto(empresaData?.id); // <-- Esperar el resultado
-              if (!success) {
-                Alert.alert('Error', 'No se pudo actualizar la foto de perfil');
-              }
-              // No es necesario navegar, la imagen se actualiza sola con setEmpresaData
+              setSettingsModal(true);
             }}
             activeOpacity={0.7}
           >
@@ -470,6 +473,113 @@ useEffect(() => {
             )}
         </TouchableOpacity>
         </View>
+
+        {/* Modal de ajustes de cuenta para la empresa (similar a PerfilScreen) */}
+        <Modal
+          visible={settingsModal}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setSettingsModal(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.settingsCard}>
+              <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setSettingsModal(false)}>
+                <Text style={{ color:'#ffffffff', fontSize: 18, fontWeight:'700' }}>X</Text>
+              </TouchableOpacity>
+              <Text style={styles.settingsTitle}>Ajustes de empresa</Text>
+
+              <View style={styles.settingsAvatarRow}>
+                <View style={styles.avatarPreviewOuter}>
+                  {profilePicLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : empresaData?.logo ? (
+                    <Image source={{ uri: empresaData.logo }} style={styles.avatarPreview} />
+                  ) : (
+                    <View style={styles.avatarPlaceholder}><Text style={{ color:'#94a3b8' }}>🏢</Text></View>
+                  )}
+                </View>
+
+                <View style={{ marginLeft: 12, flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.nameRow}>
+                      <Text style={styles.settingsName}>{empresaData?.nombre || 'Empresa'}</Text>
+                      <TouchableOpacity onPress={() => {
+                        setEditEmpresaNameText(empresaData?.nombre || '');
+                        setSettingsModal(false);
+                        setTimeout(() => setEditNameModalEmpresa(true), 120);
+                      }} style={{ marginLeft: 8 }} accessibilityLabel="Editar nombre de empresa">
+                        {/* reuse Ionicons if available */}
+                        <Text style={{ color: '#9ca3af', fontSize: 16 }}>✎</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {empresaData?.email && <Text style={styles.settingsEmail}>{empresaData?.email}</Text>}
+                  </View>
+
+                 
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.settingsButton}
+                onPress={async () => {
+                  setSettingsModal(false);
+                  const empresaId = empresaData?.id || await AsyncStorage.getItem('empresaId');
+                  if (!empresaId) { Alert.alert('Error','Empresa no identificada'); return; }
+                  const res = await handleUploadFoto(empresaId);
+                  if (res?.ok) Alert.alert('Éxito','Foto de perfil actualizada correctamente.');
+                }}
+              >
+                <Text style={styles.settingsButtonText}>Cambiar foto de empresa</Text>
+              </TouchableOpacity>
+
+              {/* Botón para añadir redes sociales desde ajustes */}
+              <TouchableOpacity
+                style={[styles.settingsButton, { backgroundColor: '#0b1220', borderWidth:1, borderColor:'#0ea5e9' }]}
+                onPress={async () => {
+                  // Abrir modal para añadir red social
+                  setSettingsModal(false);
+                  // esperar un pelín para evitar que dos modals se solapen
+                  setTimeout(() => setAddSocialModal(true), 120);
+                }}
+              >
+                <Text style={[styles.settingsButtonText, { color: '#0ea5e9' }]}>Añadir redes sociales</Text>
+              </TouchableOpacity>
+
+            </View>
+          </View>
+        </Modal>
+        {/* Modal para editar nombre de la empresa (nuevo) */}
+        <Modal visible={editNameModalEmpresa} animationType="fade" transparent onRequestClose={() => setEditNameModalEmpresa(false)}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.settingsCard}>
+              <Text style={styles.settingsTitle}>Editar nombre de empresa</Text>
+              <TextInput value={editEmpresaNameText} onChangeText={setEditEmpresaNameText} placeholder="Nombre de la empresa" placeholderTextColor="#94a3b8" style={{ backgroundColor: '#0b1220', color:'#fff', padding:10, borderRadius:8 }} />
+              <View style={{ flexDirection:'row', marginTop:12 }}>
+                <TouchableOpacity style={[styles.settingsButton, { flex:1, marginRight:8 }]} onPress={async () => {
+                  try {
+                    setEditEmpresaNameLoading(true);
+                    const empresaId = empresaData?.id || await AsyncStorage.getItem('empresaId');
+                    if (!empresaId) { Alert.alert('Error','Empresa no identificada'); setEditEmpresaNameLoading(false); return; }
+                    const payload = { nombre: editEmpresaNameText };
+                    await api.patch(`/api/empresas/${empresaId}/`, payload);
+                    setEmpresaData(prev => ({ ...prev, nombre: editEmpresaNameText }));
+                    setEditNameModalEmpresa(false);
+                    setSettingsModal(true);
+                  } catch (e) {
+                    console.log('Error guardando nombre de empresa', e);
+                    Alert.alert('Error','No se pudo guardar el nombre.');
+                  } finally { setEditEmpresaNameLoading(false); }
+                }} disabled={editEmpresaNameLoading}>
+                  {editEmpresaNameLoading ? <ActivityIndicator color="#051025" /> : <Text style={styles.settingsButtonText}>Guardar</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.settingsButton, { flex:1, backgroundColor:'#374151' }]} onPress={() => { setEditNameModalEmpresa(false); setSettingsModal(true); }}>
+                  <Text style={[styles.settingsButtonText, { color:'#fff' }]}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
@@ -586,13 +696,11 @@ const renderSocialCircles = () => {
     <View style={styles.socialStripContainer}>
       <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginRight:4 }}>
         <Text style={styles.socialStripTitle}>Redes sociales</Text>
-        {/*
         {!isBlocked && (
           <TouchableOpacity onPress={() => setManageSocialModal(true)}>
             <Text style={{ color:'#0ea5e9', fontWeight:'700' }}>Editar/Eliminar</Text>
           </TouchableOpacity>
         )}
-        */}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         {redes.filter(r => r.url).map(r => (
@@ -605,17 +713,16 @@ const renderSocialCircles = () => {
             <Text style={styles.socialIcon}>{r.icon}</Text>
           </TouchableOpacity>
         ))}
-        {/*
         <TouchableOpacity
           style={[styles.socialCircle, { borderColor: '#9ca3af' }]}
           onPress={() => setAddSocialModal(true)}
         >
           <Text style={[styles.socialIcon, { fontSize: 20 }]}>+</Text>
         </TouchableOpacity>
-        */}
       </ScrollView>
     </View>
-  );}
+  );
+}
 
   // Social add modal state
   const [addSocialModal, setAddSocialModal] = useState(false);
@@ -1413,6 +1520,7 @@ const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#0b1220', borderRadius: 16, padding: 20, width: width < 400 ? width - 32 : 360, alignItems: 'center', position: 'relative', borderWidth:1, borderColor:'#111827' },
   modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
+  profileHintText: { color: '#cbd5e1', textAlign: 'center', marginBottom: 6 },
   seguidorCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1470,4 +1578,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
   },
+  modalBackdrop: { flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' },
+  settingsCard: { width: 340, backgroundColor: '#071029', borderRadius: 14, padding: 18, alignItems: 'stretch' },
+  settingsTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
+  settingsAvatarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  avatarPreviewOuter: { width: 72, height: 72, borderRadius: 36, overflow: 'hidden', backgroundColor: '#0b1220', alignItems: 'center', justifyContent: 'center' },
+  avatarPreview: { width: 72, height: 72, borderRadius: 36 },
+  avatarPlaceholder: { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0b1220' },
+  settingsName: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  settingsEmail: { color: '#9ca3af', fontSize: 13 },
+  nameRow: { flexDirection: 'row', alignItems: 'center' },
+  deleteLink: {
+    marginLeft: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  settingsButton: { backgroundColor: '#0ea5e9', paddingVertical: 10, borderRadius: 10, marginTop: 8, alignItems: 'center' },
+  settingsButtonText: { color: '#051025', fontWeight: '700' },
 });

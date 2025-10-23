@@ -61,18 +61,42 @@ export default function CalendarModal({ visible, onClose, eventsByDate = {}, onP
     }
   }, [visible]);
 
-  // Construir markedDates combinando fechas con eventos y la fecha seleccionada
+  // Construir markedDates combinando fechas con eventos y la fecha seleccionada (más llamativas)
   const markedDates = useMemo(() => {
     const marks = {};
-    Object.keys(eventsByDate || {}).forEach((date) => {
-      marks[date] = { ...(marks[date] || {}), marked: true, dotColor: '#22c55e' };
+    const eventDates = Object.keys(eventsByDate || {});
+
+    eventDates.forEach((date) => {
+      const isSelected = selectedDate === date;
+      marks[date] = {
+        customStyles: {
+          container: {
+            backgroundColor: isSelected ? '#6366f1' : 'rgba(14,165,233,0.25)', // azul cian translúcido
+            borderRadius: 16,
+            borderWidth: isSelected ? 0 : 2,
+            borderColor: '#0ea5e9',
+          },
+          text: {
+            color: isSelected ? '#fff' : '#e2f2ff',
+            fontWeight: '700',
+          },
+        },
+      };
     });
-    if (selectedDate) {
+
+    // Si la fecha seleccionada no tiene eventos, igual resaltarla de forma clara
+    if (selectedDate && !marks[selectedDate]) {
       marks[selectedDate] = {
-        ...(marks[selectedDate] || {}),
-        selected: true,
-        selectedColor: '#6366f1',
-        selectedTextColor: '#fff',
+        customStyles: {
+          container: {
+            backgroundColor: '#6366f1',
+            borderRadius: 16,
+          },
+          text: {
+            color: '#fff',
+            fontWeight: '700',
+          },
+        },
       };
     }
     return marks;
@@ -173,7 +197,7 @@ export default function CalendarModal({ visible, onClose, eventsByDate = {}, onP
         
         <Calendar
           current={todayStr}
-          markingType={'dot'}
+          markingType={'custom'}
           markedDates={markedDates}
           onDayPress={onDayPress}
           onMonthChange={onMonthChange}
@@ -197,8 +221,8 @@ export default function CalendarModal({ visible, onClose, eventsByDate = {}, onP
             todayTextColor: '#ff007f',
             dayTextColor: '#fff',
             textDisabledColor: '#666',
-            dotColor: '#6366f1',
-            selectedDotColor: '#fff',
+            dotColor: '#0ea5e9',
+            selectedDotColor: '#0ea5e9',
             arrowColor: '#fff',
             monthTextColor: '#fff',
             indicatorColor: '#6366f1',
@@ -221,26 +245,26 @@ export default function CalendarModal({ visible, onClose, eventsByDate = {}, onP
             },
             'stylesheet.day.basic': {
               base: {
-                width: 32,
-                height: 32,
+                width: 36,
+                height: 36,
                 alignItems: 'center',
                 justifyContent: 'center',
-                borderRadius: 16,
+                borderRadius: 18,
               },
               text: {
-                marginTop: 4,
+                marginTop: 2,
                 fontSize: 16,
-                fontWeight: '300',
+                fontWeight: '400',
                 color: '#fff',
                 backgroundColor: 'transparent',
               },
               selected: {
                 backgroundColor: '#6366f1',
-                borderRadius: 16,
+                borderRadius: 18,
               },
               today: {
                 backgroundColor: 'rgba(255, 0, 127, 0.2)',
-                borderRadius: 16,
+                borderRadius: 18,
               },
               disabled: {
                 color: '#666',

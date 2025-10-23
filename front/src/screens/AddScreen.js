@@ -71,6 +71,7 @@ export default function AddScreen() {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [locationLoading, setLocationLoading] = useState(false);
   const MAX_IMAGES = 3;
   const [submitting, setSubmitting] = useState(false);
   const [submitMsg, setSubmitMsg] = useState('Creando evento...');
@@ -244,6 +245,22 @@ const createEvento = async (payload, empresaId) => {
     if (!formData.titulo) newErrors.titulo = 'El título es obligatorio.';
     if (formData.categoria.length === 0) newErrors.categoria = 'Debes seleccionar al menos una categoría.';
     if (!formData.ubicacion) newErrors.ubicacion = 'La ubicación es obligatoria.';
+    // Required: selección de opción de precio (Entrada libre o Precio)
+    if (!(formData.precio === 'Entrada libre' || showPrecio)) {
+      newErrors.precio = 'Debes seleccionar una opción de precio: Entrada libre o Precio.';
+    }
+    // Required: edad mínima (debe ser un número)
+    if (typeof formData.edad_minima !== 'number') {
+      newErrors.edad_minima = 'La edad mínima es obligatoria.';
+    }
+    // Required: cupos / capacidad
+    if (!formData.capacidad || String(formData.capacidad).trim() === '') {
+      newErrors.capacidad = 'Los cupos son obligatorios.';
+    }
+    // Required: vestimenta (se requiere al menos un código)
+    if (!formData.codigoVestimenta || String(formData.codigoVestimenta).trim() === '') {
+      newErrors.codigoVestimenta = 'La vestimenta es obligatoria.';
+    }
     // Validar fecha y hora (solo front, opcional si backend lo usa)
     if (!formData.fecha_evento_fecha) newErrors.fecha = 'Debes ingresar la fecha del evento.';
     if (!formData.fecha_evento_hora) newErrors.hora = 'Debes ingresar la hora del evento.';
@@ -266,6 +283,10 @@ const createEvento = async (payload, empresaId) => {
     }
     // Validar precio > 0 si el modo precio está activo (showPrecio) y no es entrada libre
     if (showPrecio && formData.precio !== 'Entrada libre') {
+      // moneda debe estar seleccionada
+      if (!formData.moneda || (formData.moneda !== 'USD' && formData.moneda !== 'VES')) {
+        newErrors.moneda = 'Selecciona una moneda válida.';
+      }
       const numericPrice = parseFloat(cleanPrice(formData.precio || '0')) || 0;
       if (numericPrice <= 0) {
         newErrors.precio = 'Debes ingresar un precio mayor a 0.';
@@ -285,6 +306,23 @@ const createEvento = async (payload, empresaId) => {
         newErrors.capacidad = 'La capacidad debe estar entre 10 y 50,000 personas';
       }
     }
+
+    // precio: si está marcado showPrecio validamos que sea > 0 (o 'Entrada libre' permitido)
+    if (!newErrors.precio && showPrecio && formData.precio !== 'Entrada libre') {
+      const numericPrice = parseFloat(cleanPrice(formData.precio || '0')) || 0;
+      if (numericPrice <= 0) {
+        newErrors.precio = 'Debes ingresar un precio mayor a 0.';
+      }
+    }
+
+    // capacidad (cupos) debe ser numérico
+    if (!newErrors.capacidad && formData.capacidad) {
+      const capacidadNum = parseInt(String(formData.capacidad).replace(/,/g, ''), 10);
+      if (isNaN(capacidadNum) || capacidadNum <= 0) {
+        newErrors.capacidad = 'Ingrese un número válido de cupos.';
+      }
+    }
+
 
     if (Object.keys(newErrors).length > 0) {
       setErrors((prev) => ({ ...prev, ...newErrors }));
@@ -533,15 +571,19 @@ useEffect(() => {
   const delayDebounce = setTimeout(async () => {
     if (!searchQuery || searchQuery.trim() === "") {
       setSearchResults([]);
+      setLocationLoading(false);
       return;
     }
 
+    setLocationLoading(true);
     try {
       const results = await searchAddress(searchQuery);
       setSearchResults(results);
     } catch (e) {
       console.log("Error fetch dentro de useEffect:", e);
       setSearchResults([]);
+    } finally {
+      setLocationLoading(false);
     }
   }, 500); // 500ms debounce
 
@@ -671,7 +713,7 @@ useEffect(() => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Código de Vestimenta</Text>
+            <Text style={styles.modalTitle}>Código de Vestimenta *</Text>
             <TouchableOpacity onPress={() => setVestimentaModalVisible(false)}>
               <Text style={styles.closeButton}>×</Text>
             </TouchableOpacity>
@@ -763,28 +805,42 @@ useEffect(() => {
           </TouchableOpacity>
         </View>
 
-        {/* Resultados de búsqueda */}
-        <ScrollView style={{ maxHeight: 200, marginTop: 10 }}>
-          {searchResults.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={styles.locationOption}
-              onPress={() => {
-                setFormData({
-                  ...formData,
-                  ubicacion: item.name,
-                  latitude: item.latitude,
-                  longitude: item.longitude,
-                });
-                setUbicacionModalVisible(false);
-                setSearchQuery(''); // limpiar input después de seleccionar
-                setSearchResults([]); // limpiar sugerencias
-              }}
-            >
-              <Text style={styles.locationOptionText}>📍 {item.name}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        {/* Resultados de búsqueda o loading */}
+        {locationLoading ? (
+          <View style={{ alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <ActivityIndicator size="large" color="#6366f1" />
+            <Text style={{ color: '#fff', marginTop: 12 }}>Buscando ubicación...</Text>
+          </View>
+        ) : (
+          searchQuery.trim().length > 0 && searchResults.length === 0 ? (
+            <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 20 }}>
+              <Text style={{ color: '#94a3b8' }}>No se encontraron resultados</Text>
+              <Text style={{ color: '#64748b', marginTop: 4, fontSize: 12 }}>Prueba con otra dirección o punto de referencia</Text>
+            </View>
+          ) : (
+            <ScrollView style={{ maxHeight: 200, marginTop: 10 }}>
+              {searchResults.map((item, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.locationOption}
+                  onPress={() => {
+                    setFormData({
+                      ...formData,
+                      ubicacion: item.name,
+                      latitude: item.latitude,
+                      longitude: item.longitude,
+                    });
+                    setUbicacionModalVisible(false);
+                    setSearchQuery(''); // limpiar input después de seleccionar
+                    setSearchResults([]); // limpiar sugerencias
+                  }}
+                >
+                  <Text style={styles.locationOptionText}>📍 {item.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )
+        )}
       </View>
     </View>
   </Modal>
@@ -823,12 +879,15 @@ useEffect(() => {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Título del evento *</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, !!errors?.titulo && styles.inputError]}
                 value={formData.titulo}
                 onChangeText={(text) => setFormData({...formData, titulo: text})}
                 placeholder="Ej: Concierto de Rock"
                 placeholderTextColor="#64748b"
               />
+              {!!errors?.titulo && (
+                <Text style={styles.errorText}>{errors.titulo}</Text>
+              )}
             </View>
 
             {/* Imagen del evento */}
@@ -931,9 +990,9 @@ useEffect(() => {
 
                          {/* Código de vestimenta */}
              <View style={styles.inputGroup}>
-               <Text style={styles.label}>Código de vestimenta</Text>
+               <Text style={styles.label}>Código de vestimenta *</Text>
                <TouchableOpacity
-                 style={styles.selectorButton}
+                 style={[styles.selectorButton, !!errors?.codigoVestimenta && styles.inputError]}
                  onPress={() => setVestimentaModalVisible(true)}
                >
                  <Text style={formData.codigoVestimenta ? styles.selectorButtonText : styles.selectorButtonPlaceholder}>
@@ -941,6 +1000,9 @@ useEffect(() => {
                  </Text>
                  <Text style={styles.selectorArrow}>▼</Text>
                </TouchableOpacity>
+               {!!errors?.codigoVestimenta && (
+                 <Text style={styles.errorText}>{errors.codigoVestimenta}</Text>
+               )}
                
                {/* Campo de descripción de vestimenta */}
                {formData.codigoVestimenta && (
@@ -962,9 +1024,9 @@ useEffect(() => {
 
              {/* Edad mínima permitida */}
              <View style={styles.inputGroup}>
-               <Text style={styles.label}>Edad mínima permitida</Text>
+               <Text style={styles.label}>Edad mínima permitida *</Text>
                <TouchableOpacity
-                 style={styles.selectorButton}
+                 style={[styles.selectorButton, !!errors?.edad_minima && styles.inputError]}
                  onPress={() => setEdadModalVisible(true)}
                >
                  <Text style={formData.edadMinima ? styles.selectorButtonText : styles.selectorButtonPlaceholder}>
@@ -972,6 +1034,9 @@ useEffect(() => {
                  </Text>
                  <Text style={styles.selectorArrow}>🎂</Text>
                </TouchableOpacity>
+               {!!errors?.edad_minima && (
+                 <Text style={styles.errorText}>{errors.edad_minima}</Text>
+               )}
              </View>
 
             {/* Ubicación */}
@@ -993,7 +1058,7 @@ useEffect(() => {
 
             {/* Capacidad del lugar */}
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Capacidad del lugar</Text>
+              <Text style={styles.label}>Capacidad del lugar *</Text>
               <TextInput
                 style={[styles.input, !!errors?.capacidad && styles.inputError]}
                 value={formData.capacidad}

@@ -125,12 +125,12 @@ export default function RegisterScreen({ navigation, route }) {
       if (!telefono.trim()) newErrors.telefono = 'Este campo es obligatorio';
       else if (!/^\d{11}$/.test(telefono.trim())) newErrors.telefono = 'El número debe tener exactamente 11 dígitos';
 
-      // Región
+    // Región
       if (!region) newErrors.region = 'Este campo es obligatorio';
 
-  // Email: obligatorio, debe ser válido y terminar en gmail.com o hotmail.com
+  // Email: obligatorio, debe ser válido (cualquier dominio)
   if (!email.trim()) newErrors.email = 'Este campo es obligatorio';
-  else if (!/^([a-zA-Z0-9_.+-]+)@(gmail|hotmail)\.com$/.test(email.trim())) newErrors.email = 'El correo debe ser válido';
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) newErrors.email = 'El correo debe ser válido';
   else if (errors.email === 'Vuelva a introducir su correo') newErrors.email = errors.email;
 
       // Contraseña

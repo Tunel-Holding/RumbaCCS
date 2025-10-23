@@ -36,6 +36,7 @@ export default function EmpresaScreenUser() {
   const empresaIdParam = route.params?.empresaId;
   const [isFollowing, setIsFollowing] = useState(false);
   const [modalVisible, setModalVisible] = useState({ cart: false, calendar: false, notifications: false, rating: false });
+  const [empresaInfoVisible, setEmpresaInfoVisible] = useState(false);
   const [notifAnim] = useState(new Animated.Value(0));
   const [loading, setLoading] = useState(true);
   const [rating, setRating] = useState(0);
@@ -126,6 +127,10 @@ const [user, setUser] = useState('');
 const [pass, setPass] = useState('');
 const [loginError, setLoginError] = useState('');
 const [loginLoading, setLoginLoading] = useState(false);
+// App-styled alert (local)
+const [appAlertVisible, setAppAlertVisible] = useState(false);
+const [appAlert, setAppAlert] = useState({ title: '', message: '' });
+const showAppAlert = (title, message) => { setAppAlert({ title: title || '', message: message || '' }); setAppAlertVisible(true); };
 
 const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
   try {
@@ -141,11 +146,11 @@ const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
     });
     console.log("Respuesta de calificación:", res.data);
     return res.data;
-  } catch (e) {
-    const msg = e.response?.data?.detail || e.message;
-    Alert.alert('Error', msg);
-    return false;
-  }
+    } catch (e) {
+      const msg = e.response?.data?.detail || e.message;
+      showAppAlert('Error', msg);
+      return false;
+    }
 };
 
 const handleLogin = async () => {
@@ -160,13 +165,13 @@ const handleLogin = async () => {
   if (resultado && resultado.error) {
     switch (resultado.tipo) {
       case 'validacion':
-        Alert.alert('Campos vacíos', 'Por favor ingresa email y contraseña');
+        showAppAlert('Campos vacíos', 'Por favor ingresa email y contraseña');
         break;
       case 'error':
-        Alert.alert('Error inesperado', resultado.error);
+        showAppAlert('Error inesperado', resultado.error);
         break;
       case 'credenciales':
-        Alert.alert('Error de login', 'Usuario o contraseña incorrectos');
+        showAppAlert('Error de login', 'Usuario o contraseña incorrectos');
         break;
     }
     return;
@@ -219,7 +224,7 @@ const seguir = async () => {
         setIsFollowing(true);
       }
       else if (res.status === 405) {
-        Alert.alert('Ya sigues a esta empresa');
+        showAppAlert('Información', 'Ya sigues a esta empresa');
       }
     } catch (error) {
       console.error("Error al seguir a la empresa:", error);
@@ -234,6 +239,52 @@ console.log('🏢 Datos de la empresa:', empresaData1);
     seguidores: empresaData?.total_seguidores || 0,
     eventosPublicados: empresaData?.total_eventos || 0,
   }
+
+    // Helpers to open mail and phone
+    const openEmail = async (email) => {
+      if (!email) return;
+      const url = `mailto:${email}`;
+      try {
+        const supported = await Linking.canOpenURL(url);
+        if (supported) {
+          await Linking.openURL(url);
+        } else {
+          showAppAlert('No disponible', 'No se pudo abrir la aplicación de correo.');
+        }
+    } catch (e) {
+      console.log('openEmail error', e);
+      showAppAlert('Error', 'No se pudo abrir la aplicación de correo.');
+    }
+    };
+
+    const openPhone = async (phone) => {
+      if (!phone) return;
+      // Normalize phone: keep digits and leading + if present
+      const cleaned = String(phone).trim().replace(/[^+\d]/g, '');
+      const tel = `tel:${cleaned}`;
+      try {
+        // Some emulators/simulators return false for canOpenURL for tel: even when device supports it.
+        // Try canOpenURL first, but always attempt openURL as a fallback.
+        const supported = await Linking.canOpenURL(tel);
+        if (supported) {
+          await Linking.openURL(tel);
+          return;
+        }
+        // Attempt to open anyway (works on many devices even if canOpenURL false)
+        try {
+          await Linking.openURL(tel);
+          return;
+        } catch (openErr) {
+          console.log('openPhone openURL failed', openErr);
+        }
+
+        // Fallback: show the number so the user can call manually (useful on simulators)
+        showAppAlert('Llamar', `No fue posible iniciar la llamada automáticamente. Marca este número: ${cleaned}`);
+      } catch (e) {
+        console.log('openPhone error', e);
+        showAppAlert('Error', 'No se pudo iniciar la llamada.');
+      }
+    };
 
 
   const [eventos, setEventos] = useState([]);
@@ -492,11 +543,17 @@ console.log('🏢 Datos de la empresa:', empresaData1);
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
       <View style={styles.perfilContent}>
+        {/* Instruction above profile photo (informative only) */}
+        <View style={{ marginBottom: 12 }}>
+          <Text style={styles.contactHintText}>
+            {isLogged ? 'Presiona la foto para ver información de contacto' : 'Inicia sesión para ver la información de la empresa'}
+          </Text>
+        </View>
         {/* Foto de perfil */}
         <View style={styles.fotoContainer}>
           <TouchableOpacity
             style={styles.fotoPerfil}
-            onPress={() => console.log('Ver perfil de empresa')}
+            onPress={() => { if (isLogged) setEmpresaInfoVisible(true); else setLoginVisible(true); }}
             activeOpacity={0.7}
           >
           {empresaData?.logo ? (
@@ -509,6 +566,48 @@ console.log('🏢 Datos de la empresa:', empresaData1);
         )}
           </TouchableOpacity>
         </View>
+        {/* Modal con información de la empresa */}
+        <Modal visible={empresaInfoVisible} transparent animationType="fade">
+          <View style={styles.backdropCentered}>
+            <View style={styles.alertBox}>
+              <View style={{ alignItems: 'center', marginBottom: 8 }}>
+                {empresaData?.logo ? (
+                  <Image source={{ uri: empresaData.logo }} style={{ width: 96, height: 96, borderRadius: 48, marginBottom: 8 }} />
+                ) : (
+                  <Text style={{ fontSize: 48, marginBottom: 8 }}>👤</Text>
+                )}
+                <Text style={styles.alertTitle}>{empresaData?.nombre || empresaData1.nombre}</Text>
+              </View>
+              {/* Contact info: try several possible keys for email and phone */}
+              <Text style={styles.alertMessage}>Nombre: {empresaData?.contact_name || empresaData?.owner_name || empresaData?.nombre_contacto || empresaData1.nombre}</Text>
+              <TouchableOpacity onPress={() => openEmail(empresaData?.email_contacto || empresaData?.email || empresaData?.correo)} disabled={!(empresaData?.email_contacto || empresaData?.email || empresaData?.correo)}>
+                <Text style={[styles.alertMessage, (empresaData?.email_contacto || empresaData?.email || empresaData?.correo) ? styles.linkText : {}]}>Email: {empresaData?.email_contacto || empresaData?.email || empresaData?.correo || 'No disponible'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => openPhone(empresaData?.telefono || empresaData?.phone || empresaData?.telefono_contacto)} disabled={!(empresaData?.telefono || empresaData?.phone || empresaData?.telefono_contacto)}>
+                <Text style={[styles.alertMessage, (empresaData?.telefono || empresaData?.phone || empresaData?.telefono_contacto) ? styles.linkText : {}]}>Teléfono: {empresaData?.telefono || empresaData?.phone || empresaData?.telefono_contacto || 'No disponible'}</Text>
+              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 12 }}>
+                <TouchableOpacity onPress={() => setEmpresaInfoVisible(false)} style={[styles.alertBtn, styles.alertConfirm]}>
+                  <Text style={[styles.alertBtnText, styles.alertConfirmText]}>Cerrar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+        {/* App-styled alert modal */}
+        <Modal visible={appAlertVisible} transparent animationType="fade">
+          <View style={styles.backdropCentered}>
+            <View style={styles.alertBox}>
+              <Text style={styles.alertTitle}>{appAlert.title}</Text>
+              <Text style={styles.alertMessage}>{appAlert.message}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 12 }}>
+                <TouchableOpacity onPress={() => setAppAlertVisible(false)} style={[styles.alertBtn, styles.alertConfirm]}>
+                  <Text style={[styles.alertBtnText, styles.alertConfirmText]}>OK</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
         {/* Datos de empresa */}
         <View style={styles.datosContainer}>
           <Text style={styles.empresaNombre}>{empresaData1.nombre}</Text>
@@ -1041,6 +1140,47 @@ const styles = StyleSheet.create({
   logoContainer: { flexDirection: 'row', alignItems: 'flex-end', flex: 1, justifyContent: 'center' },
   logoText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
   logoSubtext: { fontSize: 18, fontWeight: '600', color: '#ff007f', marginLeft: 8 },
+  backdropCentered: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  alertBox: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#0f172a',
+    padding: 18,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+  },
+  alertTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  alertMessage: {
+    color: '#cbd5e1',
+    fontSize: 15,
+    marginBottom: 6,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  alertBtnsRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+  alertBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, marginLeft: 10 },
+  alertCancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#334155' },
+  alertConfirm: { backgroundColor: '#0ea5e9' },
+  alertBtnText: { fontSize: 15, fontWeight: '600' },
+  alertCancelText: { color: '#94a3b8' },
+  alertConfirmText: { color: '#012a36' },
+  linkText: { color: '#0ea5e9', textDecorationLine: 'underline' },
+  contactHintText: { color: '#cbd5e1', fontSize: 13, textAlign: 'center', marginBottom: 6 },
   headerSpacer: {
     width: 40,
     height: 40,

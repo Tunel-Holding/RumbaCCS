@@ -90,6 +90,9 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress, ha
   // Notifications modal
   const [notificationsVisible, setNotificationsVisible] = useState(false);
   const [hasAffiliatedEmpresa, setHasAffiliatedEmpresa] = useState(hasEmpresa || false);
+  const [empresaInfoVisible, setEmpresaInfoVisible] = useState(false);
+  const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
+  const [sessionClosedVisible, setSessionClosedVisible] = useState(false);
   const handleOpenNotifications = () => {
     // Close menu then open notifications modal
     setVisible(false);
@@ -141,33 +144,38 @@ const handlePerfilEmpresaPress = async () => {
       return;
     }
 
-    // 🔹 Solo navegamos a EmpresaScreen, no tocamos flags de sesión
-    navigation.navigate('Empresa', { empresaId, fromUserMode: true });
-  } catch (e) {
-    console.log('Error navegando a EmpresaScreen', e);
-    Alert.alert('Error', 'No se pudo abrir el perfil de la empresa.');
-  }
-};
+      // Switch session to affiliated company.
+      // NOTE: We keep the accessToken (no backend call). Just flip session flags to empresa mode.
+      try {
+        await AsyncStorage.multiRemove(['userName', 'userEmail', 'userId', 'isUserAccount']);
+      } catch (e) {
+        // ignore remove errors
+      }
 
+      try {
+        await AsyncStorage.multiSet([
+          ['sessionMode', 'empresa'],
+          ['isEmpresaAccount', 'true'],
+          ['isUserAccount', 'false'],
+          ['empresaId', empresaId],
+          ['userKind', 'empresa'],
+        ]);
+      } catch (e) {
+        console.log('HamburgerMenu: error setting empresa session keys', e);
+      }
 
-const handleVolverAModoUsuario = () => {
-  // 🔹 No borramos nada de AsyncStorage, solo reiniciamos la navegación
-  navigation.reset({
-    index: 0,
-    routes: [{ name: 'Home' }],
-  });
-};
-
-
+      // Reset navigation to the Empresa screen so the new session mode takes effect
+      navigation.reset({ index: 0, routes: [{ name: 'Empresa', params: { empresaId } }] });
+    } catch (e) {
+      console.log('HamburgerMenu: error navigating to EmpresaScreen', e);
+      Alert.alert('Error', 'No se pudo abrir el perfil de la empresa.');
+    }
+  };
 
   const handleFormularioPress = () => {
+    // show our inline styled modal instead of native Alert
     setVisible(false);
-    try {
-      navigation.navigate('FormularioScreen');
-    } catch (e) {
-      console.log('HamburgerMenu: error navigating to FormularioScreen', e);
-      Alert.alert('Error', 'No se pudo abrir el formulario.');
-    }
+    setEmpresaInfoVisible(true);
   };
 
   // Watch menu visibility; when opened, detect empresaId presence to decide which menu item to show
@@ -197,42 +205,9 @@ const handleVolverAModoUsuario = () => {
   };
 
   const handleLogoutConfirm = () => {
-    // Ask confirmation then clear storage and reset navigation
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Estás seguro que deseas cerrar sesión?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // remove known session keys
-              await Promise.all([
-                AsyncStorage.removeItem('userName'),
-                AsyncStorage.removeItem('userEmail'),
-                AsyncStorage.removeItem('accessToken'),
-                AsyncStorage.removeItem('empresaId'),
-                AsyncStorage.removeItem('isEmpresaAccount'),
-                AsyncStorage.removeItem('userId'),
-                AsyncStorage.removeItem('isUserAccount'),
-                AsyncStorage.removeItem('sessionMode'),
-              ]);
-            } catch (e) {
-              console.log('HamburgerMenu: error clearing session storage', e);
-            }
-            // call parent callback if provided
-            try { onLogoutPress && onLogoutPress(); } catch (_) {}
-
-            // Show confirmation then reset navigation to HomeScreen
-            Alert.alert('Sesión cerrada', 'Has cerrado sesión correctamente', [
-              { text: 'OK', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] }) }
-            ]);
-          }
-        }
-      ],
-    );
+    // show our inline confirmation modal instead of native Alert
+    setVisible(false);
+    setLogoutConfirmVisible(true);
   };
 
   return (
@@ -261,7 +236,8 @@ const handleVolverAModoUsuario = () => {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={handleFormularioPress} style={styles.menuItem}>
-                <Text style={styles.menuText}>Formulario de empresa</Text>
+                <Text style={styles.menuText}>¿Tienes una empresa? </Text>
+                <Text style={styles.menuText}>¡Regístrala!</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={() => { setVisible(false); handleLogoutConfirm(); }} style={[styles.menuItem, styles.logoutItem]}>
@@ -291,6 +267,79 @@ const handleVolverAModoUsuario = () => {
       )}
       {/* Notifications modal controlled internally */}
       <NotificationsModal visible={notificationsVisible} onClose={() => setNotificationsVisible(false)} pageSize={5} />
+
+      {/* Inline styled modal for empresa info (replaces native Alert) */}
+      <Modal visible={empresaInfoVisible} transparent animationType="fade">
+        <View style={styles.backdropCentered}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>¿Sabías que puedes añadir eventos?</Text>
+            <Text style={styles.alertMessage}>Si tienes una empresa, puedes registrarla en nuestra app y vincularla con tu cuenta principal. La cuenta organizadora podrá crear y gestionar eventos fácilmente. Solo debes de completar un formulario para registrar tu empresa y esperar su verificación!.</Text>
+            <View style={styles.alertBtnsRow}>
+              <TouchableOpacity onPress={() => setEmpresaInfoVisible(false)} style={[styles.alertBtn, styles.alertCancel]}>
+                <Text style={[styles.alertBtnText, styles.alertCancelText]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setEmpresaInfoVisible(false); try { navigation.navigate('FormularioScreen'); } catch (e) { console.log('HamburgerMenu: error navigating to FormularioScreen', e); Alert.alert('Error', 'No se pudo abrir el formulario.'); } }} style={[styles.alertBtn, styles.alertConfirm]}>
+                <Text style={[styles.alertBtnText, styles.alertConfirmText]}>Ir al formulario</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Logout confirmation modal */}
+      <Modal visible={logoutConfirmVisible} transparent animationType="fade">
+        <View style={styles.backdropCentered}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Cerrar sesión</Text>
+            <Text style={styles.alertMessage}>¿Estás seguro que deseas cerrar sesión?</Text>
+            <View style={styles.alertBtnsRow}>
+              <TouchableOpacity onPress={() => setLogoutConfirmVisible(false)} style={[styles.alertBtn, styles.alertCancel]}>
+                <Text style={[styles.alertBtnText, styles.alertCancelText]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={async () => {
+                try {
+                  // remove known session keys
+                  await Promise.all([
+                    AsyncStorage.removeItem('userName'),
+                    AsyncStorage.removeItem('userEmail'),
+                    AsyncStorage.removeItem('accessToken'),
+                    AsyncStorage.removeItem('empresaId'),
+                    AsyncStorage.removeItem('isEmpresaAccount'),
+                    AsyncStorage.removeItem('userId'),
+                    AsyncStorage.removeItem('isUserAccount'),
+                    AsyncStorage.removeItem('sessionMode'),
+                  ]);
+                } catch (e) {
+                  console.log('HamburgerMenu: error clearing session storage', e);
+                }
+                // call parent callback if provided
+                try { onLogoutPress && onLogoutPress(); } catch (_) {}
+
+                // close confirm modal and show session closed modal that will reset navigation on OK
+                setLogoutConfirmVisible(false);
+                setSessionClosedVisible(true);
+              }} style={[styles.alertBtn, styles.alertConfirm]}>
+                <Text style={[styles.alertBtnText, styles.alertConfirmText]}>Cerrar sesión</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Session closed modal */}
+      <Modal visible={sessionClosedVisible} transparent animationType="fade">
+        <View style={styles.backdropCentered}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Sesión cerrada</Text>
+            <Text style={styles.alertMessage}>Has cerrado sesión correctamente</Text>
+            <View style={[styles.alertBtnsRow, { justifyContent: 'center' }]}>
+              <TouchableOpacity onPress={() => { setSessionClosedVisible(false); navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] }); }} style={[styles.alertBtn, styles.alertConfirm]}>
+                <Text style={[styles.alertBtnText, styles.alertConfirmText]}>OK</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 }
@@ -342,4 +391,41 @@ const styles = StyleSheet.create({
   closeText: { color: '#ff007f', fontSize: 16, marginTop: 12 },
   logoutItem: { backgroundColor: 'transparent' },
   logoutText: { color: '#ef4444', fontSize: 20, fontWeight: '700' },
+  backdropCentered: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  alertBox: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#0f172a',
+    padding: 18,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+  },
+  alertTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  alertMessage: {
+    color: '#cbd5e1',
+    fontSize: 15,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  alertBtnsRow: { flexDirection: 'row', justifyContent: 'flex-end' },
+  alertBtn: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 8, marginLeft: 10 },
+  alertCancel: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#334155' },
+  alertConfirm: { backgroundColor: '#0ea5e9' },
+  alertBtnText: { fontSize: 15, fontWeight: '600' },
+  alertCancelText: { color: '#94a3b8' },
+  alertConfirmText: { color: '#012a36' },
 });
