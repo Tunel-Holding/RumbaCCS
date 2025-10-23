@@ -163,8 +163,8 @@ class Empresa(models.Model):
     def clean(self):
         if self.nombre and len(self.nombre) < 2:
             raise ValidationError({"nombre": "El nombre de la empresa debe tener al menos 2 caracteres."})
-        if self.telefono and not self.telefono.replace("+", "").isdigit():
-            raise ValidationError({"telefono": "El teléfono solo puede contener dígitos y un '+' opcional."})
+        if self.phone and not self.phone.replace("+", "").isdigit():
+            raise ValidationError({"phone": "El teléfono solo puede contener dígitos y un '+' opcional."})
         
     # 🔹 Total de seguidores
     @property

@@ -22,6 +22,7 @@ from rest_framework_simplejwt.settings import api_settings
 from rest_framework.permissions import AllowAny
 from django.core.cache import cache
 from django.db.models import Count, Avg, Exists, OuterRef
+from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 
 
 Usuario = get_user_model()
@@ -31,7 +32,7 @@ class SafeTokenRefreshView(TokenViewBase):
     TokenRefreshView que funciona tanto para Usuario como para Empresa.
     Solo captura el caso en que el token apunta a un objeto que ya no existe.
     """
-    serializer_class = api_settings.TOKEN_REFRESH_SERIALIZER
+    serializer_class = TokenRefreshSerializer  
 
     def post(self, request, *args, **kwargs):
         try:
