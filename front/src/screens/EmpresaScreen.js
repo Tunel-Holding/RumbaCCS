@@ -690,41 +690,35 @@ const renderSocialCircles = () => {
 
   const hasAny = redes.some(r => !!r.url);
 
+  if (!hasAny) return null;
+
   return (
     <View style={styles.socialStripContainer}>
       <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginRight:4 }}>
         <Text style={styles.socialStripTitle}>Redes sociales</Text>
-        {!isBlocked && hasAny && (
+        {!isBlocked && (
           <TouchableOpacity onPress={() => setManageSocialModal(true)}>
             <Text style={{ color:'#0ea5e9', fontWeight:'700' }}>Editar/Eliminar</Text>
           </TouchableOpacity>
         )}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {hasAny ? (
-          <>
-            {redes.filter(r => r.url).map(r => (
-              <TouchableOpacity
-                key={r.id}
-                style={[styles.socialCircle, { borderColor: r.color }]}
-                activeOpacity={0.75}
-                onPress={() => Linking.openURL(r.url)}
-              >
-                <Text style={styles.socialIcon}>{r.icon}</Text>
-              </TouchableOpacity>
-            ))}
-          </>
-        ) : (
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 16 }}>
-            <TouchableOpacity
-              style={[styles.socialCircle, { borderColor: '#9ca3af', marginRight: 10 }]}
-              onPress={() => setAddSocialModal(true)}
-            >
-              <Text style={[styles.socialIcon, { fontSize: 20 }]}>+</Text>
-            </TouchableOpacity>
-            <Text style={{ color: '#94a3b8' }}>No hay redes sociales agregadas.</Text>
-          </View>
-        )}
+        {redes.filter(r => r.url).map(r => (
+          <TouchableOpacity
+            key={r.id}
+            style={[styles.socialCircle, { borderColor: r.color }]}
+            activeOpacity={0.75}
+            onPress={() => Linking.openURL(r.url)}
+          >
+            <Text style={styles.socialIcon}>{r.icon}</Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity
+          style={[styles.socialCircle, { borderColor: '#9ca3af' }]}
+          onPress={() => setAddSocialModal(true)}
+        >
+          <Text style={[styles.socialIcon, { fontSize: 20 }]}>+</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
