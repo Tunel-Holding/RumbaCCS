@@ -390,10 +390,12 @@ class EmpresaViewSet(ModelViewSet):
 
             if not url:
                 continue
-
+            
+            print("Actualizando url para tipo:", tipo)
             url = url.strip()
-            if not url.lower().startswith('http://') and not url.lower().startswith('https://') and not url.lower().startswith('mailto:'):
-                url = 'https://' + url
+            if not url.lower().startswith('https://') and not url.lower().startswith('mailto:'):
+                url = 'https://'+ tipo + '.com/' + url
+                print(f"[SYNC REDES] Normalizando URL para tipo {tipo}: {url}")
 
             try:
                 url_validator(url)
