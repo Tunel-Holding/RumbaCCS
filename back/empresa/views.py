@@ -30,7 +30,7 @@ from rest_framework.viewsets import ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework import status, generics
-from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer, EventoPublicSerializer, EmpresaEventoSerializer
+from .serializers import EmpresaSerializer, EventoSerializer, EmpresaRegistroSerializer, EventoPublicSerializer, EmpresaEventoSerializer, EmpresaRedSocialSerializer
 from rest_framework.exceptions import ValidationError
 from rest_framework import viewsets
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -363,6 +363,66 @@ class EmpresaViewSet(ModelViewSet):
             if empresa.assigned_to:
                 notificar_asignacion_empresa(empresa)
 
+    def perform_update(self, serializer):
+        """Al actualizar una empresa sincronizamos sus redes sociales y logueamos el proceso."""
+        empresa = serializer.instance
+        serializer.save()
+
+        redes = self.request.data.get('redes_sociales', None)
+        print(f"[SYNC REDES] PATCH recibido para empresa {empresa.id}")
+        print(f"[SYNC REDES] Lista recibida: {redes}")
+        if redes is None:
+            print("[SYNC REDES] No se recibió redes_sociales, no se sincroniza nada.")
+            return
+
+        url_validator = URLValidator()
+        seen_tipos = set()
+        tipos_recibidos = []
+
+        for red in redes:
+            tipo = 'instagram'
+            url = ''
+            if isinstance(red, dict):
+                tipo = red.get('tipo', 'instagram')
+                url = red.get('url', '')
+            else:
+                url = red
+
+            if not url:
+                continue
+
+            url = url.strip()
+            if not url.lower().startswith('http://') and not url.lower().startswith('https://') and not url.lower().startswith('mailto:'):
+                url = 'https://' + url
+
+            try:
+                url_validator(url)
+            except DjangoValidationError:
+                print(f"[SYNC REDES] URL inválida ignorada: {url}")
+                continue
+
+            EmpresaRedSocial.objects.update_or_create(
+                empresa=empresa,
+                tipo=tipo,
+                defaults={'url': url}
+            )
+            seen_tipos.add(tipo)
+            tipos_recibidos.append(tipo)
+
+        print(f"[SYNC REDES] Tipos recibidos: {tipos_recibidos}")
+        # Eliminar redes cuyo tipo no está en la lista entrante
+        if redes == []:
+            # Si la lista recibida está vacía, eliminar todas las redes
+            eliminadas = EmpresaRedSocial.objects.filter(empresa=empresa)
+            for r in eliminadas:
+                print(f"[SYNC REDES] Eliminando red: id={r.id}, tipo={r.tipo}, url={r.url}")
+            eliminadas.delete()
+        elif seen_tipos:
+            eliminadas = EmpresaRedSocial.objects.filter(empresa=empresa).exclude(tipo__in=seen_tipos)
+            for r in eliminadas:
+                print(f"[SYNC REDES] Eliminando red: id={r.id}, tipo={r.tipo}, url={r.url}")
+            eliminadas.delete()
+
     # Acción para seguir una empresa
     @action(detail=True, methods=['post'])
     def seguir(self, request, pk=None):
@@ -436,6 +496,129 @@ class EmpresaViewSet(ModelViewSet):
         empresa = self.get_object()
         seguidores = empresa.seguidores.all().values("id", "username")
         return Response(seguidores)
+
+    # --- Redes sociales: listar y crear/actualizar ---
+    @action(detail=True, methods=["get"], url_path="redes")
+    def redes(self, request, pk=None):
+        """Lista las redes sociales asociadas a la empresa."""
+        empresa = self.get_object()
+        redes = empresa.redes.all()
+        serializer = EmpresaRedSocialSerializer(redes, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], url_path="redes")
+    def add_red(self, request, pk=None):
+        """Crea o actualiza (por tipo) una red social para la empresa.
+
+        Si ya existe una red del mismo tipo se actualiza su URL. Se normaliza la URL
+        y se valida.
+        """
+        empresa = self.get_object()
+
+        # Permitir sólo al propietario (empresa autenticada) o al usuario propietario
+        # de la empresa modificar sus redes.
+        auth_entity = request.user
+        can_modify = False
+        # AuthEntity con .kind y .obj
+        if getattr(auth_entity, "kind", None) == "empresa" and getattr(auth_entity, "obj", None):
+            if auth_entity.obj.id == empresa.id:
+                can_modify = True
+        elif getattr(auth_entity, "kind", None) == "usuario" and getattr(auth_entity, "obj", None):
+            # usuario vinculado como administrador de la empresa
+            if getattr(auth_entity.obj, "empresa_id", None) == empresa.id:
+                can_modify = True
+        else:
+            # por si request.user es directamente instancia Usuario o Empresa
+            if isinstance(auth_entity, type(empresa)) and getattr(auth_entity, "id", None) == empresa.id:
+                can_modify = True
+            elif hasattr(auth_entity, "empresa") and getattr(auth_entity.empresa, "id", None) == empresa.id:
+                can_modify = True
+
+        if not can_modify:
+            return Response({"detail": "No tienes permisos para modificar las redes de esta empresa."}, status=403)
+
+        tipo = request.data.get("tipo", "instagram")
+        url = request.data.get("url", "") or request.data.get("value", "")
+        url = url.strip() if isinstance(url, str) else url
+        # Normalizar esquema si falta
+        if url and not (url.lower().startswith("http://") or url.lower().startswith("https://")):
+            url = "https://" + url
+
+        # Validar URL
+        url_validator = URLValidator()
+        try:
+            url_validator(url)
+        except DjangoValidationError:
+            return Response({"detail": "URL inválida."}, status=400)
+
+        # Crear o actualizar por tipo (unique_together)
+        obj, created = EmpresaRedSocial.objects.update_or_create(
+            empresa=empresa,
+            tipo=tipo,
+            defaults={"url": url}
+        )
+
+        status_code = 201 if created else 200
+        serializer = EmpresaRedSocialSerializer(obj)
+        return Response(serializer.data, status=status_code)
+
+    @action(detail=True, methods=["patch", "delete"], url_path=r"redes/(?P<red_pk>[^/.]+)")
+    def redes_detail(self, request, pk=None, red_pk=None):
+        """Editar (PATCH) o eliminar (DELETE) una red social por su id.
+
+        PATCH: acepta 'url' (y opcionalmente 'tipo' aunque cambiar tipo puede fallar por unique).
+        DELETE: borra el registro.
+        """
+        empresa = self.get_object()
+
+        # permiso igual al de add_red
+        auth_entity = request.user
+        can_modify = False
+        if getattr(auth_entity, "kind", None) == "empresa" and getattr(auth_entity, "obj", None):
+            if auth_entity.obj.id == empresa.id:
+                can_modify = True
+        elif getattr(auth_entity, "kind", None) == "usuario" and getattr(auth_entity, "obj", None):
+            if getattr(auth_entity.obj, "empresa_id", None) == empresa.id:
+                can_modify = True
+        else:
+            if isinstance(auth_entity, type(empresa)) and getattr(auth_entity, "id", None) == empresa.id:
+                can_modify = True
+            elif hasattr(auth_entity, "empresa") and getattr(auth_entity.empresa, "id", None) == empresa.id:
+                can_modify = True
+
+        if not can_modify:
+            return Response({"detail": "No tienes permisos para modificar las redes de esta empresa."}, status=403)
+
+        red = get_object_or_404(EmpresaRedSocial, pk=red_pk, empresa=empresa)
+
+        if request.method == "DELETE":
+            print(f"[BORRAR RED SOCIAL] Empresa: {empresa.id} - Red: {red.id} ({red.tipo}) - URL: {red.url}")
+            red.delete()
+            print(f"[BORRAR RED SOCIAL] Eliminada correctamente de la BD.")
+            return Response(status=204)
+
+        # PATCH
+        url = request.data.get("url")
+        tipo = request.data.get("tipo")
+        if url:
+            url = url.strip()
+            if url and not (url.lower().startswith("http://") or url.lower().startswith("https://")):
+                url = "https://" + url
+            try:
+                URLValidator()(url)
+            except DjangoValidationError:
+                return Response({"detail": "URL inválida."}, status=400)
+            red.url = url
+
+        if tipo and tipo != red.tipo:
+            # verificar que no exista otra red del mismo tipo para esta empresa
+            if EmpresaRedSocial.objects.filter(empresa=empresa, tipo=tipo).exclude(pk=red.pk).exists():
+                return Response({"detail": "Ya existe una red de ese tipo para esta empresa."}, status=400)
+            red.tipo = tipo
+
+        red.save()
+        serializer = EmpresaRedSocialSerializer(red)
+        return Response(serializer.data)
 
 # -----------------------------
 # Endpoint de detalle de empresa

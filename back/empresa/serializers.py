@@ -99,7 +99,7 @@ class EventoSerializer(serializers.ModelSerializer):
             empresa = getattr(obj, 'empresa', None)
             if not empresa:
                 return []
-            return [{'tipo': r.tipo, 'url': r.url} for r in empresa.redes.all()]
+            return EmpresaRedSocialSerializer(empresa.redes.all(), many=True).data
         except Exception:
             return []
     
@@ -108,7 +108,9 @@ class EventoSerializer(serializers.ModelSerializer):
 class EmpresaRedSocialSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmpresaRedSocial
-        fields = ['tipo', 'url']
+        # Incluimos el id y la fecha para que el frontend pueda
+        # identificar el registro (ej: para editar/eliminar)
+        fields = ['id', 'tipo', 'url', 'creado_en']
 
 class EmpresaStaffSerializer(serializers.ModelSerializer):
     assigned_to = serializers.StringRelatedField(read_only=True)
@@ -241,7 +243,10 @@ class EmpresaSerializer(serializers.ModelSerializer):
     def get_redes_sociales(self, obj):
         # Devuelve una lista de objetos con tipo y url para que el frontend pueda
         # renderizar hipervínculos fácilmente.
-        return [{'tipo': r.tipo, 'url': r.url} for r in obj.redes.all()]
+        try:
+            return EmpresaRedSocialSerializer(obj.redes.all(), many=True).data
+        except Exception:
+            return []
     
     
 
@@ -383,7 +388,7 @@ class EmpresaPublicSerializer(serializers.ModelSerializer):
 
     def get_redes_sociales(self, obj):
         try:
-            return [{'tipo': r.tipo, 'url': r.url} for r in obj.redes.all()]
+            return EmpresaRedSocialSerializer(obj.redes.all(), many=True).data
         except Exception:
             return []
 
@@ -414,7 +419,7 @@ class EventoPublicSerializer(serializers.ModelSerializer):
             empresa = getattr(obj, 'empresa', None)
             if not empresa:
                 return []
-            return [{'tipo': r.tipo, 'url': r.url} for r in empresa.redes.all()]
+            return EmpresaRedSocialSerializer(empresa.redes.all(), many=True).data
         except Exception:
             return []
 
