@@ -410,5 +410,60 @@ class UsuarioEvento(models.Model):
     def __str__(self):
         return f"{self.usuario.username} guardó {self.evento.titulo}"
 
+class CompanyProfileView(models.Model):
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='profile_views')
+    usuario = models.ForeignKey('api.Usuario', on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        unique_together = ('empresa', 'usuario')  # ✅ Solo una vista por usuario por empresa
+        indexes = [
+            models.Index(fields=['empresa', 'timestamp']),
+        ]
 
+class CompanyEventView(models.Model):
+    evento = models.ForeignKey('Evento2', on_delete=models.CASCADE, related_name='views')
+    usuario = models.ForeignKey('api.Usuario', on_delete=models.CASCADE)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('evento', 'usuario')  # ✅ Solo una vista por usuario por evento
+        indexes = [
+            models.Index(fields=['evento', 'timestamp']),
+        ]
+
+class EmpresaMetricNotification(models.Model):
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE)
+    tipo = models.CharField(
+        max_length=20,
+        choices=[('perfil', 'Perfil'), ('evento', 'Evento')]
+    )
+    referencia_id = models.IntegerField(null=True, blank=True)  # ID del evento si aplica
+    periodo = models.CharField(max_length=20)  # Ej: '2025-10' o '2025-10-25'
+    enviado = models.BooleanField(default=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('empresa', 'tipo', 'referencia_id', 'periodo')
+        indexes = [
+            models.Index(fields=['empresa', 'tipo', 'periodo']),
+        ]
+
+    def __str__(self):
+        ref = f"evento {self.referencia_id}" if self.tipo == 'evento' else "perfil"
+        return f"{self.empresa.nombre} - {ref} - {self.periodo}"
+
+class NotificacionEmpresa(models.Model):
+    empresa = models.ForeignKey('Empresa', on_delete=models.CASCADE, related_name='notificaciones')
+    mensaje = models.TextField()
+    tipo = models.CharField(max_length=50)  # Ej: 'metricas_perfil', 'metricas_evento'
+    metadata = models.JSONField(default=dict, blank=True)  # Ej: {'periodo': '2025-10', 'evento_id': 42}
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['empresa', 'tipo', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.empresa.nombre} - {self.tipo} - {self.timestamp.date()}"

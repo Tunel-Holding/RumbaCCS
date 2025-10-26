@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Count, Q
 from django.utils import timezone
+from .models import CompanyProfileView, CompanyEventView
 
 from django.conf import settings
 
@@ -122,4 +123,9 @@ def validate_image_with_sightengine(file):
         return True
     except Exception:
         return False
-        
+
+def register_profile_view(empresa, usuario):
+    CompanyProfileView.objects.get_or_create(empresa=empresa, usuario=usuario)
+
+def register_event_view(evento, usuario):
+    CompanyEventView.objects.get_or_create(evento=evento, usuario=usuario)

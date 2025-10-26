@@ -7,6 +7,7 @@ from .models import (
     Empresa, Evento2, Rating,
     EventoImagen,
     EmpresaRedSocial,
+    NotificacionEmpresa
     )
 from .serializers import (
     EmpresaTokenObtainPairSerializer,
@@ -15,7 +16,8 @@ from .serializers import (
     RatingSerializer,
     EventoImagenSerializer,
     TempImageSerializer,
-    EmpresaBulkSerializer
+    EmpresaBulkSerializer,
+    NotificacionEmpresaSerializer
     
     )
 from api.models import EmailVerification
@@ -62,18 +64,16 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
-from .services import asignar_empresa_por_menor_carga, NoStaffAvailable, validate_image_with_sightengine
+from .services import asignar_empresa_por_menor_carga, NoStaffAvailable, validate_image_with_sightengine, register_profile_view, register_event_view
 from .notifications import notificar_asignacion_empresa
 from django.core.validators import URLValidator
 from django.core.exceptions import ValidationError as DjangoValidationError
 from api.serializers import RegisterSerializer
 from django.db import transaction
+from .permissions import IsEmpresaAuthenticated
 
 Usuario = get_user_model()
 
-class IsEmpresaAuthenticated(BasePermission):
-    def has_permission(self, request, view):
-        return hasattr(request.user, 'id') and getattr(request.user, 'is_empresa', False)
 
 class EmpresaPreRegistroView(generics.CreateAPIView):
     serializer_class = EmpresaRegistroSerializer
@@ -927,6 +927,16 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = self.get_serializer(selected, many=True)
         return Response(serializer.data)
     
+    def retrieve(self, request, *args, **kwargs):
+        evento = self.get_object()
+
+        # Registrar vista si el usuario está autenticado
+        if request.user.is_authenticated:
+            register_event_view(evento, request.user)
+
+        serializer = self.get_serializer(evento)
+        return Response(serializer.data)
+    
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
     return {
@@ -983,6 +993,19 @@ class EmpresaPublicDetailView(RetrieveAPIView):
     serializer_class = EmpresaPublicSerializer
     permission_classes = [AllowAny]  # 🔓 cualquiera puede acceder
     lookup_field = "id"  # se buscará por /<id>/
+    
+    def retrieve(self, request, *args, **kwargs):
+        empresa = self.get_object()
+        
+        user = request.user
+        if hasattr(user, "kind") and hasattr(user, "obj"):
+            if user.kind == "usuario":
+                register_profile_view(empresa, user.obj)
+        elif getattr(user, "is_authenticated", False):
+            register_profile_view(empresa, user)
+
+
+        return super().retrieve(request, *args, **kwargs)
     
 
 class EmpresaPublicEventosView(ListAPIView):
@@ -1218,4 +1241,12 @@ class EmpresaValidarPinConUsuarioView(generics.CreateAPIView):
             {"message": "Empresa creada exitosamente", "empresa": empresa_serialized},
             status=201
         )
+
+class NotificacionEmpresaViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = NotificacionEmpresaSerializer
+    permission_classes = [IsEmpresaAuthenticated]  # o personalizada si usas token por empresa
+
+    def get_queryset(self):
+        empresa_id = self.kwargs["empresa_pk"]  # 👈 no "id"
+        return NotificacionEmpresa.objects.filter(empresa_id=empresa_id).order_by('-timestamp')
 

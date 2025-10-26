@@ -20,6 +20,7 @@ from .views import (
     UsuarioEventoViewSet,
     EmpresaValidarPinConUsuarioView,
     UsuarioComentariosView,
+    NotificacionEmpresaViewSet
 )
 
 # 1) Router principal para empresas
@@ -33,12 +34,17 @@ empresas_router.register(r'eventos', EventoViewSet, basename='empresa-eventos')
 # 3) Eventos públicos
 router.register(r'eventos-publicos', EventosPublicosViewSet, basename='eventos-publicos')
 
-# 5) Eventos guardados por usuario
-router.register(r'eventos-guardados', UsuarioEventoViewSet, basename='eventos-guardados')
-
 # 4) Imágenes de eventos
 eventos_router = NestedDefaultRouter(empresas_router, r'eventos', lookup='evento')
 eventos_router.register(r'imagenes', EventoImagenViewSet, basename='evento-imagenes')
+
+# 5) Eventos guardados por usuario
+router.register(r'eventos-guardados', UsuarioEventoViewSet, basename='eventos-guardados')
+
+# 6) Notificaciones por empresa
+empresas_router.register(r'notificaciones', NotificacionEmpresaViewSet, basename='empresa-notificaciones')
+
+
 
 evento_imagenes = EventoImagenViewSet.as_view({'post': 'create'})
 

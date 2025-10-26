@@ -30,11 +30,25 @@ export default function NotificationsModal({ visible, onClose }) {
       else setLoadingMore(true);
 
       const token = await AsyncStorage.getItem('accessToken');
-      // The API identifies the user by token; endpoint expects ?page=n
-      const res = await api.get(`/api/notificaciones/`, {
-        params: { page: pageToFetch, page_size: pageSize },
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
+      const isEmpresaAccount = await AsyncStorage.getItem('isEmpresaAccount');
+
+      let res;
+
+      if (!isEmpresaAccount) {
+        res = await api.get(`/api/notificaciones/`, {
+          params: { page: pageToFetch, page_size: pageSize },
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+      } else {
+        const empresaId = await AsyncStorage.getItem('empresaId');
+        res = await api.get(`/api/empresas/${empresaId}/notificaciones/`, {
+          params: { page: pageToFetch, page_size: pageSize },
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+      }
+
+      
+      
 
       // Normalize list: either array or paginated { results: [], next: 'url' }
       const items = Array.isArray(res.data)

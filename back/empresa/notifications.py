@@ -3,12 +3,13 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Empresa,UsuarioEvento, Evento2
 from datetime import timedelta, datetime
 from django.utils import timezone
 from celery import shared_task
 from django.utils import timezone
 import logging
+from .models import Empresa, CompanyProfileView, CompanyEventView, Evento2, EmpresaMetricNotification, NotificacionEmpresa
+from django.db.models import Count
 
 logger = logging.getLogger(__name__)
 
@@ -50,5 +51,78 @@ def notificar_cambio_status(sender, instance: Empresa, created, **kwargs):
             recipient_list=[instance.email],
             fail_silently=True,
         )
+        
 
-            
+@shared_task
+def notificar_metricas_empresas():
+    ahora = timezone.now()
+    inicio_mes = ahora.replace(day=1)
+    ayer = ahora.date() - timedelta(days=1)
+
+    UMBRAL_PERFIL = 5
+    UMBRAL_EVENTO = 3
+
+    for empresa in Empresa.objects.all():
+        # 📊 1. Métrica de perfil mensual
+        periodo_mes = ahora.strftime("%Y-%m")
+        if not NotificacionEmpresa.objects.filter(
+            empresa=empresa,
+            tipo='metricas_perfil',
+            metadata__periodo=periodo_mes
+        ).exists():
+            vistas_mes = CompanyProfileView.objects.filter(
+                empresa=empresa,
+                timestamp__gte=inicio_mes
+            ).count()
+
+            if vistas_mes >= UMBRAL_PERFIL:
+                ya_registrada = EmpresaMetricNotification.objects.filter(
+                    empresa=empresa,
+                    tipo='perfil',
+                    periodo=periodo_mes
+                ).exists()
+
+                if not ya_registrada:
+                    NotificacionEmpresa.objects.create(
+                        empresa=empresa,
+                        mensaje=f"📈 {vistas_mes} usuarios han visto tu perfil este mes.",
+                        tipo='metricas_perfil',
+                        metadata={'periodo': periodo_mes}
+                    )
+                    EmpresaMetricNotification.objects.create(
+                        empresa=empresa,
+                        tipo='perfil',
+                        periodo=periodo_mes,
+                        enviado=True
+                    )
+
+        # 📊 2. Métrica de eventos finalizados ayer
+        eventos_finalizados = Evento2.objects.filter(
+            empresa=empresa,
+            fecha_evento__date=ayer
+        ).annotate(total_vistas=Count('views'))
+
+        for evento in eventos_finalizados:
+            periodo_evento = evento.fecha_evento.strftime("%Y-%m-%d")
+
+            ya_registrada_evento = EmpresaMetricNotification.objects.filter(
+                empresa=empresa,
+                tipo='evento',
+                referencia_id=evento.id,
+                periodo=periodo_evento
+            ).exists()
+
+            if not ya_registrada_evento and evento.total_vistas >= UMBRAL_EVENTO:
+                NotificacionEmpresa.objects.create(
+                    empresa=empresa,
+                    mensaje=f"🎉 {evento.total_vistas} usuarios han visto tu evento '{evento.titulo}' hasta su fecha.",
+                    tipo='metricas_evento',
+                    metadata={'periodo': periodo_evento, 'evento_id': evento.id}
+                )
+                EmpresaMetricNotification.objects.create(
+                    empresa=empresa,
+                    tipo='evento',
+                    referencia_id=evento.id,
+                    periodo=periodo_evento,
+                    enviado=True
+                )

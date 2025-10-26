@@ -17,7 +17,7 @@ import random
 from django.conf import settings
 from empresa.services import validate_image_with_sightengine
 from .services import upload_user_profile_picture, delete_user_profile_picture
-from rest_framework_simplejwt.views import TokenViewBase
+from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.settings import api_settings
 from rest_framework.permissions import AllowAny
 from django.core.cache import cache
@@ -27,13 +27,11 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 
 Usuario = get_user_model()
 
-class SafeTokenRefreshView(TokenViewBase):
+class SafeTokenRefreshView(TokenRefreshView):
     """
     TokenRefreshView que funciona tanto para Usuario como para Empresa.
     Solo captura el caso en que el token apunta a un objeto que ya no existe.
     """
-    serializer_class = TokenRefreshSerializer  
-
     def post(self, request, *args, **kwargs):
         try:
             return super().post(request, *args, **kwargs)

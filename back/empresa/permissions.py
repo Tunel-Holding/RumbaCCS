@@ -61,7 +61,20 @@ class IsEmpresaOrUsuarioAuthenticated(BasePermission):
 
         return False
 
+class IsEmpresaAuthenticated(BasePermission):
+    """
+    Permite acceso solo si el request.user es una instancia de Empresa autenticada por token.
+    """
 
+    def has_permission(self, request, view):
+        user = request.user
+
+        # Si estás usando un wrapper tipo AuthEntity
+        if hasattr(user, "kind") and hasattr(user, "obj"):
+            return isinstance(user.obj, Empresa)
+
+        # Si el token ya resolvió a una Empresa directamente
+        return isinstance(user, Empresa)
 
 def _is_usuario_entity(user):
     # Si usas AuthEntity: user.kind == 'usuario'

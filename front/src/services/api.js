@@ -67,8 +67,11 @@ api.interceptors.response.use(
         data.detail === 'Given token not valid for any token type'
       );
 
+
+    
+
     // Si es una petición al endpoint de refresh o ya se reintentó y sigue inválido -> cerrar sesión silenciosa
-    if (tokenInvalid && (originalRequest._retry || originalRequest.url?.includes('/api/token/refresh/'))) {
+    if (tokenInvalid && (originalRequest._retry || originalRequest.url?.includes('/token/refresh/'))) {
       await clearSession();
       processQueue(error, null);
       return silentLogoutResponse(originalRequest); // ← NO lanza reject
@@ -103,15 +106,21 @@ api.interceptors.response.use(
           refresh: refreshToken,
         });
 
-        const newToken = refreshRes.data.access;
+        const newToken = refreshRes.data?.access;
+
+        if (!newToken) {
+          await clearSession();
+          return silentLogoutResponse(originalRequest);
+        }
         await AsyncStorage.setItem('accessToken', newToken);
         processQueue(null, newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (err) {
-        await clearSession(); // CHANGED
+        console.error('Error al refrescar token:', err?.response?.data || err.message);
+        await clearSession();
         processQueue(err, null);
-        return silentLogoutResponse(originalRequest); // CHANGED: sin throw
+        return silentLogoutResponse(originalRequest);
       } finally {
         isRefreshing = false;
       }
