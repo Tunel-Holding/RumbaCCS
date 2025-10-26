@@ -160,47 +160,62 @@ class EmpresaSerializer(serializers.ModelSerializer):
     redes_sociales = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
     total_eventos = serializers.SerializerMethodField()
+    whatsapp_link = serializers.SerializerMethodField()
 
     class Meta:
-        model = Empresa
-        fields = [
-            "id",
-            "nombre",
-            "rif",
-            "descripcion",
-            "lugar",
-            "phone",
-            "email_contacto",
-            "email",
-            "password",
-            "redes_sociales",
-            "logo",
-            "total_seguidores",
-            "is_siguiendo",
-            "fecha_creacion",
-            "activo",
-            "avg_rating",
-            "rating_count",
-            "total_eventos",
-            "is_following",
-            "status",
-            "rejection_reason",
-            "verification_notes",
-            "eventos",
-            
-        ]
-        read_only_fields = [
-            "id",
-            "total_seguidores",
-            "is_siguiendo",
-            "fecha_creacion",
-            "activo",
-            "status",
-            "rejection_reason",
-            "verification_notes",
-        ]
-
-    def get_is_following(self, obj):
+        class Meta:
+            model = Empresa
+            fields = [
+                "id",
+                "nombre",
+                "rif",
+                "descripcion",
+                "lugar",
+                "phone",
+                "email_contacto",
+                "email",
+                "password",
+                "redes_sociales",
+                "logo",
+                "total_seguidores",
+                "is_siguiendo",
+                "fecha_creacion",
+                "fecha_creacion",
+                "activo",
+                "avg_rating",
+                "rating_count",
+                "total_eventos",
+                "is_following",
+                "status",
+                "rejection_reason",
+                "verification_notes",
+                "eventos",
+                "whatsapp_link",
+            ]
+            read_only_fields = [
+                "id",
+                "total_seguidores",
+                "is_siguiendo",
+                "fecha_creacion",
+                "activo",
+                "status",
+                "rejection_reason",
+                "verification_notes",
+                "whatsapp_link",
+            ]
+    def get_whatsapp_link(self, obj):
+        phone = getattr(obj, 'phone', None)
+        if not phone or len(str(phone)) < 10:
+            return None
+        # Obtener nombre de usuario desde el request
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        username = getattr(user, "username", "usuario") if user else "usuario"
+        mensaje = f"¡Hola {username}! Nos alegra que te intereses en nuestra empresa a través de RumbaCcs. Pronto recibirás una respuesta con toda la información que necesitas."
+        from urllib.parse import quote
+        mensaje_encoded = quote(mensaje)
+        numero = str(phone).replace('+', '').replace(' ', '')
+        return f"https://wa.me/{numero}?text={mensaje_encoded}"
         request = self.context.get("request")
         user = getattr(request, "user", None)
 
