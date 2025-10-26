@@ -1085,18 +1085,51 @@ class EmpresaEventoCreateView(APIView):
     
 class UsuarioEventoViewSet(viewsets.ModelViewSet):
     
-    serializer_class = UsuarioEventoSerializer
+
     permission_classes = [permissions.IsAuthenticated]
+
 
     def get_queryset(self):
         queryset = UsuarioEvento.objects.filter(usuario=self.request.user).order_by('-fecha_guardado')
         evento_id = self.request.query_params.get('evento')
         if evento_id:
             queryset = queryset.filter(evento_id=evento_id)
+        # Filtrado por fecha si se usan los parámetros
+        fecha_inicio = self.request.query_params.get('fecha_inicio')
+        fecha_fin = self.request.query_params.get('fecha_fin')
+        if fecha_inicio and fecha_fin:
+            queryset = queryset.filter(evento__fecha_evento__range=[fecha_inicio, fecha_fin])
         return queryset
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        # Paginación manual con limit/offset
+        limit = int(request.query_params.get('limit', 50))
+        offset = int(request.query_params.get('offset', 0))
+        total = queryset.count()
+        paginated_qs = queryset[offset:offset+limit]
+        serializer = self.get_serializer(paginated_qs, many=True)
+        return Response({
+            'results': serializer.data,
+            'total': total,
+            'limit': limit,
+            'offset': offset
+        })
+
+    def get_serializer_class(self):
+        # Use lightweight serializer for calendar listing
+        if self.action == 'list' and self.request.query_params.get('calendar') == '1':
+            from .serializers import UsuarioEventoCalendarSerializer
+            return UsuarioEventoCalendarSerializer
+        return UsuarioEventoSerializer
+
     def perform_create(self, serializer):
-        serializer.save(usuario=self.request.user)
+        usuario = self.request.user
+        evento = serializer.validated_data.get('evento')
+        if UsuarioEvento.objects.filter(usuario=usuario, evento=evento).exists():
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'detail': 'Ya guardaste este evento.'})
+        serializer.save(usuario=usuario)
         
 class UsuarioComentariosView(APIView):
     """

@@ -490,13 +490,22 @@ class EmpresaEventoSerializer(serializers.ModelSerializer):
 
         return empresa_evento
     
+
 class UsuarioEventoSerializer(serializers.ModelSerializer):
-    
     evento = serializers.PrimaryKeyRelatedField(queryset=Evento2.objects.all(), write_only=True)
     evento_obj = EventoSerializer(source='evento', read_only=True)
     class Meta:
         model = UsuarioEvento
         fields = ['id', 'evento', 'evento_obj', 'fecha_guardado']
+
+
+# Lightweight serializer for calendar event listing
+class UsuarioEventoCalendarSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(source='evento.titulo', read_only=True)
+    fecha_evento = serializers.DateTimeField(source='evento.fecha_evento', read_only=True)
+    class Meta:
+        model = UsuarioEvento
+        fields = ['id', 'fecha_evento', 'title']
 
 
 class EmpresaBulkSerializer(serializers.ModelSerializer):
