@@ -100,49 +100,14 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress, ha
     try { onMenuItemPress && onMenuItemPress('notifications'); } catch (_) {}
   };
 
-// const handlePerfilEmpresaPress = async () => {
-//   setVisible(false);
-//   try {
-//     const empresaId = await AsyncStorage.getItem('empresaId');
-//     console.log('HamburgerMenu: switching to empresaId', empresaId);
-
-//     if (!empresaId) {
-//       Alert.alert('No tienes empresa afiliada', 'No se encontró una empresa asociada a tu cuenta.');
-//       return;
-//     }
-
-//     // ⚠️ Ya no borramos datos del usuario
-//     // Solo cambiamos las banderas de modo actual
-//     await AsyncStorage.multiSet([
-//       ['sessionMode', 'empresa'],        // indica que ahora estás viendo la empresa
-//       ['isEmpresaAccount', 'true'],
-//       ['isUserAccount', 'true'],         // mantenemos que es usuario con empresa asociada
-//       ['empresaId', empresaId],
-//       ['userKind', 'usuario_empresa'],   // nuevo tipo (opcional, depende cómo lo uses)
-//     ]);
-
-//     // Si el padre usa este callback para refrescar el menú o tokens, lo mantenemos
-//     onLogoutPress?.();
-
-//     // Navegamos al perfil de la empresa
-//     navigation.reset({
-//       index: 0,
-//       routes: [{ name: 'Empresa', params: { empresaId } }],
-//     });
-//   } catch (e) {
-//     console.log('HamburgerMenu: error navigating to EmpresaScreen', e);
-//     Alert.alert('Error', 'No se pudo abrir el perfil de la empresa.');
-//   }
-// };
-
-const handlePerfilEmpresaPress = async () => {
-  setVisible(false);
-  try {
-    const empresaId = await AsyncStorage.getItem('empresaId');
-    if (!empresaId) {
-      Alert.alert('No tienes empresa afiliada', 'No se encontró una empresa asociada a tu cuenta.');
-      return;
-    }
+  const handlePerfilEmpresaPress = async () => {
+    setVisible(false);
+    try {
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      if (!empresaId) {
+        Alert.alert('No tienes empresa afiliada', 'No se encontró una empresa asociada a tu cuenta.');
+        return;
+      }
 
       // Switch session to affiliated company.
       // NOTE: We keep the accessToken (no backend call). Just flip session flags to empresa mode.

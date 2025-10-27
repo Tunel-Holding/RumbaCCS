@@ -31,15 +31,17 @@ export default function NotificationsModal({ visible, onClose }) {
 
       const token = await AsyncStorage.getItem('accessToken');
       const isEmpresaAccount = await AsyncStorage.getItem('isEmpresaAccount');
-
+      console.log( 'isEmpresaAccount=', isEmpresaAccount);
       let res;
 
-      if (!isEmpresaAccount) {
+      if (isEmpresaAccount !== 'true') {
+        console.log('Fetching user notifications');
         res = await api.get(`/api/notificaciones/`, {
           params: { page: pageToFetch, page_size: pageSize },
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         });
       } else {
+        console.log('Fetching empresa notifications');
         const empresaId = await AsyncStorage.getItem('empresaId');
         res = await api.get(`/api/empresas/${empresaId}/notificaciones/`, {
           params: { page: pageToFetch, page_size: pageSize },

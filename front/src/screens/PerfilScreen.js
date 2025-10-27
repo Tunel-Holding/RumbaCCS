@@ -51,6 +51,7 @@ export default function PerfilScreen({ navigation }) {
   // Datos de la empresa vinculada (si aplica)
   const [empresaData, setEmpresaData] = useState(null);
 
+
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
   const fetchEmpresasSeguidas = async () => {
     setLoadingEmpresas(true);
@@ -228,6 +229,17 @@ useFocusEffect(
             setUserData(userResponse.data);
           }
 
+          // Si hay empresaId, intentar obtener datos de la empresa para pasar al header
+          if (empresaId) {
+            try {
+              const empresaRes = await api.get(`/api/empresas/${empresaId}/`);
+              setEmpresaData(empresaRes.data);
+            } catch (e) {
+              // no bloquear si falla
+              console.log('No se pudo cargar empresaData en PerfilScreen', e);
+            }
+          }
+
           // 2. Actualizar el estado del componente
           setUserName(name || '');
           setHasEmpresa(!!(empresaId && empresaId !== ''));
@@ -396,14 +408,12 @@ useFocusEffect(
     if (selectedSection === 'comentarios') {
       fetchComentarios();
     }
-
     if (selectedSection === 'empresas') {
       fetchEmpresasSeguidas();
     }
   }, [selectedSection]);
 
-
-  // // Llama a fetchGuardados cuando el usuario regresa a la pantalla de guardados
+  // Llama a fetchGuardados cuando el usuario regresa a la pantalla de guardados
   useFocusEffect(
     React.useCallback(() => {
       if (selectedSection === 'comentarios') {

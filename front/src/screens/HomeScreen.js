@@ -479,7 +479,7 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
     if (isNearbyFilter && hasLocation) {
       params.lat = userLocation.latitude;
       params.lng = userLocation.longitude;
-      params.radius = 5;
+      params.radius = 10;
     }
 
     if (!isNearbyFilter) {

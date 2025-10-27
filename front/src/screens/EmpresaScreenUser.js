@@ -932,7 +932,7 @@ const renderSocialCircles = () => {
       <View style={styles.eventosHeader}>
         <View style={{ flex:1 }}>
           <Text style={styles.eventosTitle}>Eventos publicados</Text>
-          <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
+          <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{eventos.length}</Text></Text>
         </View>
       </View>
 

@@ -71,6 +71,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from api.serializers import RegisterSerializer
 from django.db import transaction
 from .permissions import IsEmpresaAuthenticated
+from django.db.models import Q
 
 Usuario = get_user_model()
 
@@ -865,7 +866,10 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         # Filtrar por búsqueda (opcional)
         search = self.request.query_params.get('search')
         if search:
-            queryset = queryset.filter(titulo__icontains=search)
+            queryset = queryset.filter(
+                Q(titulo__icontains=search) |
+                Q(empresa__nombre__icontains=search)   # <-- aquí añadimos búsqueda por empresa
+            ).order_by('fecha_evento')
 
         return queryset
 
@@ -1244,7 +1248,7 @@ class EmpresaValidarPinConUsuarioView(generics.CreateAPIView):
 
 class NotificacionEmpresaViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = NotificacionEmpresaSerializer
-    permission_classes = [IsEmpresaAuthenticated]  # o personalizada si usas token por empresa
+    permission_classes = [IsEmpresaOrUsuarioAuthenticated]  # o personalizada si usas token por empresa
 
     def get_queryset(self):
         empresa_id = self.kwargs["empresa_pk"]  # 👈 no "id"
