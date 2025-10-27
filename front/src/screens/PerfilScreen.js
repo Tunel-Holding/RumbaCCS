@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef} from 'react';
+import React, { useState, useEffect} from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -50,6 +50,7 @@ export default function PerfilScreen({ navigation }) {
   const userAvatarUrl = avatarSrc;
   // Datos de la empresa vinculada (si aplica)
   const [empresaData, setEmpresaData] = useState(null);
+
 
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
   const fetchEmpresasSeguidas = async () => {
@@ -228,6 +229,17 @@ useFocusEffect(
             setUserData(userResponse.data);
           }
 
+          // Si hay empresaId, intentar obtener datos de la empresa para pasar al header
+          if (empresaId) {
+            try {
+              const empresaRes = await api.get(`/api/empresas/${empresaId}/`);
+              setEmpresaData(empresaRes.data);
+            } catch (e) {
+              // no bloquear si falla
+              console.log('No se pudo cargar empresaData en PerfilScreen', e);
+            }
+          }
+
           // 2. Actualizar el estado del componente
           setUserName(name || '');
           setHasEmpresa(!!(empresaId && empresaId !== ''));
@@ -299,10 +311,7 @@ useFocusEffect(
         onPress={async () => {
           setLoadingGuardados(true);
           setSelectedSection('guardados');
-          if (!hasLoadedGuardados.current) {
-            await fetchGuardados();
-            hasLoadedGuardados.current = true;
-          }
+          await fetchGuardados();
           setLoadingGuardados(false);
         }}
         activeOpacity={0.8}
@@ -322,6 +331,7 @@ useFocusEffect(
         onPress={async () => {
           setLoadingEmpresasSeguidas(true);
           setSelectedSection('empresas');
+          await fetchEmpresasSeguidas();
           setLoadingEmpresasSeguidas(false);
         }}
         activeOpacity={0.8}
@@ -380,32 +390,33 @@ useFocusEffect(
   };
 
   // Llama a fetchGuardados cuando el usuario selecciona la sección "guardados"
-  
-
-  const hasLoadedGuardados = useRef(false);
-
   useEffect(() => {
     if (selectedSection === 'guardados') {
-      if (!hasLoadedGuardados.current) {
+      if (guardados.length === 0 && !loadingGuardados) {
         console.log('useEffect: cargando eventos guardados por primera vez');
         fetchGuardados();
-        hasLoadedGuardados.current = true; // ✅ marcamos que ya se cargó
       }
     }
+    if (selectedSection === 'guardados' && guardados.length === 0 && !loadingGuardados) {
 
+    console.log('useEffect: cargando eventos guardados por primera vez');
+    fetchGuardados();
+    }
+    // Si cambiamos a la sección 'comentarios', traemos los comentarios de empresas
     if (selectedSection === 'comentarios') {
       fetchComentarios();
     }
-
     if (selectedSection === 'empresas') {
       fetchEmpresasSeguidas();
     }
   }, [selectedSection]);
 
-
-  // // Llama a fetchGuardados cuando el usuario regresa a la pantalla de guardados
+  // Llama a fetchGuardados cuando el usuario regresa a la pantalla de guardados
   useFocusEffect(
     React.useCallback(() => {
+      if (selectedSection === 'guardados') {
+        fetchGuardados();
+      }
       if (selectedSection === 'comentarios') {
         fetchComentarios();
       }
@@ -587,6 +598,7 @@ useFocusEffect(
           isEmpresaAccount={hasEmpresa}
           isUserAccount={!hasEmpresa}
           userAvatarUrl={userAvatarUrl}
+          empresaData={empresaData}
           isHomeScreen={false}
           style={styles.headerHome}
           logoContainerStyle={styles.logoContainerHome}

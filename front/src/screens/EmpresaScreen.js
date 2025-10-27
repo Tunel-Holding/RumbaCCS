@@ -342,7 +342,19 @@ useEffect(() => {
 
       const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
 
-      const eventosTransformados = resultadosRaw.map(ev => ({
+      // Filtrar para mostrar solo eventos cuya fecha >= fecha actual (comparación por día)
+      // Eventos sin `fecha_evento` se mostrarán (no se consideran 'pasados')
+      const hoy = new Date();
+      hoy.setHours(0,0,0,0);
+      const futurosRaw = resultadosRaw.filter(ev => {
+        if (!ev || !ev.fecha_evento) return true;
+        const d = new Date(ev.fecha_evento);
+        if (isNaN(d.getTime())) return true; // si la fecha no es válida, mostrar
+        d.setHours(0,0,0,0);
+        return d >= hoy;
+      });
+
+      const eventosTransformados = futurosRaw.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento
@@ -957,7 +969,7 @@ const renderSocialCircles = () => {
         <View style={styles.eventosHeader}>
           <View style={{ flex:1 }}>
             <Text style={styles.eventosTitle}>Eventos publicados</Text>
-            <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
+            <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.total_eventos}</Text></Text>
           </View>
           <TouchableOpacity
             style={styles.agregarButton}

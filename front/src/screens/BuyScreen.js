@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { View, Text, Alert, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Share, Alert, Linking, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -306,8 +306,7 @@ export default function BuyScreen() {
   // Verificar si el evento está guardado (recarga en cambios de usuario, evento y tras guardar/quitar)
   const [refreshSaved, setRefreshSaved] = useState(0);
   useEffect(() => {
-    setIsSaved(false);
-    setSavedId(null);
+    // Mantener el estado actual hasta que la comprobación remota concluya
     setCurrentEventoId(idEvento);
     const checkSaved = async () => {
       if (!isLogged || !idEvento) {
@@ -378,6 +377,43 @@ export default function BuyScreen() {
     }
     finally {
       setSaveLoading(false);
+    }
+  };
+  
+  // Handler para mandar mensaje a la empresa organizadora
+  const handleSendMessage = async () => {
+    // Preferir teléfono, si no está usar email. Si no hay contacto, mostrar alerta.
+    const companyPhone = empresaData?.telefono || empresaData?.phone || empresaData?.telefono_celular || empresaData?.phone_number;
+    const companyEmail = empresaData?.email;
+    const subject = encodeURIComponent(`Consulta sobre: ${eventDetails.title}`);
+    const body = encodeURIComponent(`Hola! Vengo de RumbaCSS, me interesa el evento "${eventDetails.title}" programado para ${eventDetails.fecha} ${eventDetails.hora}. ¿Podrían darme más detalles?`);
+    try {
+      if (companyPhone) {
+        // sms body parameter differs on platforms
+        const smsUrl = Platform.OS === 'ios' ? `sms:${companyPhone}&body=${body}` : `sms:${companyPhone}?body=${body}`;
+        await Linking.openURL(smsUrl);
+        return;
+      }
+      if (companyEmail) {
+        const mailUrl = `mailto:${companyEmail}?subject=${subject}&body=${body}`;
+        await Linking.openURL(mailUrl);
+        return;
+      }
+      Alert.alert('Contacto no disponible', 'La empresa organizadora no tiene teléfono ni email registrado.');
+    } catch (err) {
+      console.warn('handleSendMessage error', err);
+      Alert.alert('Error', 'No fue posible abrir la app de mensajes.');
+    }
+  };
+
+  // Handler para compartir el evento con otras personas
+  const handleShare = async () => {
+    try {
+      // Asumimos que hay una URL pública para el evento; si no, compartimos el título e id.
+      const message = `${eventDetails.title} - ${eventDetails.fecha} ${eventDetails.hora}\nOrganizada por: ${eventDetails.empresa}`;
+      await Share.share({ message });
+    } catch (err) {
+      console.warn('handleShare error', err);
     }
   };
   
@@ -497,6 +533,13 @@ export default function BuyScreen() {
         logoContainerStyle={styles.logoContainerHome}
         menuButtonStyle={styles.headerRightHome}
       />
+      {/* Overlay de carga global mientras se obtienen datos del evento */}
+      {loading && (
+        <View style={styles.loadingOverlay} pointerEvents="auto">
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Cargando evento…</Text>
+        </View>
+      )}
       {/* Barra de volver debajo del header */}
       <View style={[styles.backBar, { marginTop: 4 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>
@@ -735,14 +778,17 @@ export default function BuyScreen() {
             disabled={isSaved === null || saveLoading}
           >
             <View style={styles.buttonContent}>
-              {saveLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={[styles.buttonText, isSaved ? styles.buttonTextSaved : null]}>
-                  {isSaved ? 'Quitar de guardados' : 'Guardar'}
-                </Text>
-              )}
+              {/* Texto siempre presente para mantener tamaño; lo ocultamos visualmente mientras cargamos */}
+              <Text style={[styles.buttonText, isSaved ? styles.buttonTextSaved : null, saveLoading ? { opacity: 0 } : null]}>
+                {isSaved ? 'Quitar de guardados' : 'Guardar'}
+              </Text>
             </View>
+            {/* Overlay centrado con spinner durante el guardado: fuera del contenido para asegurar posicionamiento relativo al botón */}
+            {saveLoading && (
+              <View style={styles.reserveButtonLoadingOverlay} pointerEvents="none">
+                <ActivityIndicator size="small" color="#fff" />
+              </View>
+            )}
           </TouchableOpacity>
         ) : (
           <View>
@@ -751,6 +797,17 @@ export default function BuyScreen() {
             </Text>
           </View>
         )}
+        {/* Cuando el usuario haya guardado el evento, mostrar acciones adicionales */}
+        {isSaved ? (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleSendMessage} activeOpacity={0.8}>
+              <Text style={styles.secondaryButtonText}>Mandar mensaje a la empresa organizadora</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleShare} activeOpacity={0.8}>
+              <Text style={styles.secondaryButtonText}>Compartir con otras personas</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
       </ScrollView>
       {/* Modal de Login (traído desde prueba.js) */}
@@ -897,7 +954,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#0f172a',
-    
+    position: 'relative',
   },
   headerHome: { backgroundColor: '#0f172a', paddingHorizontal: 22, paddingTop: 24, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', marginBottom: 12 },
   headerContainerHome: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -1061,6 +1118,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     minWidth: 200,
+    position: 'relative',
   },
   reserveButtonSaved: {
     backgroundColor: '#dc2626',
@@ -1073,6 +1131,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
+  reserveButtonLoadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // backgroundColor: 'rgba(0,0,0,0.08)', // opcional para dar feedback visual
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(5, 10, 33, 1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+    paddingHorizontal: 20,
+  },
+  loadingText: {
+    color: '#fff',
+    marginTop: 12,
+    fontSize: 16,
+    textAlign: 'center',
+  },
   buttonText: {
     color: COLORS.accent,
     fontSize: 16,
@@ -1081,6 +1168,25 @@ const styles = StyleSheet.create({
   },
   buttonTextSaved: {
     color: '#fef2f2',
+  },
+  actionsRow: {
+    marginTop: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  secondaryButton: {
+    backgroundColor: '#334155',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    marginTop: 8,
+    minWidth: 240,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   icon: {
     opacity: 0.9,
