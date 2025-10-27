@@ -40,7 +40,14 @@ class EventoImagenSerializer(serializers.ModelSerializer):
 
 class TempImageSerializer(serializers.Serializer):
     url = serializers.URLField()
-    
+
+class EventoListSerializer(serializers.ModelSerializer):
+    imagenes = EventoImagenSerializer(many=True, read_only=True)
+    class Meta:
+        model = Evento2
+        fields = ["id", "fecha_evento", "titulo", "ubicacion", "precio", "imagenes"]
+
+
 class EventoSerializer(serializers.ModelSerializer):
     categoria = serializers.ListField(
         child=serializers.ChoiceField(choices=Evento2.CATEGORIA_CHOICES),

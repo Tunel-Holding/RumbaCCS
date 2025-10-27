@@ -17,7 +17,8 @@ from .serializers import (
     EventoImagenSerializer,
     TempImageSerializer,
     EmpresaBulkSerializer,
-    NotificacionEmpresaSerializer
+    NotificacionEmpresaSerializer,
+    EventoListSerializer,
     
     )
 from api.models import EmailVerification
@@ -674,6 +675,11 @@ class EventoViewSet(viewsets.ModelViewSet):
             return qs.filter(empresa_id=empresa_pk)
         return qs
 
+    def get_serializer_class(self):
+        # Para list/retrieve usamos el serializer reducido
+        if self.action in ["list", "retrieve"]:
+            return EventoListSerializer
+        return EventoSerializer
     
     def perform_create(self, serializer):
         user = self.request.user
