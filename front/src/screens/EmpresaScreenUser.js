@@ -4,8 +4,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image, StyleSheet,
   Dimensions, Animated, Modal, ActivityIndicator,
-  StatusBar, Alert, Linking, TextInput, Pressable
+  StatusBar, Alert, Linking, TextInput, Pressable, Share
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
@@ -13,7 +14,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api'; // ✅ Tu instancia centralizada
 import NotificationsModal from '../components/NotificationsModal';
 import { formatPrice } from '../utils/priceUtils';
-import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -287,6 +287,16 @@ console.log('🏢 Datos de la empresa:', empresaData1);
       }
     };
 
+    // Compartir evento desde la tarjeta
+    const handleShareEvento = async (evento) => {
+      try {
+        const message = `${evento.titulo} - ${evento.fecha || ''} ${evento.hora || ''}\nOrganizada por: ${empresaData?.nombre || ''}`;
+        await Share.share({ message });
+      } catch (err) {
+        console.warn('handleShareEvento error', err);
+      }
+    };
+
 
   const [eventos, setEventos] = useState([]);
   const [eventosPage, setEventosPage] = useState(1);
@@ -353,7 +363,6 @@ console.log('🏢 Datos de la empresa:', empresaData1);
           categoria: Array.isArray(ev.categoria) ? ev.categoria.join(' ') : (ev.categoria || "Sin categoría"),
           categoriaColor: ev.categoriaColor || '#4f46e5',
           imagenes: ev.imagenes,
-          viewsCount: ev.views_count || ev.vistas || 0,
         };
       });
 
@@ -950,6 +959,7 @@ const renderSocialCircles = () => {
               eventos.map((evento) => (
                 <View key={evento.id} style={styles.eventoCard}>
                   <View style={styles.eventoImageContainer}>
+                    {/* (Se removió el icono superior; ahora el botón Compartir aparece junto a 'Ver detalles') */}
                     <Image
                       source={{
                         uri: evento.imagenes?.[0]?.url || 'https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png'
@@ -977,19 +987,20 @@ const renderSocialCircles = () => {
                     
                     <View style={styles.eventoFooter}>
                       <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                      <View style={styles.eventoViews}>
-                        <Ionicons name="eye-outline" size={16} color="#94a3b8" />
-                        <Text style={styles.eventoInfoText}>{evento.viewsCount}</Text>
-                      </View>
-                        <TouchableOpacity 
-                          style={styles.verDetallesButton}
-                          onPress={() => {
-                            console.log('Navegando a Reservar/Comprar con:', evento.id, empresaIdParam || empresaData?.id);
-                            navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
-                          }}
-                        >
-                          <Text style={styles.verDetallesText}>{'Ver detalles'}</Text>
-                        </TouchableOpacity>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                              <TouchableOpacity 
+                                style={styles.verDetallesButton}
+                                onPress={() => {
+                                  console.log('Navegando a Reservar/Comprar con:', evento.id, empresaIdParam || empresaData?.id);
+                                  navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
+                                }}
+                              >
+                                <Text style={styles.verDetallesText}>{'Ver detalles'}</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity style={styles.shareButton} onPress={() => handleShareEvento(evento)}>
+                                <Ionicons name="share-social" size={18} color="#ffffffff" />
+                              </TouchableOpacity>
+                            </View>
                     </View>
                   </View>
                 </View>
@@ -1364,6 +1375,15 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
+  eventMenuBtn: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    zIndex: 30,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    padding: 6,
+    borderRadius: 16,
+  },
   eventoContent: {
     padding: 16,
     flex: 1,
@@ -1392,14 +1412,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#84cc16',
   },
-  eventoViews: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
   verDetallesButton: {
     backgroundColor: '#3b82f6',
     paddingHorizontal: 16,
@@ -1410,6 +1422,19 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  shareButton: {
+    backgroundColor: '#0ea5e9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginLeft: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  shareButtonText: {
+    color: '#012a36',
+    fontWeight: '700',
   },
 
   // Rating Modal styles

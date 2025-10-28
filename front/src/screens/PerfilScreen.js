@@ -3,7 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StandardHeader from '../components/StandardHeader';
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator, TextInput, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
@@ -625,8 +625,14 @@ useFocusEffect(
               resizeMode="cover"
             />
           ) : (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
-              <Text style={{ color: '#fff', textAlign: 'center' }}>Presione aquí para ver ajustes de cuenta</Text>
+            // Mostrar la imagen mocky.jpg como placeholder, más pequeña y centrada dentro del contenedor
+            <View style={{ width: '100%', height: '100%', borderRadius: 64, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+              <Image
+                source={require('../../assets/mocky.jpg')}
+                // Imagen más pequeña (96x96) centrada; la desplazamos levemente hacia arriba para ocultar texto inferior
+                style={{ width: '100%', height: '100%'}}
+                resizeMode="cover"
+              />
             </View>
           )}
         </TouchableOpacity>
@@ -761,11 +767,11 @@ useFocusEffect(
               <ActivityIndicator size="small" color="#2563eb" />
               <Text style={{ color: '#9ca3af', marginTop: 8 }}>Cargando eventos guardados...</Text>
             </View>
-          ) : guardados.length === 0 ? (
+            ) : guardados.length === 0 ? (
             <Text style={{ color: '#d1d5db', textAlign: 'center', marginTop: 32, fontSize: 18 }}>
               <Text style={{ fontWeight: 'bold', color: '#d1d5db' }}>No</Text> se han encontrado más elementos
             </Text>
-          ) : (
+            ) : (
             guardados.map(evento => (
               <View key={evento.id} style={{ backgroundColor: '#334155', borderRadius: 16, overflow: 'hidden', marginBottom: 16 }}>
                 <View style={{ position: 'relative' }}>
@@ -789,6 +795,9 @@ useFocusEffect(
                     <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
                       <TouchableOpacity style={{ backgroundColor: '#2563eb', paddingVertical: 8, borderRadius: 10, paddingHorizontal: 18, marginRight: 8 }} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: evento.eventoId })}>
                         <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ver detalles</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={{ backgroundColor: '#0ea5e9', paddingVertical: 8, borderRadius: 10, paddingHorizontal: 14, marginRight: 8, justifyContent: 'center', alignItems: 'center' }} onPress={async () => { try { await Share.share({ message: `${evento.titulo} - ${evento.date || ''} ${evento.time || ''}` }); } catch (e) { console.warn('share guardado', e); } }}>
+                        <Ionicons name="share-social" size={18} color="#ffffffff" />
                       </TouchableOpacity>
                       <TouchableOpacity style={{ backgroundColor: '#ef4444', paddingVertical: 8, borderRadius: 10, paddingHorizontal: 18 }} onPress={() => borrarGuardado(evento.id)}>
                         <SvgXml xml={`<svg xmlns='http://www.w3.org/2000/svg' width='22' height='22' fill='none' viewBox='0 0 24 24' stroke-width='2' stroke='#fff'><path stroke-linecap='round' stroke-linejoin='round' d='m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0' /></svg>`} width={22} height={22} />

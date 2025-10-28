@@ -26,7 +26,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
 import { formatPrice } from '../utils/priceUtils';
-import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -374,7 +373,6 @@ useEffect(() => {
         imagenes: ev.imagenes,
         ownerName: ev.ownerName || `Empresa #${empresaId}`,
         empresaId: ev.empresaId || empresaId,
-        viewsCount: ev.views_count || 0,
       }));
 
       setEventos(eventosTransformados);
@@ -479,11 +477,14 @@ useEffect(() => {
                 resizeMode="cover"
               />
             ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
-                <Text style={styles?.fotoIcon || { color: '#fff', textAlign: 'center' }}>
-                  👤 
-                </Text>
-              </View>
+              <View style={{ width: '100%', height: '100%', borderRadius: 64, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                            <Image
+                              source={require('../../assets/cotele.png')}
+                              // Imagen más pequeña (96x96) centrada; la desplazamos levemente hacia arriba para ocultar texto inferior
+                              style={{ width: '100%', height: '100%'}}
+                              resizeMode="cover"
+                            />
+                          </View>
             )}
         </TouchableOpacity>
         </View>
@@ -1021,14 +1022,7 @@ const renderSocialCircles = () => {
                     <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
                   </View>
                   <View style={styles.eventoFooter}>
-                    
-                      <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                      <View style={styles.eventoViews}>
-                        <Ionicons name="eye-outline" size={16} color="#94a3b8" />
-                        <Text style={styles.eventoInfoText}>{evento.viewsCount}</Text>
-                      </View>
-                    
-
+                    <Text style={styles.eventoPrecio}>{evento.precio}</Text>
                   
                     <TouchableOpacity
                       style={[styles.verDetallesButton, { backgroundColor: '#ef4444', marginRight: 8 }]}
@@ -1500,14 +1494,6 @@ const styles = StyleSheet.create({
   eventoInfoText: {
     color: '#ffffff',
     fontSize: 14,
-  },
-  eventoViews: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
   eventoFooter: {
     flexDirection: 'row',

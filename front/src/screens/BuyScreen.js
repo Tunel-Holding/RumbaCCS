@@ -803,9 +803,7 @@ export default function BuyScreen() {
             <TouchableOpacity style={styles.secondaryButton} onPress={handleSendMessage} activeOpacity={0.8}>
               <Text style={styles.secondaryButtonText}>Mandar mensaje a la empresa organizadora</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleShare} activeOpacity={0.8}>
-              <Text style={styles.secondaryButtonText}>Compartir con otras personas</Text>
-            </TouchableOpacity>
+            {/* El botón de compartir se movió a las tarjetas de evento (icono de 3 puntitos) en las vistas de lista. */}
           </View>
         ) : null}
       </View>
