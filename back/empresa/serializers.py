@@ -43,9 +43,10 @@ class TempImageSerializer(serializers.Serializer):
 
 class EventoListSerializer(serializers.ModelSerializer):
     imagenes = EventoImagenSerializer(many=True, read_only=True)
+    views_count = serializers.IntegerField(read_only=True, default=0) 
     class Meta:
         model = Evento2
-        fields = ["id", "fecha_evento", "titulo", "ubicacion", "precio", "imagenes"]
+        fields = ["id", "fecha_evento", "titulo", "ubicacion", "precio", "imagenes", "views_count"]
 
 
 class EventoSerializer(serializers.ModelSerializer):
@@ -64,6 +65,8 @@ class EventoSerializer(serializers.ModelSerializer):
     latitude = serializers.FloatField()
     longitude = serializers.FloatField()
     promote = serializers.BooleanField(read_only=True)
+    views_count = serializers.IntegerField(read_only=True, default=0) # <--- AÑADE ESTA LÍNEA
+
 
     class Meta:
         model = Evento2
@@ -88,6 +91,7 @@ class EventoSerializer(serializers.ModelSerializer):
             "longitude",
             "empresa_redes",
             "promote",
+            "views_count",
         ]
 
     def get_distance(self, obj):

@@ -72,7 +72,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from api.serializers import RegisterSerializer
 from django.db import transaction
 from .permissions import IsEmpresaAuthenticated
-from django.db.models import Q
+from django.db.models import Q, Count
 
 Usuario = get_user_model()
 
@@ -861,7 +861,7 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Devuelve eventos futuros y aplica filtros opcionales: category y search.
         """
-        queryset = Evento2.objects.filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
+        queryset = Evento2.objects.annotate(views_count=Count('views')).filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
 
         # Filtrar por categoría si se recibe en query params
         categoria = self.request.query_params.get('categoria')
@@ -947,6 +947,7 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = self.get_serializer(evento)
         return Response(serializer.data)
     
+
 def get_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
     return {

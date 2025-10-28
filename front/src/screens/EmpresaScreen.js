@@ -26,6 +26,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
 import { formatPrice } from '../utils/priceUtils';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -373,6 +374,7 @@ useEffect(() => {
         imagenes: ev.imagenes,
         ownerName: ev.ownerName || `Empresa #${empresaId}`,
         empresaId: ev.empresaId || empresaId,
+        viewsCount: ev.views_count || 0,
       }));
 
       setEventos(eventosTransformados);
@@ -1019,7 +1021,14 @@ const renderSocialCircles = () => {
                     <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
                   </View>
                   <View style={styles.eventoFooter}>
-                    <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                    
+                      <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                      <View style={styles.eventoViews}>
+                        <Ionicons name="eye-outline" size={16} color="#94a3b8" />
+                        <Text style={styles.eventoInfoText}>{evento.viewsCount}</Text>
+                      </View>
+                    
+
                   
                     <TouchableOpacity
                       style={[styles.verDetallesButton, { backgroundColor: '#ef4444', marginRight: 8 }]}
@@ -1491,6 +1500,14 @@ const styles = StyleSheet.create({
   eventoInfoText: {
     color: '#ffffff',
     fontSize: 14,
+  },
+  eventoViews: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   eventoFooter: {
     flexDirection: 'row',

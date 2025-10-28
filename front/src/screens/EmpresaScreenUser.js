@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api'; // ✅ Tu instancia centralizada
 import NotificationsModal from '../components/NotificationsModal';
 import { formatPrice } from '../utils/priceUtils';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -352,6 +353,7 @@ console.log('🏢 Datos de la empresa:', empresaData1);
           categoria: Array.isArray(ev.categoria) ? ev.categoria.join(' ') : (ev.categoria || "Sin categoría"),
           categoriaColor: ev.categoriaColor || '#4f46e5',
           imagenes: ev.imagenes,
+          viewsCount: ev.views_count || ev.vistas || 0,
         };
       });
 
@@ -975,6 +977,10 @@ const renderSocialCircles = () => {
                     
                     <View style={styles.eventoFooter}>
                       <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                      <View style={styles.eventoViews}>
+                        <Ionicons name="eye-outline" size={16} color="#94a3b8" />
+                        <Text style={styles.eventoInfoText}>{evento.viewsCount}</Text>
+                      </View>
                         <TouchableOpacity 
                           style={styles.verDetallesButton}
                           onPress={() => {
@@ -1385,6 +1391,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#84cc16',
+  },
+  eventoViews: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   verDetallesButton: {
     backgroundColor: '#3b82f6',

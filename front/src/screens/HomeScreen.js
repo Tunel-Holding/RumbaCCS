@@ -533,6 +533,7 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
       image: ev.imagen || "https://storage.googleapis.com/.../placeholder.png",
       ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
       ownerLogo: companyCache[ev.empresa]?.logo || null,
+      viewsCount: ev.views_count || 0,
     }));
 
     // Si estamos en modo nearby, guardamos en nearbyEvents; si no, en eventos generales
@@ -1025,7 +1026,13 @@ const filteredEvents = fuente.filter(e => {
             <Text style={styles.eventoInfoText}>📍 {event.location}</Text>
           </View>
 
-          <Text style={styles.eventPrice}>{event.price}</Text>
+          <View style={styles.eventFooter}>
+            <Text style={styles.eventPrice}>{event.price}</Text>
+            <View style={styles.eventViews}>
+              <Ionicons name="eye-outline" size={16} color="#94a3b8" />
+              <Text style={styles.eventViewsText}>{event.viewsCount}</Text>
+            </View>
+          </View>
 
           <TouchableOpacity
             style={styles.reserveBtn}
@@ -1234,6 +1241,38 @@ const styles = StyleSheet.create({
   eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
   eventInfo: { color: '#fff', marginBottom: 4 },
   eventPrice: { color: '#bef264', fontWeight: 'bold', marginBottom: 8 },
+  eventViewsCount: { color: '#94a3b8', fontSize: 12, marginBottom: 8 },
+
+  // ...existing code...
+  eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
+  eventInfo: { color: '#fff', marginBottom: 4 },
+  eventPrice: { color: '#bef264', fontWeight: 'bold', fontSize: 16 },
+  eventFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  eventViews: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  eventViewsText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 5,
+  },
+  reserveBtn: { backgroundColor: '#6366f1', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 8 },
+  reserveText: { color: '#fff', fontWeight: 'bold' },
+  paginationBar: { flexDirection:'row', alignItems:'center', justifyContent:'center', marginTop:12, marginBottom:16, gap:16 },
+// ...existing code...
+
   reserveBtn: { backgroundColor: '#6366f1', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 8 },
   reserveText: { color: '#fff', fontWeight: 'bold' },
   paginationBar: { flexDirection:'row', alignItems:'center', justifyContent:'center', marginTop:12, marginBottom:16, gap:16 },
