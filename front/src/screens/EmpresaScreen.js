@@ -240,7 +240,7 @@ useEffect(() => {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
     seguidores: empresaData?.total_seguidores || 0,
-    eventosPublicados: empresaData?.total_eventos || 0,
+    total_eventos: empresaData?.total_eventos || 0,
   }
 
 const handleUploadFoto = async (empresaId) => {
@@ -327,10 +327,72 @@ const handleUploadFoto = async (empresaId) => {
 
   const [eventos, setEventos] = useState([]);
 
+// useEffect(() => {
+//   const fetchEventos = async () => {
+//     try {
+//      const empresaId = await AsyncStorage.getItem("empresaId");
+
+//       if (!empresaId) {
+//         console.log("El usuario todavía no tiene empresa asociada.");
+//         setEventos([]);
+//         return;
+//       }
+
+//       const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
+
+//       const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
+
+//       // Filtrar para mostrar solo eventos cuya fecha >= fecha actual (comparación por día)
+//       // Eventos sin `fecha_evento` se mostrarán (no se consideran 'pasados')
+//       const hoy = new Date();
+//       hoy.setHours(0,0,0,0);
+//       const futurosRaw = resultadosRaw.filter(ev => {
+//         if (!ev || !ev.fecha_evento) return true;
+//         const d = new Date(ev.fecha_evento);
+//         if (isNaN(d.getTime())) return true; // si la fecha no es válida, mostrar
+//         d.setHours(0,0,0,0);
+//         return d >= hoy;
+//       });
+
+//       const eventosTransformados = futurosRaw.map(ev => ({
+//         id: ev.id,
+//         titulo: ev.titulo,
+//         fecha: ev.fecha_evento
+//             ? new Date(ev.fecha_evento).toLocaleDateString()
+//             : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+//         hora: ev.fecha_evento
+//           ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+//           : null,
+//         // fecha: ev.fecha_evento || "Fecha no definida",
+//         // hora: ev.hora_evento || "Hora no definida",
+//   ubicacion: ev.ubicacion,
+//   precio: formatPrice(ev.precio, ev.moneda || 'USD'),
+//         categoria: Array.isArray(ev.categoria) ? ev.categoria.join(' ') : (ev.categoria || "Sin categoría"),
+//         categoriaColor: ev.categoriaColor || "#4f46e5",
+//         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
+//         imagenes: ev.imagenes,
+//         ownerName: ev.ownerName || `Empresa #${empresaId}`,
+//         empresaId: ev.empresaId || empresaId,
+//       }));
+
+//       setEventos(eventosTransformados);
+//    } catch (error) {
+//       if (error.response) {
+//         console.error("❌ Error HTTP:", error.response.status, error.response.data);
+//       } else {
+//         console.error("❌ Error:", error.message);
+//       }
+//    }
+//   };
+
+//   fetchEventos(); }, []);
+
+  // Animación de notificaciones
+  
 useEffect(() => {
   const fetchEventos = async () => {
     try {
-     const empresaId = await AsyncStorage.getItem("empresaId");
+      const empresaId = await AsyncStorage.getItem("empresaId");
 
       if (!empresaId) {
         console.log("El usuario todavía no tiene empresa asociada.");
@@ -342,32 +404,19 @@ useEffect(() => {
 
       const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
 
-      // Filtrar para mostrar solo eventos cuya fecha >= fecha actual (comparación por día)
-      // Eventos sin `fecha_evento` se mostrarán (no se consideran 'pasados')
-      const hoy = new Date();
-      hoy.setHours(0,0,0,0);
-      const futurosRaw = resultadosRaw.filter(ev => {
-        if (!ev || !ev.fecha_evento) return true;
-        const d = new Date(ev.fecha_evento);
-        if (isNaN(d.getTime())) return true; // si la fecha no es válida, mostrar
-        d.setHours(0,0,0,0);
-        return d >= hoy;
-      });
-
-      const eventosTransformados = futurosRaw.map(ev => ({
+      // ✅ Ya no filtramos por fecha, usamos todos los eventos
+      const eventosTransformados = resultadosRaw.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleDateString()
-            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+          ? new Date(ev.fecha_evento).toLocaleDateString()
+          : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : "Fecha no definida"),
         hora: ev.fecha_evento
-          ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
           : null,
-        // fecha: ev.fecha_evento || "Fecha no definida",
-        // hora: ev.hora_evento || "Hora no definida",
-  ubicacion: ev.ubicacion,
-  precio: formatPrice(ev.precio, ev.moneda || 'USD'),
-        categoria: Array.isArray(ev.categoria) ? ev.categoria.join(' ') : (ev.categoria || "Sin categoría"),
+        ubicacion: ev.ubicacion,
+        precio: formatPrice(ev.precio, ev.moneda || "USD"),
+        categoria: Array.isArray(ev.categoria) ? ev.categoria.join(" ") : (ev.categoria || "Sin categoría"),
         categoriaColor: ev.categoriaColor || "#4f46e5",
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
         imagenes: ev.imagenes,
@@ -376,18 +425,19 @@ useEffect(() => {
       }));
 
       setEventos(eventosTransformados);
-   } catch (error) {
+    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
       } else {
         console.error("❌ Error:", error.message);
       }
-   }
+    }
   };
 
-  fetchEventos(); }, []);
+  fetchEventos();
+}, []);
 
-  // Animación de notificaciones
+  
   useEffect(() => {
     if (modalVisible.notifications) {
       Animated.timing(notifAnim, {
