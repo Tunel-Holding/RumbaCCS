@@ -202,8 +202,9 @@ export default function HomeScreen() {
   // --- EFECTO PARA RECARGAR DATOS CUANDO LA PANTALLA ESTÁ EN FOCO ---
   useFocusEffect(
     useCallback(() => {
+      setLoading(true);
       const checkLoginAndRefresh = async () => {
-        setLoading(true);
+        
         const token = await AsyncStorage.getItem('accessToken');
         const isEmpresaAcc = await AsyncStorage.getItem('isEmpresaAccount'); // Leemos el valor guardado
         const isUserAcc = await AsyncStorage.getItem('isUserAccount'); // <-- AÑADE ESTA LÍNEA

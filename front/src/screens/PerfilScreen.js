@@ -48,8 +48,7 @@ export default function PerfilScreen({ navigation }) {
   const [loginVisible, setLoginVisible] = useState(false);
   // Alias esperado por StandardHeader
   const userAvatarUrl = avatarSrc;
-  // Datos de la empresa vinculada (si aplica)
-  const [empresaData, setEmpresaData] = useState(null);
+
 
 
   // Función para cargar las empresas que sigue el usuario y mantener el contador actualizado
@@ -229,16 +228,6 @@ useFocusEffect(
             setUserData(userResponse.data);
           }
 
-          // Si hay empresaId, intentar obtener datos de la empresa para pasar al header
-          if (empresaId) {
-            try {
-              const empresaRes = await api.get(`/api/empresas/${empresaId}/`);
-              setEmpresaData(empresaRes.data);
-            } catch (e) {
-              // no bloquear si falla
-              console.log('No se pudo cargar empresaData en PerfilScreen', e);
-            }
-          }
 
           // 2. Actualizar el estado del componente
           setUserName(name || '');
