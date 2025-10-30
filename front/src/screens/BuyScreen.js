@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, Share, Alert, Linking, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar, KeyboardAvoidingView, Platform } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -27,6 +28,37 @@ const COLORS = {
 // Si la empresa no tiene más eventos, la sección no se mostrará.
 
 const { width } = Dimensions.get('window');
+
+// Base URL pública para compartir eventos (reemplaza por tu dominio real si existe)
+const SHARE_BASE_URL = 'https://tu-dominio.com/eventos';
+
+// Construye un mensaje de compartir con emojis y copy atractivo, pero con firma formal.
+const buildShareMessage = (evt, eventoId) => {
+  const title = evt.title || 'Evento imperdible';
+  const fecha = evt.fecha || '';
+  const hora = evt.hora && evt.hora !== 'sin definir' ? ` ${evt.hora}` : '';
+  const lugar = evt.lugar ? `📍 Lugar: ${evt.lugar}` : '';
+  const empresa = evt.empresa ? `🏢 Organiza: ${evt.empresa}` : '';
+  const price = (evt.price && parseFloat(evt.price) !== 0) ? `💸 Precio: ${evt.moneda ? evt.moneda + ' ' : ''}${evt.price}` : '🎟️ Entrada libre';
+  const descRaw = evt.description || '';
+  // Limitar descripción a 180 caracteres para no llenar el share sheet
+  const desc = descRaw ? `\n📝 ${descRaw.length > 180 ? descRaw.slice(0, 180) + '...' : descRaw}` : '';
+
+  let message = `🎊 ¡No te pierdas este evento!\n\n`;
+  message += `🎉 ${title}\n`;
+  message += `📅 Fecha: ${fecha}${hora}\n`;
+  if (lugar) message += `${lugar}\n`;
+  if (empresa) message += `${empresa}\n`;
+  message += `${price}`;
+  message += desc;
+
+  if (eventoId) {
+    message += `\n\n🔗 Más info y entradas: ${SHARE_BASE_URL}/${eventoId}`;
+  }
+
+  message += `\n\nCompartido desde RUMBA, plataforma profesional de gestión de eventos.`;
+  return message;
+};
 
 export default function BuyScreen() {
   const insets = useSafeAreaInsets();
@@ -406,11 +438,10 @@ export default function BuyScreen() {
     }
   };
 
-  // Handler para compartir el evento con otras personas
+  // Handler para compartir el evento con otras personas (usa plantilla enriquecida)
   const handleShare = async () => {
     try {
-      // Asumimos que hay una URL pública para el evento; si no, compartimos el título e id.
-      const message = `${eventDetails.title} - ${eventDetails.fecha} ${eventDetails.hora}\nOrganizada por: ${eventDetails.empresa}`;
+      const message = buildShareMessage(eventDetails, idEvento || currentEventoId);
       await Share.share({ message });
     } catch (err) {
       console.warn('handleShare error', err);
@@ -799,12 +830,21 @@ export default function BuyScreen() {
         )}
         {/* Cuando el usuario haya guardado el evento, mostrar acciones adicionales */}
         {isSaved ? (
-          <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleSendMessage} activeOpacity={0.8}>
-              <Text style={styles.secondaryButtonText}>Mandar mensaje a la empresa organizadora</Text>
+          <View style={styles.iconRowCentered}>
+            <TouchableOpacity style={[styles.iconCircle, {marginRight: 24}]} onPress={handleSendMessage} activeOpacity={0.8}>
+              {/* WhatsApp icon - fine-tuned centering */}
+              <Svg width={32} height={32} viewBox="-2 -2 52 52">
+                <Path d="M24 4C12.95 4 4 12.95 4 24c0 3.98 1.09 7.7 3.01 10.93L4 44l9.07-3.01C16.3 42.91 20.02 44 24 44c11.05 0 20-8.95 20-20S35.05 4 24 4zm0 36c-3.13 0-6.17-.91-8.77-2.62l-.62-.38-7.17 1.83 1.89-6.96-.4-.63A15.97 15.97 0 1 1 24 40zm9.5-11.5c-.47-.24-2.77-1.36-3.2-1.51-.43-.15-.73-.24-1.04.24-.31.48-1.18 1.48-1.45 1.78-.27.3-.54.33-1.01.12-.47-.24-2-.74-3.83-2.38-1.41-1.25-2.36-2.81-2.63-3.3-.27-.49-.04-.73.2-.97.23-.23.49-.58.74-.88.25-.3.29-.49.46-.82.15-.33.08-.62-.04-.86-.12-.24-1-2.53-1.38-3.45-.37-.91-.74-.8-1.01-.81-.27-.01-.58-.01-.89-.01-.31 0-.82.12-1.26.62-.44.5-1.67 1.67-1.62 4.07.05 2.4 1.74 4.72 1.99 5.05.25.33 3.43 5.28 8.39 7.19 1.16.44 2.09.72 2.81.92 1.19.37 2.28.32 3.13.19.96-.14 2.77-1.12 3.18-2.09.4-.97.4-1.81.28-1.97-.12-.16-.42-.27-.89-.48z" fill="#fff"/>
+              </Svg>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleShare} activeOpacity={0.8}>
-              <Text style={styles.secondaryButtonText}>Compartir con otras personas</Text>
+            <TouchableOpacity style={styles.iconCircle} onPress={handleShare} activeOpacity={0.8}>
+              {/* Share arrow up out of tray icon (tray below, arrow up) - slightly larger for aesthetics */}
+              <Svg width={32} height={32} viewBox="0 0 28 28">
+                {/* Tray */}
+                <Path d="M4 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a1 1 0 1 0-2 0v2H6v-2a1 1 0 1 0-2 0v2z" fill="#fff"/>
+                {/* Arrow up */}
+                <Path d="M14 18a1 1 0 0 1-1-1V8.41l-3.3 3.3a1 1 0 1 1-1.4-1.42l5-5a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1-1.4 1.42l-3.3-3.3V17a1 1 0 0 1-1 1z" fill="#fff"/>
+              </Svg>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -1175,13 +1215,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   secondaryButton: {
-    backgroundColor: '#334155',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    marginTop: 8,
-    minWidth: 240,
+    // ...existing code...
+  },
+  iconButton: {
+    // ...existing code...
+  },
+  iconRowCentered: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 18,
+    marginBottom: 8,
+  },
+  iconCircle: {
+    backgroundColor: '#334155',
+    borderRadius: 32,
+    width: 56,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
   },
   secondaryButtonText: {
     color: '#fff',
