@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import HamburgerMenu from '../components/HamburgerMenu';
@@ -6,11 +5,14 @@ import EmpresaMenu from '../components/EmpresaMenu';
 import { getResponsiveStyles } from '../utils/deviceConfig';
 import { useSafeMargins } from '../utils/safeAreaUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFonts } from 'expo-font';
+
 
 // Componente base para header estandarizado y adaptable
 export default function StandardHeader({
-  title = 'R U M B A',
-  subtitle = 'CCS',
+   
+  title = 'Evential',
+  subtitle = 'Ccs',
   onMenuPress, // opcional, se puede sobreescribir
   showMenu = true,
   style,
@@ -25,6 +27,10 @@ export default function StandardHeader({
   isHomeScreen = false,
   children,
 }) {
+
+  const [fontsLoaded] = useFonts({
+    'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
+  });
   const responsive = getResponsiveStyles();
   const safe = useSafeMargins();
 
@@ -50,18 +56,21 @@ export default function StandardHeader({
 
   // Tamaños de fuente adaptativos
   const logoTextStyle = {
-    fontSize: responsive.text.xlarge.fontSize,
-    fontWeight: 'bold',
-    color: '#fff',
+    // Incrementamos ligeramente el tamaño base responsivo para que el logo destaque más
+    fontSize: responsive.text.xlarge.fontSize + 12,
+    // Remove fontWeight to avoid conflicts with the custom font on some platforms
+    color: '#ffffffff',
+    fontFamily: fontsLoaded ? 'BebasNeue' : undefined,
   };
   const logoSubtextStyle = {
-    fontSize: responsive.text.large.fontSize,
-    fontWeight: '600',
+    fontSize: responsive.text.large.fontSize +6,
+    // Use the same display font for the subtext when loaded (fallback to system if not)
     color: '#ff007f',
-    marginLeft: 6,
+    fontWeight: 'bold',
+
   };
   const menuIconStyle = {
-    fontSize: responsive.text.xlarge.fontSize + 4,
+    fontSize: responsive.text.xlarge.fontSize,
     color: '#fff',
     fontWeight: 'bold',
   };
@@ -140,6 +149,8 @@ export default function StandardHeader({
     </View>
   );
 }
+
+
 
 const styles = StyleSheet.create({
   logoContainer: {
