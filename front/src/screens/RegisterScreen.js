@@ -749,7 +749,7 @@ export function AccountTypeScreen({ navigation, route }) {
         <View style={{ marginTop: 20, width: '100%', backgroundColor: 'rgba(234,179,8,0.15)', borderLeftWidth: 4, borderLeftColor: '#f59e0b', padding: 12, borderRadius: 8 }}>
             <Text style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Aviso</Text>
             <Text style={{ color: '#fde68a', fontSize: 13, lineHeight: 18 }}>
-              Para tener una cuenta de empresa, se debe pasar primero por una verificación.
+              Para tener una cuenta de organizador, se debe pasar primero por una verificación.
             </Text>
           </View>
       </View>

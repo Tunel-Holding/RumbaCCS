@@ -1130,7 +1130,7 @@ const filteredEvents = fuente.filter(e => {
         <Text style={styles.footerTitle}>EVENTIALccs</Text>
 
         <Text style={styles.footerCopyright}>© 2025 IA Tecnología y Servicios. Todos los derechos reservados.</Text>
-        <Text style={styles.footerCopyright}>Email: javig.com / Teléfono: 04125764011</Text>
+        <Text style={styles.footerCopyright}>Email: javig.com</Text>
       </View>
       
       
@@ -1309,7 +1309,7 @@ const styles = StyleSheet.create({
   pageArrowText: { color:'#fff', fontSize:18, fontWeight:'700' },
   pageIndicator: { color:'#fff', fontSize:14, fontWeight:'600' },
   footer: { backgroundColor: '#1e293b', borderRadius: 16, padding: 20, marginTop: 24, alignItems: 'center', marginBottom: 32 },
-  footerTitle: { fontSize: 18, fontWeight: 'bold', color: '#0ea5e9', marginBottom: 8 },
+  footerTitle: { fontSize: 18, fontWeight: 'bold', color: '#cadce4ff', marginBottom: 8 },
   footerLogo: { width: 64, height: 64, borderRadius: 32, marginRight: 12, overflow: 'hidden', resizeMode: 'cover' },
   footerInner: { flexDirection: 'row', alignItems: 'flex-start', width: '100%' },
   footerText: { flex: 1 },

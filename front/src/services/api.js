@@ -2,7 +2,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const LOCAL_IP = '192.168.10.111'; // ← Cámbiala por tu IP real
+const LOCAL_IP = '192.168.1.139'; // ← Cámbiala por tu IP real
 const PORT = '8000';
 const baseURL = `http://${LOCAL_IP}:${PORT}`;
 
