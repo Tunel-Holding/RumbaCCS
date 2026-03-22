@@ -13,7 +13,7 @@ __pycache__/
 # 📦 Entornos virtuales
 venv/
 venv311/
-# .env
+.env
 .envrc
 .venv/
 
@@ -55,3 +55,6 @@ android/build/
 # Otros
 .DS_Store
 Thumbs.db
+
+# Celery
+back/celerybeat-schedule*

@@ -47,7 +47,7 @@ CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-33a1lc16kaxfm6u9u7$bc1hqm6p5o4((k8-*()k5^&q%2b)id^'
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-33a1lc16kaxfm6u9u7$bc1hqm6p5o4((k8-*()k5^&q%2b)id^')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -131,7 +131,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'postgres',
         'USER': 'postgres.fufiohljmxasfvgxmllm',
-        'PASSWORD': 'ojalafuncione',
+        'PASSWORD': os.getenv('DB_PASSWORD', 'ojalafuncione'),
         'HOST': 'aws-0-us-east-1.pooler.supabase.com',
         'PORT': '5432',
         'OPTIONS': {
@@ -240,7 +240,7 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'noreplyrumbaccs@gmail.com'  # Cambia por tu correo real si usas Gmail
-EMAIL_HOST_PASSWORD = 'swpe vapt tezf fqtp'
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'swpe vapt tezf fqtp')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
