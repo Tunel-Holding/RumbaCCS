@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'django_celery_beat',
     'empresa',
     'api',
+    'reservas',
     'django_extensions',
 ]
 
@@ -150,6 +151,7 @@ DATABASES = {
         
 #     }
 # }
+
 
 
 # DATABASES = {

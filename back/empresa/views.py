@@ -851,7 +851,9 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Devuelve eventos futuros y aplica filtros opcionales: category y search.
         """
-        queryset = Evento2.objects.annotate(views_count=Count('views')).filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
+        # Temporariamente permitir todos los eventos (incluyendo pasados) para pruebas
+        queryset = Evento2.objects.annotate(views_count=Count('views')).order_by('fecha_evento')
+        # queryset = Evento2.objects.annotate(views_count=Count('views')).filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
 
         # Filtrar por categoría si se recibe en query params
         categoria = self.request.query_params.get('categoria')
@@ -891,7 +893,7 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         )
         qs = Evento2.objects.annotate(
             distance=RawSQL(haversine_sql, (lat_f, lng_f, lat_f))
-        ).filter(distance__lte=radius_km, fecha_evento__gte=timezone.now()).order_by('distance', 'fecha_evento')
+        ).filter(distance__lte=radius_km).order_by('distance', 'fecha_evento')
 
         page = self.paginate_queryset(qs)
         if page is not None:

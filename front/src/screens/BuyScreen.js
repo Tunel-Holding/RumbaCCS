@@ -110,6 +110,9 @@ export default function BuyScreen() {
   // Recibe los parámetros de navegación
   const { idEvento } = route.params ?? {};
   const [evento, setEvento] = useState(null);
+  const [reservaLoading, setReservaLoading] = useState(false);
+  const [reservaModalVisible, setReservaModalVisible] = useState(false);
+  const [reservaConfirmada, setReservaConfirmada] = useState(null);
 
   // Carousel refs y medidas
   const scrollRef = useRef(null);
@@ -437,6 +440,42 @@ export default function BuyScreen() {
       console.warn('handleSendMessage error', err);
       Alert.alert('Error', 'No fue posible abrir la app de mensajes.');
     }
+  };
+
+  const handleReserve = async () => {
+    if (!isLogged) {
+      setLoginVisible(true);
+      return;
+    }
+    if (!idEvento) return;
+
+    Alert.alert(
+      "Confirmar Reserva",
+      "¿Deseas reservar tu lugar para este evento?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Reservar",
+          onPress: async () => {
+            try {
+              setReservaLoading(true);
+              const res = await api.post('/api/reservas/', {
+                evento: idEvento,
+                cantidad: 1 // Por defecto 1 para MVP
+              });
+              setReservaConfirmada(res.data);
+              setReservaModalVisible(true);
+            } catch (err) {
+              console.error('Error al reservar:', err);
+              const msg = err.response?.data?.detail || err.message || 'Error desconocido';
+              Alert.alert('Error', 'No se pudo completar la reserva: ' + msg);
+            } finally {
+              setReservaLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   // Handler para compartir el evento con otras personas (usa plantilla enriquecida)
@@ -801,6 +840,25 @@ export default function BuyScreen() {
         )}
 
         <View style={styles.buttonContainer}>
+          {/* Botón Principal de Reserva */}
+          {isLogged && !isEmpresaAccount && (
+            <TouchableOpacity
+              style={[styles.mainReserveBtn, reservaLoading && { opacity: 0.7 }]}
+              onPress={handleReserve}
+              disabled={reservaLoading}
+              activeOpacity={0.85}
+            >
+              {reservaLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.mainReserveBtnText}>Reservar Mi Lugar</Text>
+                  <Text style={styles.mainReserveBtnSubtext}>Entrada {parseFloat(eventDetails.price) === 0 ? 'Gratis' : `${eventDetails.moneda} ${eventDetails.price}`}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
           {/* Mostrar botón Guardar solo para usuarios (no para cuentas empresa) */}
           {isLogged && isSaved !== null && !isEmpresaAccount ? (
             <TouchableOpacity
@@ -911,6 +969,53 @@ export default function BuyScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Modal de Éxito de Reserva */}
+      <Modal
+        visible={reservaModalVisible}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setReservaModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.reservaSuccessCard}>
+            <View style={styles.reservaSuccessIcon}>
+              <Text style={{ fontSize: 40 }}>✅</Text>
+            </View>
+            <Text style={styles.reservaSuccessTitle}>¡Reserva Confirmada!</Text>
+            <Text style={styles.reservaSuccessText}>
+              Has reservado con éxito para "{eventDetails.title}".
+            </Text>
+            
+            <View style={styles.qrContainer}>
+              {/* Aquí iría un componente QR real, por ahora mostramos el código */}
+              <Text style={styles.qrPlaceholderText}>CÓDIGO DE ENTRADA</Text>
+              <Text style={styles.qrCodeText}>{reservaConfirmada?.codigo_qr}</Text>
+              <View style={styles.qrMockup}>
+                 {/* Representación visual simple de un QR */}
+                 {[...Array(5)].map((_, i) => (
+                   <View key={i} style={{flexDirection: 'row'}}>
+                     {[...Array(5)].map((_, j) => (
+                       <View key={j} style={{width: 25, height: 25, backgroundColor: (i+j)%2 === 0 ? '#000' : '#fff'}} />
+                     ))}
+                   </View>
+                 ))}
+              </View>
+            </View>
+
+            <Text style={styles.reservaInstruction}>
+              Muestra este código al llegar al evento para validar tu entrada.
+            </Text>
+
+            <TouchableOpacity 
+              style={styles.closeReservaBtn}
+              onPress={() => setReservaModalVisible(false)}
+            >
+              <Text style={styles.closeReservaBtnText}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1342,5 +1447,113 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginBottom: 10,
     textAlign: 'center',
+  },
+  // Nuevos estilos para Reserva
+  mainReserveBtn: {
+    backgroundColor: '#0ea5e9',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    alignItems: 'center',
+    shadowColor: '#0ea5e9',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  mainReserveBtnText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  mainReserveBtnSubtext: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  reservaSuccessCard: {
+    backgroundColor: '#1e293b',
+    borderRadius: 24,
+    padding: 32,
+    width: width * 0.85,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  reservaSuccessIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  reservaSuccessTitle: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  reservaSuccessText: {
+    color: '#94a3b8',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  qrContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 24,
+    width: '100%',
+  },
+  qrPlaceholderText: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  qrCodeText: {
+    color: '#0f172a',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  qrMockup: {
+    padding: 4,
+    backgroundColor: '#000',
+    borderRadius: 8,
+  },
+  reservaInstruction: {
+    color: '#64748b',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 24,
+    fontStyle: 'italic',
+  },
+  closeReservaBtn: {
+    backgroundColor: '#334155',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    width: '100%',
+    alignItems: 'center',
+  },
+  closeReservaBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
