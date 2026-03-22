@@ -68,7 +68,7 @@ api.interceptors.response.use(
       );
 
 
-    
+
 
     // Si es una petición al endpoint de refresh o ya se reintentó y sigue inválido -> cerrar sesión silenciosa
     if (tokenInvalid && (originalRequest._retry || originalRequest.url?.includes('/token/refresh/'))) {
