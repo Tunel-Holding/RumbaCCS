@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'; // <-- useCallback es buena práctica con useFocusEffect
 import { useNavigation, useFocusEffect } from '@react-navigation/native'; // <-- Importa useFocusEffect
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator, Share } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { loginConFallback } from '../utils/auth';
@@ -132,6 +132,9 @@ export default function HomeScreen() {
   const [isLogged, setIsLogged] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingline, setLoadingline] = useState(false); // <-- Nuevo estado para loading inline
+  const [loadingMore, setLoadingMore] = useState(false); // loading when appending next page
+  const [atBottom, setAtBottom] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState(false); // true when first page (10 items) finished loading
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
   const [empresaData, setEmpresaData] = useState(null);
@@ -200,8 +203,9 @@ export default function HomeScreen() {
   // --- EFECTO PARA RECARGAR DATOS CUANDO LA PANTALLA ESTÁ EN FOCO ---
   useFocusEffect(
     useCallback(() => {
+      setLoading(true);
       const checkLoginAndRefresh = async () => {
-        setLoading(true);
+        
         const token = await AsyncStorage.getItem('accessToken');
         const isEmpresaAcc = await AsyncStorage.getItem('isEmpresaAccount'); // Leemos el valor guardado
         const isUserAcc = await AsyncStorage.getItem('isUserAccount'); // <-- AÑADE ESTA LÍNEA
@@ -250,6 +254,16 @@ export default function HomeScreen() {
     setIsLogged(false);
     setIsEmpresaAccount(false); // Limpiamos el estado
 
+  };
+
+  // Compartir evento desde la tarjeta (icono de 3 puntitos)
+  const handleShareEvent = async (event) => {
+    try {
+      const message = `${event.title} - ${event.date} ${event.time ? event.time : ''}\nOrganizada por: ${event.ownerName}`;
+      await Share.share({ message });
+    } catch (err) {
+      console.warn('handleShareEvent error', err);
+    }
   };
 
 const handleLogin = async () => {
@@ -458,7 +472,8 @@ useEffect(() => {
   const filters = sortedEventTypes.map(e => ({ key: e.key, label: e.label }));
 
 const fetchEventos = async (pageNumber = 1, append = false) => {
-  setLoadingline(true);
+  // if appending, show separate loadingMore spinner; otherwise it's initial/refresh loadingline
+  if (append) setLoadingMore(true); else setLoadingline(true);
 
   if (!append) scrollRef.current?.scrollTo({ y: 0, animated: true });
 
@@ -534,7 +549,6 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
       image: ev.imagen || "https://storage.googleapis.com/.../placeholder.png",
       ownerName: companyCache[ev.empresa]?.nombre || `Empresa #${ev.empresa}`,
       ownerLogo: companyCache[ev.empresa]?.logo || null,
-      viewsCount: ev.views_count || 0,
     }));
 
     // Si estamos en modo nearby, guardamos en nearbyEvents; si no, en eventos generales
@@ -575,7 +589,10 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
   } catch (error) {
     if (!axios.isCancel(error)) console.error(error);
   } finally {
-    setLoadingline(false);
+    // clear the appropriate loading flag
+    if (append) setLoadingMore(false); else setLoadingline(false);
+    // mark that initial page has been loaded (so spinner only shows after first 10 are present)
+    if (!append && pageNumber === 1) setInitialLoaded(true);
   }
 };
 
@@ -655,11 +672,11 @@ const filteredEvents = fuente.filter(e => {
 // Reiniciar página si cambian filtros o búsqueda
   useEffect(() => { setPage(0); }, [scopeFilter, typeFilter, search]);
   const totalPages = Math.ceil(filteredEvents.length / pageSize) || 1;
-  const pageEvents = filteredEvents.slice(page * pageSize, (page + 1) * pageSize);
-  const canPrev = page > 0;
-  const canNext = page < totalPages - 1;
-  const goPrev = () => { if (canPrev) { setPage(p => p - 1); scrollRef.current?.scrollTo({ y: 0, animated: true }); } };
-  const goNext = () => { if (canNext) { setPage(p => p + 1); scrollRef.current?.scrollTo({ y: 0, animated: true }); } };
+  // With infinite scroll we render `filteredEvents` directly; keep page state for compatibility but disable client-side paging.
+  const canPrev = false;
+  const canNext = false;
+  const goPrev = () => {};
+  const goNext = () => {};
 
   // Cuando cambia filtro o búsqueda, reinicia página y sube arriba
 //   useEffect(() => {
@@ -789,9 +806,32 @@ function renderCalendarioEventos() {
       <ScrollView
         ref={scrollRef}
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: 32 + insets.bottom, paddingTop: 32 }}
+        contentContainerStyle={{ paddingTop: 32 }}
         showsVerticalScrollIndicator={false}
-         keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={200}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          // Estimate average item height to detect when user reaches the penultimate item
+          const itemCount = Math.max(filteredEvents.length, 1);
+          const avgItemHeight = contentSize.height / itemCount;
+          const remainingHeight = contentSize.height - (layoutMeasurement.height + contentOffset.y);
+          const remainingItemsEstimate = remainingHeight / (avgItemHeight || 1);
+
+          const isAtPenultimate = remainingItemsEstimate <= 2.0; // roughly two items left => start prefetch (penultimate threshold)
+          const isAtLast = remainingItemsEstimate <= 0.5; // almost at the very end
+
+          // update atBottom state so spinner can be shown when reaching the last event
+          setAtBottom(isAtLast);
+
+          // Only trigger load when penultimate is reached, not before, and when not already loading and there are more pages
+          if (isAtPenultimate) {
+            if (!loadingline && !loadingMore && hasMore && filteredEvents.length >= pageSize && initialLoaded) {
+              // cargar siguiente página de la API (append)
+              fetchEventos(currentPage + 1, true);
+            }
+          }
+        }}
       >
         <StandardHeader
           isLogged={isLogged}
@@ -1069,8 +1109,8 @@ function renderCalendarioEventos() {
         </Text>
       )}
 
-      {/* Lista de eventos (paginada cliente) */}
-      {!loadingline && pageEvents.map(event => (
+  {/* Lista de eventos (infinite scroll): mostramos los eventos filtrados cargados desde API */}
+  {!loadingline && filteredEvents.map(event => (
         <View key={event.id} style={styles.eventCard}>
           <View style={styles.ownerRow}>
             {event.ownerLogo ? (
@@ -1131,72 +1171,59 @@ function renderCalendarioEventos() {
             <Text style={styles.eventoInfoText}>📍 {event.location}</Text>
           </View>
 
-          <View style={styles.eventFooter}>
-            <Text style={styles.eventPrice}>{event.price}</Text>
-            <View style={styles.eventViews}>
-              <Ionicons name="eye-outline" size={16} color="#94a3b8" />
-              <Text style={styles.eventViewsText}>{event.viewsCount}</Text>
+          <Text style={styles.eventPrice}>{event.price}</Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
+            <TouchableOpacity
+              style={styles.reserveBtn}
+              onPress={() => {
+                navigation.navigate('Reservar/Comprar', {
+                  idEvento: event.id,
+                  idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #', '') : undefined
+                });
+              }}
+            >
+              <Text style={styles.reserveText}>Ver detalles</Text>
+            </TouchableOpacity>
+
+            <View style={{ flexDirection: 'row', marginLeft: 8, gap: 8 }}>
+              <TouchableOpacity style={styles.smallIconBtn} onPress={() => handleShareEvent(event)}>
+                <Ionicons name="share-social" size={18} color="#fff" />
+              </TouchableOpacity>
             </View>
           </View>
-
-          <TouchableOpacity
-            style={styles.reserveBtn}
-            onPress={() => {
-              navigation.navigate('Reservar/Comprar', {
-                idEvento: event.id,
-                idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #', '') : undefined
-              });
-            }}
-          >
-            <Text style={styles.reserveText}>Ver detalles</Text>
-          </TouchableOpacity>
         </View>
       ))}
+
+      {/* Footer spinner shown when user reached last event (and there are more) or while loadingMore */}
+      {(hasMore && atBottom) || loadingMore ? (
+        <View style={{ paddingVertical: 12, alignItems: 'center', width: '100%' }}>
+          <ActivityIndicator size="large" color="#ffffff" />
+        </View>
+      ) : null}
 
     </View>
   </>
 )}
 
 
-            {totalCount > events.length && (
-            <View style={styles.paginationBar}>
-              <TouchableOpacity
-                onPress={() => prevPage && fetchEventos(prevPage)}
-                disabled={!prevPage}
-                style={[styles.pageArrow, !prevPage && styles.pageArrowDisabled]}
-              >
-                <Text style={styles.pageArrowText}>{'<'}</Text>
-              </TouchableOpacity>
-
-              <Text style={styles.pageIndicator}>
-                Página {currentPage} de {Math.ceil(totalCount / pageSize)}
-              </Text>
-
-              <TouchableOpacity
-                onPress={() => nextPage && fetchEventos(nextPage)}
-                disabled={!nextPage}
-                style={[styles.pageArrow, !nextPage && styles.pageArrowDisabled]}
-              >
-                <Text style={styles.pageArrowText}>{'>'}</Text>
-              </TouchableOpacity>
-
-            </View>
-          )}
+            {/* Pagination controls removed: infinite scroll loads more items when user scrolls down. */}
 
 
         {/* Testimonios eliminados */}
 
         {/* Footer */}
   <View style={styles.footer}>
-          <Text style={styles.footerTitle}>RumbaCCS</Text>
-          <Text style={styles.footerDesc}>Tu plataforma de confianza para reservas de eventos y experiencias memorables.</Text>
-          <View style={styles.footerLinks}>
-            {footerLinks.map((l, i) => (
-              <Text key={i} style={styles.footerLink}>{l.title}</Text>
-            ))}
-          </View>
-          <Text style={styles.footerCopyright}>© 2025 Tunel Holding. Todos los derechos reservados.</Text>
-        </View>
+    {/* Footer row: logo on the left, text block on the right */}
+    <View style={styles.footerInner}>
+      <Image source={require('../../assets/footer_logo.jpg')} style={styles.footerLogo} />
+      <View style={styles.footerText}>
+        <Text style={styles.footerTitle}>RumbaCCS</Text>
+
+        <Text style={styles.footerCopyright}>© 2025 IA Tecnología y Servicios. Todos los derechos reservados.</Text>
+      </View>
+    </View>
+  </View>
       </ScrollView>
 
       {/* FAB: solo para cuentas de empresa APROBADAS/ACEPTADAS/VERIFICADAS */}
@@ -1344,42 +1371,16 @@ const styles = StyleSheet.create({
   ownerChipText: { color:'#fff', fontSize:12, fontWeight:'600' },
   eventImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 8 },
   eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
+  eventMenuBtn: {
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    padding: 6,
+    borderRadius: 16,
+  },
   eventInfo: { color: '#fff', marginBottom: 4 },
   eventPrice: { color: '#bef264', fontWeight: 'bold', marginBottom: 8 },
-  eventViewsCount: { color: '#94a3b8', fontSize: 12, marginBottom: 8 },
-
-  // ...existing code...
-  eventTitle: { fontSize: 18, color: '#fff', fontWeight: 'bold', marginTop: 8 },
-  eventInfo: { color: '#fff', marginBottom: 4 },
-  eventPrice: { color: '#bef264', fontWeight: 'bold', fontSize: 16 },
-  eventFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  eventViews: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  eventViewsText: {
-    color: '#94a3b8',
-    fontSize: 12,
-    fontWeight: '600',
-    marginLeft: 5,
-  },
-  reserveBtn: { backgroundColor: '#6366f1', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 8 },
+  reserveBtn: { backgroundColor: '#6366f1', borderRadius: 8, padding: 10, alignItems: 'center', width: '80%', height: 36, justifyContent: 'center' },
   reserveText: { color: '#fff', fontWeight: 'bold' },
-  paginationBar: { flexDirection:'row', alignItems:'center', justifyContent:'center', marginTop:12, marginBottom:16, gap:16 },
-// ...existing code...
-
-  reserveBtn: { backgroundColor: '#6366f1', borderRadius: 8, padding: 10, alignItems: 'center', marginTop: 8 },
-  reserveText: { color: '#fff', fontWeight: 'bold' },
+  smallIconBtn: { backgroundColor: 'rgba(0,0,0,0.35)', padding: 10, borderRadius: 10, marginLeft: 6, justifyContent: 'center', alignItems: 'center', width: 36 , height: 36 },
   paginationBar: { flexDirection:'row', alignItems:'center', justifyContent:'center', marginTop:12, marginBottom:16, gap:16 },
   permissionBox: { backgroundColor:'#1e293b', borderRadius:12, padding:16, marginBottom:16, borderWidth:1, borderColor:'#334155' },
   permissionText: { color:'#fff', fontSize:14, lineHeight:18 },
@@ -1391,10 +1392,13 @@ const styles = StyleSheet.create({
   pageIndicator: { color:'#fff', fontSize:14, fontWeight:'600' },
   footer: { backgroundColor: '#1e293b', borderRadius: 16, padding: 20, marginTop: 24, alignItems: 'center', marginBottom: 32 },
   footerTitle: { fontSize: 18, fontWeight: 'bold', color: '#0ea5e9', marginBottom: 8 },
-  footerDesc: { color: '#cbd5e1', textAlign: 'center', marginBottom: 12 },
-  footerLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 8 },
-  footerLink: { color: '#cbd5e1', marginHorizontal: 8, marginBottom: 4 },
-  footerCopyright: { color: '#64748b', fontSize: 12, textAlign: 'center' },
+  footerLogo: { width: 64, height: 64, borderRadius: 32, marginRight: 12, overflow: 'hidden', resizeMode: 'cover' },
+  footerInner: { flexDirection: 'row', alignItems: 'flex-start', width: '100%' },
+  footerText: { flex: 1 },
+  footerDesc: { color: '#cbd5e1', textAlign: 'left', marginBottom: 12 },
+  footerLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', marginBottom: 8 },
+  footerLink: { color: '#cbd5e1', marginRight: 12, marginBottom: 4 },
+  footerCopyright: { color: '#64748b', fontSize: 12, textAlign: 'left' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
   modalClose: {  right: 12, zIndex: 2, position: 'absolute' },

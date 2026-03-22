@@ -274,7 +274,88 @@ class EmpresaSerializer(serializers.ModelSerializer):
         except Exception:
             return []
     
+class MiEmpresaSerializer(serializers.ModelSerializer):
+    redes_sociales = serializers.SerializerMethodField()
+    total_seguidores = serializers.SerializerMethodField()
+    total_eventos = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Empresa
+        fields = [
+            "id", "nombre", "rif", "logo",
+            "redes_sociales", "total_seguidores", "total_eventos"
+        ]
+
+    def get_redes_sociales(self, obj):
+        # Devuelve lista de redes sociales asociadas
+        return [
+            {"tipo": r.tipo, "url": r.url}
+            for r in obj.redes.all()
+        ]
+
+    def get_total_seguidores(self, obj):
+        return obj.seguidores.count()
+
+    def get_total_eventos(self, obj):
+        return obj.eventos.count()  # asumiendo que tienes related_name="eventos"
     
+        
+class EmpresaPublicSerializer(serializers.ModelSerializer):
+    redes_sociales = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+    total_seguidores = serializers.SerializerMethodField()
+    total_eventos = serializers.SerializerMethodField()
+    
+
+    class Meta:
+        model = Empresa
+        fields = [
+            "id",
+            "nombre",
+            "descripcion",
+            "logo",
+            "rif",
+            "redes_sociales",
+            "lugar",
+            "phone",
+            "email_contacto",
+            "is_following",
+            "total_seguidores",
+            "total_eventos",
+        ]
+
+    def get_is_following(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if not user or not getattr(user, "is_authenticated", False):
+            return False
+
+        # Caso AuthEntity (tienes .kind y .obj)
+        if getattr(user, "kind", None) == "usuario" and hasattr(user, "obj"):
+            usuario = user.obj
+            return obj.seguidores.filter(id=usuario.id).exists()
+
+        # Caso que sea directamente un Usuario (por si acaso)
+        from .models import Usuario
+        try:
+            if isinstance(user, Usuario):
+                return obj.seguidores.filter(id=user.id).exists()
+        except Exception:
+            pass
+
+        return False
+    def get_total_seguidores(self, obj):
+        return obj.seguidores.count()
+    def get_total_eventos(self, obj):
+        return obj.eventos.count()
+
+    def get_redes_sociales(self, obj):
+        try:
+            return EmpresaRedSocialSerializer(obj.redes.all(), many=True).data
+        except Exception:
+            return []
+  
 
 class EmpresaRegistroSerializer(serializers.ModelSerializer):
     # Aceptamos una lista que puede contener strings (urls) o dicts {"tipo":..., "url":...}
@@ -361,62 +442,6 @@ class EmpresaTokenObtainPairSerializer(TokenObtainPairSerializer):
             }
         }
         
-        
-class EmpresaPublicSerializer(serializers.ModelSerializer):
-    redes_sociales = serializers.SerializerMethodField()
-    is_following = serializers.SerializerMethodField()
-    total_seguidores = serializers.SerializerMethodField()
-    total_eventos = serializers.SerializerMethodField()
-    
-
-    class Meta:
-        model = Empresa
-        fields = [
-            "id",
-            "nombre",
-            "descripcion",
-            "logo",
-            "rif",
-            "redes_sociales",
-            "lugar",
-            "phone",
-            "email_contacto",
-            "is_following",
-            "total_seguidores",
-            "total_eventos",
-        ]
-
-    def get_is_following(self, obj):
-        request = self.context.get("request")
-        user = getattr(request, "user", None)
-
-        if not user or not getattr(user, "is_authenticated", False):
-            return False
-
-        # Caso AuthEntity (tienes .kind y .obj)
-        if getattr(user, "kind", None) == "usuario" and hasattr(user, "obj"):
-            usuario = user.obj
-            return obj.seguidores.filter(id=usuario.id).exists()
-
-        # Caso que sea directamente un Usuario (por si acaso)
-        from .models import Usuario
-        try:
-            if isinstance(user, Usuario):
-                return obj.seguidores.filter(id=user.id).exists()
-        except Exception:
-            pass
-
-        return False
-    def get_total_seguidores(self, obj):
-        return obj.seguidores.count()
-    def get_total_eventos(self, obj):
-        return obj.eventos.count()
-
-    def get_redes_sociales(self, obj):
-        try:
-            return EmpresaRedSocialSerializer(obj.redes.all(), many=True).data
-        except Exception:
-            return []
 
 class EventoPublicSerializer(serializers.ModelSerializer):
     imagenes = EventoImagenSerializer(many=True, read_only=True)

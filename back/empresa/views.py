@@ -1,6 +1,6 @@
 from httpx import request
 from .models import UsuarioEvento
-from .serializers import UsuarioEventoSerializer
+from .serializers import MiEmpresaSerializer, UsuarioEventoSerializer
 # ViewSet para eventos guardados por usuario
 from rest_framework import viewsets, permissions
 from .models import (
@@ -276,7 +276,10 @@ class EmpresaViewSet(ModelViewSet):
 
     queryset = Empresa.objects.all()
 
-    
+    def get_serializer_class(self):
+        if self.action in ["list", "retrieve"]:
+            return MiEmpresaSerializer
+        return EmpresaSerializer
     
     @action(detail=True, methods=["post"], url_path="upload-foto")
     def upload_foto(self, request, pk=None):
@@ -713,19 +716,6 @@ class EventoViewSet(viewsets.ModelViewSet):
         serializer.save(empresa_id=empresa_id)
         print("CREANDO EVENTO PARA EMPRESA ID:", empresa_id)
 
-
-    
-    # def destroy(self, request, *args, **kwargs):
-    #     evento = self.get_object()
-    #     print(f"🗑️ Eliminando evento: {evento.titulo} (ID: {evento.id})")
-
-    #     # Borrar imágenes de Supabase antes de eliminar el evento
-    #     for imagen in evento.imagenes.all():
-    #         delete_file_from_supabase(imagen.path)
-
-    #     # Borrar evento (y registros asociados en BD)
-    #     self.perform_destroy(evento)
-    #     return Response(status=status.HTTP_204_NO_CONTENT)
 
     
     

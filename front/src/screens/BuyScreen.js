@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { loginConFallback } from '../utils/auth';
-import api from '../services/api'; 
+import api from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StandardHeader from '../components/StandardHeader';
 
@@ -100,7 +100,7 @@ export default function BuyScreen() {
     if (isLogged) fetchUserData();
   }, [isLogged, loginVisible]);
   const [loading, setLoading] = useState(true);
-  const [eventoS,setEventoS] = useState(false); //Valida que los datos del evento fueron guardados
+  const [eventoS, setEventoS] = useState(false); //Valida que los datos del evento fueron guardados
   const [hasEmpresa, setHasEmpresa] = useState(false); // True si el usuario logueado es una empresa (tiene empresaId)
   const [ownEmpresaId, setOwnEmpresaId] = useState(null);
   const [isEmpresaAccount, setIsEmpresaAccount] = useState(false); // True si la sesión actual es de una cuenta empresa
@@ -116,7 +116,7 @@ export default function BuyScreen() {
   const autoplayRef = useRef(null);
   const slideWidth = width; // ancho completo del dispositivo
 
-  
+
   const handleScroll = (event) => {
     const slide = Math.round(event.nativeEvent.contentOffset.x / slideWidth);
     if (slide !== activeIndex) setActiveIndex(slide);
@@ -129,7 +129,7 @@ export default function BuyScreen() {
   };
   const goPrev = () => goTo(activeIndex - 1);
   const goNext = () => goTo(activeIndex + 1);
-  
+
 
   useEffect(() => {
     if (autoplayRef.current) clearInterval(autoplayRef.current);
@@ -175,58 +175,58 @@ export default function BuyScreen() {
     })();
   }, [isLogged]);
 
- const handleLogin = async () => {
-  setLoginError('');
-  setLoginLoading(true);
-  let resultado;
-  try {
-    resultado = await loginConFallback(user, pass);
-  } finally {
-    setLoginLoading(false);
-    // limpiar campos de login
-    try { setUser(''); setPass(''); } catch (e) {}
-  }
+  const handleLogin = async () => {
+    setLoginError('');
+    setLoginLoading(true);
+    let resultado;
+    try {
+      resultado = await loginConFallback(user, pass);
+    } finally {
+      setLoginLoading(false);
+      // limpiar campos de login
+      try { setUser(''); setPass(''); } catch (e) { }
+    }
 
-  if (resultado.error) {
-    switch (resultado.tipo) {
-      case 'validacion':
-        setLoginError('Por favor ingresa email y contraseña');
-        break;
-      case 'error':
-        setLoginError('Error inesperado: ' + resultado.error);
-        break;
-      case 'credenciales':
-        setLoginError('Usuario o contraseña incorrectos');
-        break;
+    if (resultado.error) {
+      switch (resultado.tipo) {
+        case 'validacion':
+          setLoginError('Por favor ingresa email y contraseña');
+          break;
+        case 'error':
+          setLoginError('Error inesperado: ' + resultado.error);
+          break;
+        case 'credenciales':
+          setLoginError('Usuario o contraseña incorrectos');
+          break;
+      }
+      return;
     }
-    return;
-  }
 
-  setIsLogged(true);
-  // Persist session and user info similarly to other screens
-  try {
-    if (resultado.data?.access) await AsyncStorage.setItem('accessToken', resultado.data.access);
-    if (resultado.data?.refresh) await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
-    if (resultado.data?.user) {
-      const ud = resultado.data.user;
-      await AsyncStorage.setItem('userId', ud.id.toString());
-      if (ud.username) await AsyncStorage.setItem('userName', ud.username);
-      // normalize avatar
-      let cleanAvatar = ud.avatar_url || ud.avatar || null;
-      if (cleanAvatar && typeof cleanAvatar === 'string') cleanAvatar = cleanAvatar.replace(/\?$/, '');
-      setUserData({ ...ud, avatar_url: cleanAvatar });
+    setIsLogged(true);
+    // Persist session and user info similarly to other screens
+    try {
+      if (resultado.data?.access) await AsyncStorage.setItem('accessToken', resultado.data.access);
+      if (resultado.data?.refresh) await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
+      if (resultado.data?.user) {
+        const ud = resultado.data.user;
+        await AsyncStorage.setItem('userId', ud.id.toString());
+        if (ud.username) await AsyncStorage.setItem('userName', ud.username);
+        // normalize avatar
+        let cleanAvatar = ud.avatar_url || ud.avatar || null;
+        if (cleanAvatar && typeof cleanAvatar === 'string') cleanAvatar = cleanAvatar.replace(/\?$/, '');
+        setUserData({ ...ud, avatar_url: cleanAvatar });
+      }
+      if (resultado.data?.empresa) {
+        await AsyncStorage.setItem('empresaId', resultado.data.empresa.id.toString());
+        setEmpresaData(resultado.data.empresa);
+        setHasEmpresa(true);
+      }
+    } catch (e) {
+      console.log('Error persisting login info:', e);
     }
-    if (resultado.data?.empresa) {
-      await AsyncStorage.setItem('empresaId', resultado.data.empresa.id.toString());
-      setEmpresaData(resultado.data.empresa);
-      setHasEmpresa(true);
-    }
-  } catch (e) {
-    console.log('Error persisting login info:', e);
-  }
-  setLoginVisible(false);
-  setLoginError('');
-};
+    setLoginVisible(false);
+    setLoginError('');
+  };
 
 
   const handleLogout = async () => {
@@ -239,42 +239,42 @@ export default function BuyScreen() {
   };
 
   useEffect(() => {
-  const fetchDatos = async () => {
-    if (!idEvento) {
-      console.log('🟡 idEvento es undefined, no se hace fetch');
-      return;
-    }
-
-    try {
-      // 1. Fetch del evento
-      const resEvento = await api.get(`/api/eventos-publicos/${idEvento}/`);
-      setEvento(resEvento.data);
-      setEventoS(true);
-
-      // 2. Extraer idEmpresa del evento recibido
-      const idEmpresa = resEvento.data?.empresa;
-
-      if (!idEmpresa) {
-        console.warn('🟡 idEmpresa está undefined, skip fetchEmpresa');
-        setLoading(false);
+    const fetchDatos = async () => {
+      if (!idEvento) {
+        console.log('🟡 idEvento es undefined, no se hace fetch');
         return;
       }
 
-      // 3. Fetch de la empresa
-      console.log('🔎 Fetching empresa con ID:', idEmpresa);
-      const resEmpresa = await api.get(`/api/public/empresas/${idEmpresa}/`);
-      setEmpresaData(resEmpresa.data);
-    } catch (error) {
-      console.error('❌ Error en fetchDatos:', error);
-      setEvento(null);
-      setEventoS(false);
-    } finally {
-      setLoading(false);
-    }
-  };
+      try {
+        // 1. Fetch del evento
+        const resEvento = await api.get(`/api/eventos-publicos/${idEvento}/`);
+        setEvento(resEvento.data);
+        setEventoS(true);
 
-  fetchDatos();
-}, [idEvento]);
+        // 2. Extraer idEmpresa del evento recibido
+        const idEmpresa = resEvento.data?.empresa;
+
+        if (!idEmpresa) {
+          console.warn('🟡 idEmpresa está undefined, skip fetchEmpresa');
+          setLoading(false);
+          return;
+        }
+
+        // 3. Fetch de la empresa
+        console.log('🔎 Fetching empresa con ID:', idEmpresa);
+        const resEmpresa = await api.get(`/api/public/empresas/${idEmpresa}/`);
+        setEmpresaData(resEmpresa.data);
+      } catch (error) {
+        console.error('❌ Error en fetchDatos:', error);
+        setEvento(null);
+        setEventoS(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDatos();
+  }, [idEvento]);
 
 
   const eventDetails = useMemo(() => {
@@ -315,7 +315,7 @@ export default function BuyScreen() {
     };
   }, [evento, empresaData]);
 
-    const eventImages = useMemo(() => {
+  const eventImages = useMemo(() => {
     if (eventoS && Array.isArray(evento?.imagenes) && evento.imagenes.length > 0) {
       return evento.imagenes.map(img => ({ uri: img.url }));
     }
@@ -346,25 +346,25 @@ export default function BuyScreen() {
         setSavedId(null);
         return;
       }
-      if(!isEmpresaAccount) {
-      try {
-        // Forzar recarga sin cache
-        const res = await api.get('/api/eventos-guardados/?evento=' + idEvento + '&_=' + Date.now());
-        // Normalizar respuesta: puede ser array directo o paginado { results: [...] }
-        const dataArray = Array.isArray(res?.data)
-          ? res.data
-          : (res?.data && Array.isArray(res.data.results) ? res.data.results : []);
-        if (!Array.isArray(res?.data) && !Array.isArray(res?.data?.results)) {
-          console.warn('BuyScreen.checkSaved: /api/eventos-guardados returned non-array response:', res?.data);
+      if (!isEmpresaAccount) {
+        try {
+          // Forzar recarga sin cache
+          const res = await api.get('/api/eventos-guardados/?evento=' + idEvento + '&_=' + Date.now());
+          // Normalizar respuesta: puede ser array directo o paginado { results: [...] }
+          const dataArray = Array.isArray(res?.data)
+            ? res.data
+            : (res?.data && Array.isArray(res.data.results) ? res.data.results : []);
+          if (!Array.isArray(res?.data) && !Array.isArray(res?.data?.results)) {
+            console.warn('BuyScreen.checkSaved: /api/eventos-guardados returned non-array response:', res?.data);
+          }
+          const isGuardado = dataArray.length > 0;
+          setIsSaved(isGuardado);
+          setSavedId(isGuardado ? dataArray[0].id : null);
+        } catch (err) {
+          setIsSaved(false);
+          setSavedId(null);
         }
-        const isGuardado = dataArray.length > 0;
-        setIsSaved(isGuardado);
-        setSavedId(isGuardado ? dataArray[0].id : null);
-      } catch (err) {
-        setIsSaved(false);
-        setSavedId(null);
       }
-    }
     };
     checkSaved();
   }, [isLogged, idEvento, refreshSaved]);
@@ -412,7 +412,7 @@ export default function BuyScreen() {
       setSaveLoading(false);
     }
   };
-  
+
   // Handler para mandar mensaje a la empresa organizadora
   const handleSendMessage = async () => {
     // Preferir teléfono, si no está usar email. Si no hay contacto, mostrar alerta.
@@ -448,7 +448,7 @@ export default function BuyScreen() {
       console.warn('handleShare error', err);
     }
   };
-  
+
   const [relatedIndex, setRelatedIndex] = useState(0);
   // Eventos relacionados por categoría
   const [relatedEvents, setRelatedEvents] = useState([]);
@@ -474,7 +474,7 @@ export default function BuyScreen() {
         setCompanyEventsLoading(true);
         const res = await api.get('/api/eventos-publicos/');
         if (cancelado) return;
-      
+
         const sourceData = Array.isArray(res?.data)
           ? res.data
           : (res?.data && Array.isArray(res.data.results) ? res.data.results : []);
@@ -510,7 +510,7 @@ export default function BuyScreen() {
         setRelatedIndex(0);
 
         // Eventos de la misma empresa (excluyendo el actual)
-      const mismos = sourceData.filter(ev => ev.empresa === evento.empresa && ev.id !== evento.id);
+        const mismos = sourceData.filter(ev => ev.empresa === evento.empresa && ev.id !== evento.id);
         const mismosMap = mismos.map(ev => {
           let imgSource = require('../../assets/register-bg.jpg');
           if (Array.isArray(ev.imagenes) && ev.imagenes.length > 0 && ev.imagenes[0]?.url) {
@@ -549,8 +549,8 @@ export default function BuyScreen() {
   // Footer de HomeScreen.js
 
   return (
-      <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}> 
-    
+    <SafeAreaView style={[styles.safeArea, { paddingTop: insets.top, paddingBottom: 0 }]}>
+
       <StandardHeader
         isLogged={isLogged}
         onLoginPress={() => setLoginVisible(true)}
@@ -579,10 +579,10 @@ export default function BuyScreen() {
           <Text style={styles.backBarText}>Volver</Text>
         </TouchableOpacity>
       </View>
-  <ScrollView style={[styles.container, { paddingTop: 12, paddingBottom: 0 }]} contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
+      <ScrollView style={[styles.container, { paddingTop: 12, paddingBottom: 0 }]} contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
         {/* Carrusel de Evento Principal Mejorado */}
         <Text style={styles.sectionTitle}>Evento Principal</Text>
-  <View style={[styles.carouselEnhancedWrapper, styles.fullBleed]}>
+        <View style={[styles.carouselEnhancedWrapper, styles.fullBleed]}>
           <TouchableOpacity style={styles.carouselArrowLeft} onPress={goPrev} activeOpacity={0.7}>
             <Text style={styles.carouselArrowText}>‹</Text>
           </TouchableOpacity>
@@ -600,7 +600,7 @@ export default function BuyScreen() {
             contentContainerStyle={{ alignItems: 'center' }}
           >
             {eventImages.map((img, idx) => (
-              <View key={idx} style={[styles.squareImageFrame, { width: slideWidth, height: Math.min(slideWidth * 0.55, 320) }]}> 
+              <View key={idx} style={[styles.squareImageFrame, { width: slideWidth, height: Math.min(slideWidth * 0.55, 320) }]}>
                 <Image source={img} style={styles.squareImage} resizeMode="cover" />
               </View>
             ))}
@@ -800,56 +800,56 @@ export default function BuyScreen() {
           </>
         )}
 
-      <View style={styles.buttonContainer}>
-        {/* Mostrar botón Guardar solo para usuarios (no para cuentas empresa) */}
-        {isLogged && isSaved !== null && !isEmpresaAccount ? (
-          <TouchableOpacity
-            style={[styles.reserveButton, isSaved ? styles.reserveButtonSaved : null]}
-            onPress={handleSave}
-            activeOpacity={0.8}
-            disabled={isSaved === null || saveLoading}
-          >
-            <View style={styles.buttonContent}>
-              {/* Texto siempre presente para mantener tamaño; lo ocultamos visualmente mientras cargamos */}
-              <Text style={[styles.buttonText, isSaved ? styles.buttonTextSaved : null, saveLoading ? { opacity: 0 } : null]}>
-                {isSaved ? 'Quitar de guardados' : 'Guardar'}
+        <View style={styles.buttonContainer}>
+          {/* Mostrar botón Guardar solo para usuarios (no para cuentas empresa) */}
+          {isLogged && isSaved !== null && !isEmpresaAccount ? (
+            <TouchableOpacity
+              style={[styles.reserveButton, isSaved ? styles.reserveButtonSaved : null]}
+              onPress={handleSave}
+              activeOpacity={0.8}
+              disabled={isSaved === null || saveLoading}
+            >
+              <View style={styles.buttonContent}>
+                {/* Texto siempre presente para mantener tamaño; lo ocultamos visualmente mientras cargamos */}
+                <Text style={[styles.buttonText, isSaved ? styles.buttonTextSaved : null, saveLoading ? { opacity: 0 } : null]}>
+                  {isSaved ? 'Quitar de guardados' : 'Guardar'}
+                </Text>
+              </View>
+              {/* Overlay centrado con spinner durante el guardado: fuera del contenido para asegurar posicionamiento relativo al botón */}
+              {saveLoading && (
+                <View style={styles.reserveButtonLoadingOverlay} pointerEvents="none">
+                  <ActivityIndicator size="small" color="#fff" />
+                </View>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View>
+              <Text style={{ textAlign: 'center', color: '#ffffffff', marginTop: 12 }}>
+                Inicia sesión con una cuenta RUMBERA para guardar eventos.
               </Text>
             </View>
-            {/* Overlay centrado con spinner durante el guardado: fuera del contenido para asegurar posicionamiento relativo al botón */}
-            {saveLoading && (
-              <View style={styles.reserveButtonLoadingOverlay} pointerEvents="none">
-                <ActivityIndicator size="small" color="#fff" />
-              </View>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <View>
-            <Text style={{ textAlign: 'center', color: '#ffffffff', marginTop: 12 }}>
-              Inicia sesión con una cuenta RUMBERA para guardar eventos.
-            </Text>
-          </View>
-        )}
-        {/* Cuando el usuario haya guardado el evento, mostrar acciones adicionales */}
-        {isSaved ? (
-          <View style={styles.iconRowCentered}>
-            <TouchableOpacity style={[styles.iconCircle, {marginRight: 24}]} onPress={handleSendMessage} activeOpacity={0.8}>
-              {/* WhatsApp icon - fine-tuned centering */}
-              <Svg width={32} height={32} viewBox="-2 -2 52 52">
-                <Path d="M24 4C12.95 4 4 12.95 4 24c0 3.98 1.09 7.7 3.01 10.93L4 44l9.07-3.01C16.3 42.91 20.02 44 24 44c11.05 0 20-8.95 20-20S35.05 4 24 4zm0 36c-3.13 0-6.17-.91-8.77-2.62l-.62-.38-7.17 1.83 1.89-6.96-.4-.63A15.97 15.97 0 1 1 24 40zm9.5-11.5c-.47-.24-2.77-1.36-3.2-1.51-.43-.15-.73-.24-1.04.24-.31.48-1.18 1.48-1.45 1.78-.27.3-.54.33-1.01.12-.47-.24-2-.74-3.83-2.38-1.41-1.25-2.36-2.81-2.63-3.3-.27-.49-.04-.73.2-.97.23-.23.49-.58.74-.88.25-.3.29-.49.46-.82.15-.33.08-.62-.04-.86-.12-.24-1-2.53-1.38-3.45-.37-.91-.74-.8-1.01-.81-.27-.01-.58-.01-.89-.01-.31 0-.82.12-1.26.62-.44.5-1.67 1.67-1.62 4.07.05 2.4 1.74 4.72 1.99 5.05.25.33 3.43 5.28 8.39 7.19 1.16.44 2.09.72 2.81.92 1.19.37 2.28.32 3.13.19.96-.14 2.77-1.12 3.18-2.09.4-.97.4-1.81.28-1.97-.12-.16-.42-.27-.89-.48z" fill="#fff"/>
-              </Svg>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.iconCircle} onPress={handleShare} activeOpacity={0.8}>
-              {/* Share arrow up out of tray icon (tray below, arrow up) - slightly larger for aesthetics */}
-              <Svg width={32} height={32} viewBox="0 0 28 28">
-                {/* Tray */}
-                <Path d="M4 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a1 1 0 1 0-2 0v2H6v-2a1 1 0 1 0-2 0v2z" fill="#fff"/>
-                {/* Arrow up */}
-                <Path d="M14 18a1 1 0 0 1-1-1V8.41l-3.3 3.3a1 1 0 1 1-1.4-1.42l5-5a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1-1.4 1.42l-3.3-3.3V17a1 1 0 0 1-1 1z" fill="#fff"/>
-              </Svg>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-      </View>
+          )}
+          {/* Cuando el usuario haya guardado el evento, mostrar acciones adicionales */}
+          {isSaved ? (
+            <View style={styles.iconRowCentered}>
+              <TouchableOpacity style={[styles.iconCircle, { marginRight: 24 }]} onPress={handleSendMessage} activeOpacity={0.8}>
+                {/* WhatsApp icon - fine-tuned centering */}
+                <Svg width={32} height={32} viewBox="-2 -2 52 52">
+                  <Path d="M24 4C12.95 4 4 12.95 4 24c0 3.98 1.09 7.7 3.01 10.93L4 44l9.07-3.01C16.3 42.91 20.02 44 24 44c11.05 0 20-8.95 20-20S35.05 4 24 4zm0 36c-3.13 0-6.17-.91-8.77-2.62l-.62-.38-7.17 1.83 1.89-6.96-.4-.63A15.97 15.97 0 1 1 24 40zm9.5-11.5c-.47-.24-2.77-1.36-3.2-1.51-.43-.15-.73-.24-1.04.24-.31.48-1.18 1.48-1.45 1.78-.27.3-.54.33-1.01.12-.47-.24-2-.74-3.83-2.38-1.41-1.25-2.36-2.81-2.63-3.3-.27-.49-.04-.73.2-.97.23-.23.49-.58.74-.88.25-.3.29-.49.46-.82.15-.33.08-.62-.04-.86-.12-.24-1-2.53-1.38-3.45-.37-.91-.74-.8-1.01-.81-.27-.01-.58-.01-.89-.01-.31 0-.82.12-1.26.62-.44.5-1.67 1.67-1.62 4.07.05 2.4 1.74 4.72 1.99 5.05.25.33 3.43 5.28 8.39 7.19 1.16.44 2.09.72 2.81.92 1.19.37 2.28.32 3.13.19.96-.14 2.77-1.12 3.18-2.09.4-.97.4-1.81.28-1.97-.12-.16-.42-.27-.89-.48z" fill="#fff" />
+                </Svg>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconCircle} onPress={handleShare} activeOpacity={0.8}>
+                {/* Share arrow up out of tray icon (tray below, arrow up) - slightly larger for aesthetics */}
+                <Svg width={32} height={32} viewBox="0 0 28 28">
+                  {/* Tray */}
+                  <Path d="M4 20a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a1 1 0 1 0-2 0v2H6v-2a1 1 0 1 0-2 0v2z" fill="#fff" />
+                  {/* Arrow up */}
+                  <Path d="M14 18a1 1 0 0 1-1-1V8.41l-3.3 3.3a1 1 0 1 1-1.4-1.42l5-5a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1-1.4 1.42l-3.3-3.3V17a1 1 0 0 1-1 1z" fill="#fff" />
+                </Svg>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
       </ScrollView>
       {/* Modal de Login (traído desde prueba.js) */}
       <Modal

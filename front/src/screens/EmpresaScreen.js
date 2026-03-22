@@ -26,7 +26,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
 import { formatPrice } from '../utils/priceUtils';
-import { Ionicons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -241,7 +240,7 @@ useEffect(() => {
     nombre: empresaData?.nombre || 'Empresa',
     rif : empresaData?.rif || 'no disponible',
     seguidores: empresaData?.total_seguidores || 0,
-    eventosPublicados: empresaData?.total_eventos || 0,
+    total_eventos: empresaData?.total_eventos || 0,
   }
 
 const handleUploadFoto = async (empresaId) => {
@@ -328,10 +327,72 @@ const handleUploadFoto = async (empresaId) => {
 
   const [eventos, setEventos] = useState([]);
 
+// useEffect(() => {
+//   const fetchEventos = async () => {
+//     try {
+//      const empresaId = await AsyncStorage.getItem("empresaId");
+
+//       if (!empresaId) {
+//         console.log("El usuario todavía no tiene empresa asociada.");
+//         setEventos([]);
+//         return;
+//       }
+
+//       const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
+
+//       const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
+
+//       // Filtrar para mostrar solo eventos cuya fecha >= fecha actual (comparación por día)
+//       // Eventos sin `fecha_evento` se mostrarán (no se consideran 'pasados')
+//       const hoy = new Date();
+//       hoy.setHours(0,0,0,0);
+//       const futurosRaw = resultadosRaw.filter(ev => {
+//         if (!ev || !ev.fecha_evento) return true;
+//         const d = new Date(ev.fecha_evento);
+//         if (isNaN(d.getTime())) return true; // si la fecha no es válida, mostrar
+//         d.setHours(0,0,0,0);
+//         return d >= hoy;
+//       });
+
+//       const eventosTransformados = futurosRaw.map(ev => ({
+//         id: ev.id,
+//         titulo: ev.titulo,
+//         fecha: ev.fecha_evento
+//             ? new Date(ev.fecha_evento).toLocaleDateString()
+//             : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+//         hora: ev.fecha_evento
+//           ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+//           : null,
+//         // fecha: ev.fecha_evento || "Fecha no definida",
+//         // hora: ev.hora_evento || "Hora no definida",
+//   ubicacion: ev.ubicacion,
+//   precio: formatPrice(ev.precio, ev.moneda || 'USD'),
+//         categoria: Array.isArray(ev.categoria) ? ev.categoria.join(' ') : (ev.categoria || "Sin categoría"),
+//         categoriaColor: ev.categoriaColor || "#4f46e5",
+//         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
+//         imagenes: ev.imagenes,
+//         ownerName: ev.ownerName || `Empresa #${empresaId}`,
+//         empresaId: ev.empresaId || empresaId,
+//       }));
+
+//       setEventos(eventosTransformados);
+//    } catch (error) {
+//       if (error.response) {
+//         console.error("❌ Error HTTP:", error.response.status, error.response.data);
+//       } else {
+//         console.error("❌ Error:", error.message);
+//       }
+//    }
+//   };
+
+//   fetchEventos(); }, []);
+
+  // Animación de notificaciones
+  
 useEffect(() => {
   const fetchEventos = async () => {
     try {
-     const empresaId = await AsyncStorage.getItem("empresaId");
+      const empresaId = await AsyncStorage.getItem("empresaId");
 
       if (!empresaId) {
         console.log("El usuario todavía no tiene empresa asociada.");
@@ -343,53 +404,40 @@ useEffect(() => {
 
       const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
 
-      // Filtrar para mostrar solo eventos cuya fecha >= fecha actual (comparación por día)
-      // Eventos sin `fecha_evento` se mostrarán (no se consideran 'pasados')
-      const hoy = new Date();
-      hoy.setHours(0,0,0,0);
-      const futurosRaw = resultadosRaw.filter(ev => {
-        if (!ev || !ev.fecha_evento) return true;
-        const d = new Date(ev.fecha_evento);
-        if (isNaN(d.getTime())) return true; // si la fecha no es válida, mostrar
-        d.setHours(0,0,0,0);
-        return d >= hoy;
-      });
-
-      const eventosTransformados = futurosRaw.map(ev => ({
+      // ✅ Ya no filtramos por fecha, usamos todos los eventos
+      const eventosTransformados = resultadosRaw.map(ev => ({
         id: ev.id,
         titulo: ev.titulo,
         fecha: ev.fecha_evento
-            ? new Date(ev.fecha_evento).toLocaleDateString()
-            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
+          ? new Date(ev.fecha_evento).toLocaleDateString()
+          : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : "Fecha no definida"),
         hora: ev.fecha_evento
-          ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
           : null,
-        // fecha: ev.fecha_evento || "Fecha no definida",
-        // hora: ev.hora_evento || "Hora no definida",
-  ubicacion: ev.ubicacion,
-  precio: formatPrice(ev.precio, ev.moneda || 'USD'),
-        categoria: Array.isArray(ev.categoria) ? ev.categoria.join(' ') : (ev.categoria || "Sin categoría"),
+        ubicacion: ev.ubicacion,
+        precio: formatPrice(ev.precio, ev.moneda || "USD"),
+        categoria: Array.isArray(ev.categoria) ? ev.categoria.join(" ") : (ev.categoria || "Sin categoría"),
         categoriaColor: ev.categoriaColor || "#4f46e5",
         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
         imagenes: ev.imagenes,
         ownerName: ev.ownerName || `Empresa #${empresaId}`,
         empresaId: ev.empresaId || empresaId,
-        viewsCount: ev.views_count || 0,
       }));
 
       setEventos(eventosTransformados);
-   } catch (error) {
+    } catch (error) {
       if (error.response) {
         console.error("❌ Error HTTP:", error.response.status, error.response.data);
       } else {
         console.error("❌ Error:", error.message);
       }
-   }
+    }
   };
 
-  fetchEventos(); }, []);
+  fetchEventos();
+}, []);
 
-  // Animación de notificaciones
+  
   useEffect(() => {
     if (modalVisible.notifications) {
       Animated.timing(notifAnim, {
@@ -479,11 +527,14 @@ useEffect(() => {
                 resizeMode="cover"
               />
             ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12 }}>
-                <Text style={styles?.fotoIcon || { color: '#fff', textAlign: 'center' }}>
-                  👤 
-                </Text>
-              </View>
+              <View style={{ width: '100%', height: '100%', borderRadius: 64, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+                            <Image
+                              source={require('../../assets/cotele.png')}
+                              // Imagen más pequeña (96x96) centrada; la desplazamos levemente hacia arriba para ocultar texto inferior
+                              style={{ width: '100%', height: '100%'}}
+                              resizeMode="cover"
+                            />
+                          </View>
             )}
         </TouchableOpacity>
         </View>
@@ -1021,14 +1072,7 @@ const renderSocialCircles = () => {
                     <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
                   </View>
                   <View style={styles.eventoFooter}>
-                    
-                      <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                      <View style={styles.eventoViews}>
-                        <Ionicons name="eye-outline" size={16} color="#94a3b8" />
-                        <Text style={styles.eventoInfoText}>{evento.viewsCount}</Text>
-                      </View>
-                    
-
+                    <Text style={styles.eventoPrecio}>{evento.precio}</Text>
                   
                     <TouchableOpacity
                       style={[styles.verDetallesButton, { backgroundColor: '#ef4444', marginRight: 8 }]}
@@ -1500,14 +1544,6 @@ const styles = StyleSheet.create({
   eventoInfoText: {
     color: '#ffffff',
     fontSize: 14,
-  },
-  eventoViews: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
   eventoFooter: {
     flexDirection: 'row',
