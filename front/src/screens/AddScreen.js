@@ -63,6 +63,19 @@ export default function AddScreen() {
   const [edadModalVisible, setEdadModalVisible] = useState(false);
   const [ubicacionModalVisible, setUbicacionModalVisible] = useState(false);
   const [categoriaSearchText, setCategoriaSearchText] = useState('');
+  
+  // --- Scroll y enfoque de campos (UX) ---
+  const scrollRef = useRef(null);
+  const fieldPositions = useRef({}); // { titulo: y, imagenes: y, ... }
+  const registerFieldPosition = (key, y) => { fieldPositions.current[key] = y; };
+  const scrollToField = (key) => {
+    const y = fieldPositions.current[key];
+    if (y != null && scrollRef.current) {
+      setTimeout(() => {
+        scrollRef.current.scrollTo({ y: Math.max(y - 120, 0), animated: true });
+      }, 80);
+    }
+  };
   const [empresaId, setEmpresaId] = useState(null);
   // Estados nuevos front
   const [calendarVisible, setCalendarVisible] = useState(false);
@@ -326,6 +339,9 @@ const createEvento = async (payload, empresaId) => {
 
     if (Object.keys(newErrors).length > 0) {
       setErrors((prev) => ({ ...prev, ...newErrors }));
+      // Desplazar al primer error
+      const firstError = ['titulo', 'imagenes', 'categoria', 'codigoVestimenta', 'fecha', 'hora', 'precio', 'capacidad'].find(k => newErrors[k]);
+      if (firstError) scrollToField(firstError);
       return;
     }
   // Construye payload (JSON o FormData si llevas archivo)
@@ -867,6 +883,7 @@ useEffect(() => {
       </View>
 
       <ScrollView 
+        ref={scrollRef}
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: safeMargins.bottom + 20 }}
@@ -874,9 +891,16 @@ useEffect(() => {
         <View style={[styles.content, { paddingHorizontal: safeMargins.horizontal }]}>
           <Text style={styles.title}>Crear Nuevo Evento</Text>
           
-          <View style={styles.form}>
+          <View style={[styles.form, { marginTop: 16 }]}>
+            {/* Error Global */}
+            {!!errors?.global && (
+              <View style={styles.globalErrorContainer}>
+                <Text style={styles.globalErrorText}>{errors.global}</Text>
+              </View>
+            )}
+
             {/* Título del evento */}
-            <View style={styles.inputGroup}>
+            <View style={styles.inputGroup} onLayout={(e) => registerFieldPosition('titulo', e.nativeEvent.layout.y)}>
               <Text style={styles.label}>Título del evento *</Text>
               <TextInput
                 style={[styles.input, !!errors?.titulo && styles.inputError]}
@@ -891,7 +915,7 @@ useEffect(() => {
             </View>
 
             {/* Imagen del evento */}
-            <View style={styles.inputGroup}>
+            <View style={styles.inputGroup} onLayout={(e) => registerFieldPosition('imagenes', e.nativeEvent.layout.y)}>
               <Text style={styles.label}>Imagen del evento</Text>
               {/* Si hay imágenes, no debe ser presionable: usar View para permitir deslizar */}
               {((formData.imagenesLocales?.length || 0) + (formData.imagenesTemp?.length || 0)) > 0 ? (
@@ -972,7 +996,7 @@ useEffect(() => {
             </View>
 
             {/* Categoría */}
-            <View style={styles.inputGroup}>
+            <View style={styles.inputGroup} onLayout={(e) => registerFieldPosition('categoria', e.nativeEvent.layout.y)}>
               <Text style={styles.label}>Categoría *</Text>
               <TouchableOpacity
                 style={[styles.selectorButton, !!errors?.categoria && styles.inputError]}
@@ -989,7 +1013,7 @@ useEffect(() => {
             </View>
 
                          {/* Código de vestimenta */}
-             <View style={styles.inputGroup}>
+             <View style={styles.inputGroup} onLayout={(e) => registerFieldPosition('codigoVestimenta', e.nativeEvent.layout.y)}>
                <Text style={styles.label}>Código de vestimenta *</Text>
                <TouchableOpacity
                  style={[styles.selectorButton, !!errors?.codigoVestimenta && styles.inputError]}
@@ -1126,7 +1150,7 @@ useEffect(() => {
             </View>
 
             {/* Fecha y hora del evento (FRONT) */}
-            <View style={styles.inputGroup}>
+            <View style={styles.inputGroup} onLayout={(e) => registerFieldPosition('fecha', e.nativeEvent.layout.y)}>
               <Text style={styles.label}>Fecha y hora del evento *</Text>
               <View style={{ flexDirection:'row', gap:12 }}>
                 <TouchableOpacity
@@ -1158,7 +1182,7 @@ useEffect(() => {
             </View>
 
             {/* Precio */}
-            <View style={styles.inputGroup}>
+            <View style={styles.inputGroup} onLayout={(e) => registerFieldPosition('precio', e.nativeEvent.layout.y)}>
               <Text style={styles.label}>Precio</Text>
               <View style={styles.precioOptionsContainer}>
                 <TouchableOpacity
@@ -1529,6 +1553,20 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: '#ef4444',
+  },
+  globalErrorContainer: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+  },
+  globalErrorText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   // Estilos para modales
   modalOverlay: {

@@ -391,7 +391,7 @@ export default function BuyScreen() {
           setSavedId(res.data.id);
           setRefreshSaved(r => r + 1);
         } else {
-          alert('Error al guardar: ' + JSON.stringify(res?.data));
+          Alert.alert('Error', 'No se pudo guardar el evento: ' + JSON.stringify(res?.data));
         }
       } else {
         // Quitar de guardados
@@ -406,10 +406,10 @@ export default function BuyScreen() {
       // Si el backend devuelve el error de duplicado, muestra mensaje amigable
       const detail = err?.response?.data?.detail;
       if (detail === 'Ya guardaste este evento.') {
-        alert('Ya guardaste este evento.');
+        Alert.alert('Aviso', 'Ya guardaste este evento.');
       } else {
-        console.error('❌ Error al guardar/quitar:', err?.message || err);
-        alert('Error al guardar/quitar: ' + (detail || err?.message || JSON.stringify(err)));
+        console.log('❌ Error al guardar/quitar:', err?.message || err);
+        Alert.alert('Error', 'Ocurrió un problema al guardar o quitar el evento.');
       }
     } finally {
       setSaveLoading(false);

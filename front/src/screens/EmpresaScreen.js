@@ -824,16 +824,18 @@ const renderSocialCircles = () => {
         return v;
       })(newSocialType);
       const entry = { tipo: canonicalType, url: newSocialUrl.trim() };
+      const prevRedes = empresaData?.redes_sociales || [];
       let next;
       if (editingSocialIndex >= 0 && Array.isArray(empresaData?.redes_sociales)) {
         next = [...empresaData.redes_sociales];
         next[editingSocialIndex] = entry;
       } else {
         const prev = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
-        // replace any existing entry with same tipo
         const filtered = prev.filter(i => String(i?.tipo || '').toLowerCase() !== canonicalType);
         next = [...filtered, entry];
       }
+
+      // Optimistic update
       setEmpresaData(prev => ({ ...prev, redes_sociales: next }));
 
       // Try to persist to backend if empresa id exists
@@ -841,8 +843,13 @@ const renderSocialCircles = () => {
       if (empresaId) {
         try {
           await api.patch(`/api/empresas/${empresaId}/`, { redes_sociales: next });
+          Alert.alert('Éxito', 'Red social guardada correctamente.');
         } catch (err) {
           console.log('No se pudo persistir redes sociales', err?.response?.data || err.message || err);
+          // Rollback
+          setEmpresaData(prev => ({ ...prev, redes_sociales: prevRedes }));
+          Alert.alert('Error', 'No se pudo guardar la red social en el servidor.');
+          return; // Keep modal open maybe? Actually modal closes below.
         }
       }
 
@@ -886,6 +893,9 @@ const renderSocialCircles = () => {
                 await api.patch(`/api/empresas/${empresaId}/`, { redes_sociales: next });
               } catch (err) {
                 console.log('Error eliminando red social', err?.response?.data || err.message || err);
+                // Rollback
+                setEmpresaData(old => ({ ...old, redes_sociales: prev }));
+                Alert.alert('Error', 'No se pudo eliminar de forma permanente. Revisa tu conexión.');
               }
             }
           }
