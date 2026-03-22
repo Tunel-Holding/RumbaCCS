@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { loginConFallback } from '../utils/auth';
 import axios from 'axios';
+import { Calendar } from 'react-native-calendars'; // Si ya está importado, omite esta línea
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
@@ -578,7 +579,7 @@ const fetchEventos = async (pageNumber = 1, append = false) => {
   }
 };
 
- // tu función fetchPromotedEventos (la que ya tienes)
+// tu función fetchPromotedEventos (la que ya tienes)
   const fetchPromotedEventos = async () => {
     setLoading(true);
     try {
@@ -651,7 +652,7 @@ const filteredEvents = fuente.filter(e => {
   return matchesType && qTokens.every(token => fields.some(f => fuzzyMatch(token, f)));
 });
 
-  // Reiniciar página si cambian filtros o búsqueda
+// Reiniciar página si cambian filtros o búsqueda
   useEffect(() => { setPage(0); }, [scopeFilter, typeFilter, search]);
   const totalPages = Math.ceil(filteredEvents.length / pageSize) || 1;
   const pageEvents = filteredEvents.slice(page * pageSize, (page + 1) * pageSize);
@@ -665,7 +666,111 @@ const filteredEvents = fuente.filter(e => {
 //   scrollRef.current?.scrollTo({ y: 0, animated: true });
 // }, [filter]);
 
+// --- ESTADOS PARA CALENDARIO DE EVENTOS GUARDADOS ---
+const [eventosPorMes, setEventosPorMes] = useState({}); // { '2025-10': [eventos] }
+const [mesActual, setMesActual] = useState({ year: 2025, month: 10 }); // Inicializa con el mes actual
+const [loadingEventosCalendario, setLoadingEventosCalendario] = useState(false);
+const [offsetPorMes, setOffsetPorMes] = useState({}); // { '2025-10': offset }
+const [totalPorMes, setTotalPorMes] = useState({}); // { '2025-10': total }
+const LIMIT_EVENTOS = 20;
 
+function getMonthRange(year, month) {
+  const start = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = new Date(year, month, 0).getDate();
+  const end = `${year}-${String(month).padStart(2, '0')}-${endDate}`;
+  return { start, end };
+}
+
+async function fetchEventosMes(year, month, offset = 0, append = false) {
+  setLoadingEventosCalendario(true);
+  try {
+    const { start, end } = getMonthRange(year, month);
+    const url = `/api/eventos-guardados/?calendar=1&fecha_inicio=${start}&fecha_fin=${end}&limit=${LIMIT_EVENTOS}&offset=${offset}`;
+    const res = await api.get(url);
+    const eventos = res.data.results || [];
+    const total = res.data.total || eventos.length;
+    setTotalPorMes(prev => ({ ...prev, [`${year}-${month}`]: total }));
+    setOffsetPorMes(prev => ({ ...prev, [`${year}-${month}`]: offset + eventos.length }));
+    setEventosPorMes(prev => ({
+      ...prev,
+      [`${year}-${month}`]: append && prev[`${year}-${month}`]
+        ? [...prev[`${year}-${month}`], ...eventos]
+        : eventos
+    }));
+  } catch (e) {
+    // Puedes mostrar un error si lo deseas
+  } finally {
+    setLoadingEventosCalendario(false);
+  }
+}
+
+// Solo carga el mes actual al montar
+useEffect(() => {
+  const { year, month } = mesActual;
+  const key = `${year}-${month}`;
+  if (!eventosPorMes[key]) fetchEventosMes(year, month, 0, false);
+}, [mesActual]);
+
+function handleMesChange(year, month) {
+  setMesActual({ year, month });
+  const key = `${year}-${month}`;
+  if (!eventosPorMes[key]) {
+    fetchEventosMes(year, month, 0, false);
+  }
+}
+
+function handleCargarMasEventos() {
+  const key = `${mesActual.year}-${mesActual.month}`;
+  const offset = offsetPorMes[key] || 0;
+  fetchEventosMes(mesActual.year, mesActual.month, offset, true);
+}
+
+function renderCalendarioEventos() {
+  const key = `${mesActual.year}-${mesActual.month}`;
+  const eventosMes = eventosPorMes[key] || [];
+  const total = totalPorMes[key] || 0;
+  const offset = offsetPorMes[key] || 0;
+  return (
+    <View style={{ marginVertical: 24 }}>
+      <Text style={{ color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 12 }}>Tus eventos guardados</Text>
+      <Calendar
+        current={`${mesActual.year}-${String(mesActual.month).padStart(2, '0')}-01`}
+        onMonthChange={date => handleMesChange(date.year, date.month)}
+        markedDates={eventosMes.reduce((acc, ev) => {
+          const fecha = ev.fecha_evento?.slice(0, 10);
+          if (fecha) acc[fecha] = { marked: true };
+          return acc;
+        }, {})}
+        theme={{
+          calendarBackground: '#181A20',
+          dayTextColor: '#fff',
+          monthTextColor: '#fff',
+          selectedDayBackgroundColor: '#0ea5e9',
+          selectedDayTextColor: '#fff',
+        }}
+      />
+      {loadingEventosCalendario && <ActivityIndicator color="#0ea5e9" style={{ marginTop: 16 }} />}
+      <View style={{ marginTop: 16 }}>
+        {eventosMes.length === 0 && !loadingEventosCalendario ? (
+          <Text style={{ color: '#94a3b8', textAlign: 'center' }}>No tienes eventos guardados este mes.</Text>
+        ) : (
+          eventosMes.map(ev => (
+            <View key={ev.id} style={{ backgroundColor: '#334155', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>{ev.title}</Text>
+              <Text style={{ color: '#cbd5e1' }}>{ev.fecha_evento?.replace('T', ' ').slice(0, 16)}</Text>
+            </View>
+          ))
+        )}
+        {/* Botón para cargar más si hay más eventos */}
+        {offset < total && !loadingEventosCalendario && (
+          <TouchableOpacity onPress={handleCargarMasEventos} style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: 'bold' }}>Ver más eventos</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+}
 
   if (loading) {
     return (

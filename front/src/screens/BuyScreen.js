@@ -377,7 +377,6 @@ export default function BuyScreen() {
     }
     if (!idEvento) return;
     try {
-      // Prevent duplicate requests
       setSaveLoading(true);
       if (!isSaved) {
         // Guardar evento
@@ -385,10 +384,9 @@ export default function BuyScreen() {
           evento: idEvento,
         });
         if (res?.data?.id) {
-          // Update UI immediately
           setIsSaved(true);
           setSavedId(res.data.id);
-          setRefreshSaved(r => r + 1); // fuerza recarga en background
+          setRefreshSaved(r => r + 1);
         } else {
           alert('Error al guardar: ' + JSON.stringify(res?.data));
         }
@@ -397,17 +395,20 @@ export default function BuyScreen() {
         if (savedId) {
           await api.delete('/api/eventos-guardados/' + savedId + '/');
         }
-        // Update UI immediately
         setIsSaved(false);
         setSavedId(null);
-
-        setRefreshSaved(r => r + 1); // fuerza recarga en background
+        setRefreshSaved(r => r + 1);
       }
     } catch (err) {
-      console.error('❌ Error al guardar/quitar:', err?.message || err);
-      alert('Error al guardar/quitar: ' + (err?.message || JSON.stringify(err)));
-    }
-    finally {
+      // Si el backend devuelve el error de duplicado, muestra mensaje amigable
+      const detail = err?.response?.data?.detail;
+      if (detail === 'Ya guardaste este evento.') {
+        alert('Ya guardaste este evento.');
+      } else {
+        console.error('❌ Error al guardar/quitar:', err?.message || err);
+        alert('Error al guardar/quitar: ' + (detail || err?.message || JSON.stringify(err)));
+      }
+    } finally {
       setSaveLoading(false);
     }
   };
