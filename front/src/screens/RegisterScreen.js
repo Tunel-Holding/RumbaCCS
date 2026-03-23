@@ -152,9 +152,15 @@ export default function RegisterScreen({ navigation, route }) {
         return;
       }
 
+      let phoneDigits = telefono.replace(/[^\d]/g, '');
+      // Normalizar números venezolanos: si viene como 0XXXXXXXXXX (11 dígitos), guardar XXXXXXXXXX (10 dígitos)
+      if (phoneDigits.startsWith('0') && phoneDigits.length === 11) {
+        phoneDigits = phoneDigits.slice(1);
+      }
+
       const formData = {
         username: user.trim(),
-        phone: telefono.replace(/[^\d]/g, ''),
+        phone: phoneDigits,
         birthday,
         region,
         gender: sexo,
@@ -352,33 +358,43 @@ export default function RegisterScreen({ navigation, route }) {
                   setConfirmingPin(true);
                   const pendingUser = await AsyncStorage.getItem('pending_user');
                   const userData = JSON.parse(pendingUser);
+
+                  // 1) Verificar PIN (si falla aquí, sí es "PIN incorrecto")
                   const response = await api.post(`/api/verify-code/`, { email: userData.email, code: pinIngresado });
-                  const result = response.data;
                   if (response.status !== 200) {
                     setPinError(true);
+                    triggerShake();
                     setConfirmingPin(false);
                     return;
                   }
+
+                  // 2) Finalizar registro (si falla, mostrar el error real del backend)
                   const createResponse = await api.post(`/api/finalize-register/`, userData);
                   const createResult = createResponse.data;
-                  if (createResponse.status < 200 || createResponse.status >= 300) {
-                    Alert.alert('Error', createResult.error || 'No se pudo crear el usuario.');
-                    setConfirmingPin(false);
-                    return;
-                  }
+
                   await AsyncStorage.setItem('accessToken', createResult.access);
                   await AsyncStorage.setItem('refreshToken', createResult.refresh);
                   await AsyncStorage.setItem('userName', createResult.user.username);
                   setVerificado(true);
                   setCargando(false);
                 } catch (err) {
-                  if (err.response && err.response.status === 400) {
-                    // PIN incorrecto → mostrar vista amigable
+                  const statusCode = err?.response?.status;
+                  const url = err?.config?.url || '';
+                  const errData = err?.response?.data;
+
+                  // Si falló el endpoint de verificación -> UI de PIN incorrecto
+                  if (statusCode === 400 && url.includes('/api/verify-code/')) {
                     setPinError(true);
                     triggerShake();
+                    setConfirmingPin(false);
+                    return;
+                  }
+
+                  // Si falló finalize-register u otro 400 -> mostrar mensaje real
+                  if (statusCode === 400 && errData) {
+                    Alert.alert('Error', getFirstMessage(errData));
                   } else {
-                    // Error inesperado → alerta genérica
-                    Alert.alert('Error', err.message || 'No se pudo verificar el PIN.');
+                    Alert.alert('Error', err.message || 'No se pudo completar el registro.');
                   }
                   setConfirmingPin(false);
                 }

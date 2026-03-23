@@ -58,3 +58,5 @@ Thumbs.db
 
 # Celery
 back/celerybeat-schedule*
+
+back/.env

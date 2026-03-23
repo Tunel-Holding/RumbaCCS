@@ -446,45 +446,6 @@ export default function BuyScreen() {
     }
   };
 
-<<<<<<< HEAD
-  const handleReserve = async () => {
-    if (!isLogged) {
-      setLoginVisible(true);
-      return;
-    }
-    if (!idEvento) return;
-
-    Alert.alert(
-      "Confirmar Reserva",
-      "¿Deseas reservar tu lugar para este evento?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Reservar",
-          onPress: async () => {
-            try {
-              setReservaLoading(true);
-              const res = await api.post('/api/reservas/', {
-                evento: idEvento,
-                cantidad: 1 // Por defecto 1 para MVP
-              });
-              setReservaConfirmada(res.data);
-              setReservaModalVisible(true);
-            } catch (err) {
-              console.error('Error al reservar:', err);
-              const msg = err.response?.data?.detail || err.message || 'Error desconocido';
-              Alert.alert('Error', 'No se pudo completar la reserva: ' + msg);
-            } finally {
-              setReservaLoading(false);
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  // Handler para compartir el evento con otras personas (usa plantilla enriquecida)
-=======
   // Abrir WhatsApp con mensaje predefinido "Mas informacion"; si no existe, fallback a handleSendMessage
   const openWhatsApp = async (wa) => {
     // wa puede ser número o url
@@ -536,8 +497,43 @@ export default function BuyScreen() {
     }
   };
 
+  const handleReserve = async () => {
+    if (!isLogged) {
+      setLoginVisible(true);
+      return;
+    }
+    if (!idEvento) return;
+
+    Alert.alert(
+      "Confirmar Reserva",
+      "¿Deseas reservar tu lugar para este evento?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Reservar",
+          onPress: async () => {
+            try {
+              setReservaLoading(true);
+              const res = await api.post('/api/reservas/', {
+                evento: idEvento,
+                cantidad: 1 // Por defecto 1 para MVP
+              });
+              setReservaConfirmada(res.data);
+              setReservaModalVisible(true);
+            } catch (err) {
+              console.error('Error al reservar:', err);
+              const msg = err.response?.data?.detail || err.message || 'Error desconocido';
+              Alert.alert('Error', 'No se pudo completar la reserva: ' + msg);
+            } finally {
+              setReservaLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Handler para compartir el evento con otras personas
->>>>>>> secundary/actualizacion
   const handleShare = async () => {
     try {
       const message = buildShareMessage(eventDetails, idEvento || currentEventoId);
@@ -671,27 +667,17 @@ export default function BuyScreen() {
         </View>
       )}
       {/* Barra de volver debajo del header */}
-<<<<<<< HEAD
       <View style={[styles.backBar, { marginTop: 4 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>
           <Text style={styles.backBarIcon}>‹</Text>
           <Text style={styles.backBarText}>Volver</Text>
         </TouchableOpacity>
+        <TouchableOpacity onPress={handleShare} activeOpacity={0.85} style={styles.shareBtn}>
+          <Ionicons name="share-social-outline" size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
+          <Text style={[styles.backBarText, { color: COLORS.primary, fontWeight: '800' }]}>Compartir</Text>
+        </TouchableOpacity>
       </View>
       <ScrollView style={[styles.container, { paddingTop: 12, paddingBottom: 0 }]} contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
-=======
-          <View style={[styles.backBar, { marginTop: 4 }]}>
-            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>
-              <Text style={styles.backBarIcon}>‹</Text>
-              <Text style={styles.backBarText}>Volver</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleShare} activeOpacity={0.85} style={styles.shareBtn}>
-              <Ionicons name="share-social-outline" size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
-              <Text style={[styles.backBarText, { color: COLORS.primary, fontWeight: '800' }]}>Compartir</Text>
-            </TouchableOpacity>
-          </View>
-  <ScrollView style={[styles.container, { paddingTop: 12, paddingBottom: 0 }]} contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
->>>>>>> secundary/actualizacion
         {/* Carrusel de Evento Principal Mejorado */}
         <Text style={styles.sectionTitle}>Evento Principal</Text>
         <View style={[styles.carouselEnhancedWrapper, styles.fullBleed]}>
@@ -970,7 +956,6 @@ export default function BuyScreen() {
                 Inicia sesión con una cuenta RUMBERA para guardar eventos.
               </Text>
             </View>
-<<<<<<< HEAD
           )}
           {/* Cuando el usuario haya guardado el evento, mostrar acciones adicionales */}
           {isSaved ? (
@@ -993,30 +978,6 @@ export default function BuyScreen() {
             </View>
           ) : null}
         </View>
-=======
-            {/* Overlay centrado con spinner durante el guardado: fuera del contenido para asegurar posicionamiento relativo al botón */}
-            {saveLoading && (
-              <View style={styles.reserveButtonLoadingOverlay} pointerEvents="none">
-                <ActivityIndicator size="small" color="#fff" />
-              </View>
-            )}
-          </TouchableOpacity>
-        ) : (
-          <View>
-            <Text style={{ textAlign: 'center', color: '#ffffffff', marginTop: 12 }}>
-              Inicia sesión con una cuenta RUMBERA para guardar eventos.
-            </Text>
-          </View>
-        )}
-        {/* Cuando el usuario haya guardado el evento, mostrar acciones adicionales */}
-        {isSaved ? (
-          <View style={styles.actionsRow}>
-           
-            {/* El botón de compartir se movió a las tarjetas de evento (icono de 3 puntitos) en las vistas de lista. */}
-          </View>
-        ) : null}
-      </View>
->>>>>>> secundary/actualizacion
       </ScrollView>
       {/* Modal de Login (traído desde prueba.js) */}
       <Modal

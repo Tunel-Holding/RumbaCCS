@@ -144,6 +144,7 @@ class SendVerificationCodeView(APIView):
         expires_at = timezone.now() + timezone.timedelta(minutes=10)
         EmailVerification.objects.update_or_create(
             email=email,
+            purpose='register',
             defaults={
                 'code': code,
                 'expires_at': expires_at,
@@ -169,7 +170,7 @@ class VerifyCodeView(APIView):
         if not email or not code:
             return Response({'error': 'Email y código requeridos.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            verification = EmailVerification.objects.get(email=email, code=code)
+            verification = EmailVerification.objects.get(email=email, code=code, purpose='register')
         except EmailVerification.DoesNotExist:
             return Response({'error': 'Código incorrecto.'}, status=status.HTTP_400_BAD_REQUEST)
         if verification.expires_at < timezone.now():
@@ -273,7 +274,7 @@ class FinalizeRegisterView(APIView):
         
         # Verifica que el correo esté verificado
         try:
-            verification = EmailVerification.objects.get(email=email, is_verified=True)
+            verification = EmailVerification.objects.get(email=email, is_verified=True, purpose='register')
         except EmailVerification.DoesNotExist:
             return Response({'error': 'Correo no verificado.'}, status=status.HTTP_400_BAD_REQUEST)
         # Crea el usuario si no existe
@@ -283,7 +284,7 @@ class FinalizeRegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         # Elimina el registro de verificación de email
-        EmailVerification.objects.filter(email=email, is_verified=True).delete()
+        EmailVerification.objects.filter(email=email, is_verified=True, purpose='register').delete()
         refresh = RefreshToken.for_user(user)
         return Response({
             'message': 'Usuario creado exitosamente.',

@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
+import re
 
 from empresa.models import Empresa
 from empresa.serializers import EmpresaSerializer
@@ -124,10 +125,13 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ['email', 'username', 'password', 'phone', 'birthday', 'region', 'gender']
 
     def validate_phone(self, value):
-        # Asegura 10 dígitos. Si vas a permitir otros formatos, cámbialo a CharField en el modelo.
-        if not (1000000000 <= int(value) <= 9999999999):
+        digits = re.sub(r"\D", "", str(value or ""))
+        # Normalizar números venezolanos: si viene como 0XXXXXXXXXX (11 dígitos), guardar XXXXXXXXXX (10 dígitos)
+        if digits.startswith('0') and len(digits) == 11:
+            digits = digits[1:]
+        if len(digits) != 10:
             raise serializers.ValidationError("El teléfono debe tener 10 dígitos.")
-        return value
+        return digits
     
     def create(self, validated_data):
         password = validated_data.pop('password')
