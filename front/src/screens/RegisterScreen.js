@@ -10,14 +10,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
+import { useFonts } from 'expo-font';
 
 const { width } = Dimensions.get('window');
-
-
-
-
-
-
 
 
 // helpers/opcional: extrae el primer mensaje legible
@@ -49,6 +44,9 @@ export const registerUser = async (formData) => {
 };
 
 export default function RegisterScreen({ navigation, route }) {
+  const [fontsLoaded] = useFonts({
+      'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
+    });
   const insets = useSafeAreaInsets();
   const topSpacer = insets.top + 8;
   const bottomSpacer = insets.bottom + 24;
@@ -446,7 +444,7 @@ export default function RegisterScreen({ navigation, route }) {
             <Text style={styles.backArrow}>←</Text>
             <Text style={styles.backText}>Volver</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>RumbaCCS</Text>
+          <Text style={{ fontFamily: fontsLoaded ? 'BebasNeue' : undefined, fontSize: 48, color: '#bb2776ff' }}>EVENTIAL</Text>
           <Text style={styles.subtitle}>¡Regístrate para continuar!</Text>
           {/* Descripción según tipo de cuenta */}
           {accountType === 'normal' ? null : (
@@ -751,7 +749,7 @@ export function AccountTypeScreen({ navigation, route }) {
         <View style={{ marginTop: 20, width: '100%', backgroundColor: 'rgba(234,179,8,0.15)', borderLeftWidth: 4, borderLeftColor: '#f59e0b', padding: 12, borderRadius: 8 }}>
             <Text style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Aviso</Text>
             <Text style={{ color: '#fde68a', fontSize: 13, lineHeight: 18 }}>
-              Para tener una cuenta de empresa, se debe pasar primero por una verificación.
+              Para tener una cuenta de organizador, se debe pasar primero por una verificación.
             </Text>
           </View>
       </View>
@@ -812,6 +810,7 @@ const styles = StyleSheet.create({
     color: '#ec4899',
     textAlign: 'center',
     marginBottom: 8,
+
   },
   subtitle: {
     color: '#64748b',

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'; // <-- useCallback es buena práctica con useFocusEffect
 import { useNavigation, useFocusEffect } from '@react-navigation/native'; // <-- Importa useFocusEffect
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator, Share } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator, Share, Linking, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { loginConFallback } from '../utils/auth';
@@ -265,6 +265,31 @@ export default function HomeScreen() {
       console.warn('handleShareEvent error', err);
     }
   };
+
+  // Handler para abrir la página de calificación de la app
+  const RATING_URLS = {
+    ios: 'https://apps.apple.com/app/idYOUR_APP_ID',
+    android: 'https://play.google.com/store/apps/details?id=YOUR_PACKAGE_NAME',
+  };
+
+  // Función para manejar la calificación de la app
+  const handleRateApp = async () => {
+    try {
+      const url = Platform.OS === 'ios' ? RATING_URLS.ios : RATING_URLS.android;
+      if (!url || url.includes('YOUR_')) {
+        Alert.alert('Configurar enlace', 'Por favor configura la URL de la tienda en HomeScreen (RATING_URLS).');
+        return;
+      }
+      const can = await Linking.canOpenURL(url);
+      if (can) await Linking.openURL(url);
+      else Alert.alert('No disponible', 'No se pudo abrir el enlace de la tienda.');
+    } catch (e) {
+      console.warn('handleRateApp error', e);
+      Alert.alert('Error', 'No se pudo abrir la tienda.');
+    }
+  };
+
+
 
   const handleLogin = async () => {
     setLoginError('');
@@ -638,16 +663,6 @@ export default function HomeScreen() {
   useEffect(() => {
     fetchPromotedEventos();
   }, []);
-
-
-  // Footer links
-  const footerLinks = [
-    { title: 'Reservas' },
-    { title: 'Promoción de eventos' },
-    { title: 'Soporte al organizador' },
-    { title: 'API para desarrolladores' }
-  ];
-
 
   // --- estados extra ---
   const [nearbyEvents, setNearbyEvents] = useState([]);
@@ -1218,11 +1233,20 @@ export default function HomeScreen() {
           <View style={styles.footerInner}>
             <Image source={require('../../assets/footer_logo.jpg')} style={styles.footerLogo} />
             <View style={styles.footerText}>
-              <Text style={styles.footerTitle}>RumbaCCS</Text>
+              <Text style={styles.footerTitle}>EVENTIALccs</Text>
 
               <Text style={styles.footerCopyright}>© 2025 IA Tecnología y Servicios. Todos los derechos reservados.</Text>
+        <Text style={styles.footerCopyright}>Email: javig.com</Text>
             </View>
-          </View>
+      
+      
+
+    </View>
+    <View style={styles.footerActions}>
+        <TouchableOpacity style={styles.footerButton} onPress={handleRateApp} accessibilityRole="button">
+          <Text style={styles.footerButtonText}>¿Qué te parece Evential? Califícanos</Text>
+        </TouchableOpacity>
+            </View>
         </View>
       </ScrollView>
 
@@ -1391,12 +1415,14 @@ const styles = StyleSheet.create({
   pageArrowText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   pageIndicator: { color: '#fff', fontSize: 14, fontWeight: '600' },
   footer: { backgroundColor: '#1e293b', borderRadius: 16, padding: 20, marginTop: 24, alignItems: 'center', marginBottom: 32 },
-  footerTitle: { fontSize: 18, fontWeight: 'bold', color: '#0ea5e9', marginBottom: 8 },
+  footerTitle: { fontSize: 18, fontWeight: 'bold', color: '#cadce4ff', marginBottom: 8 },
   footerLogo: { width: 64, height: 64, borderRadius: 32, marginRight: 12, overflow: 'hidden', resizeMode: 'cover' },
   footerInner: { flexDirection: 'row', alignItems: 'flex-start', width: '100%' },
   footerText: { flex: 1 },
+  footerActions: { justifyContent: 'center', alignItems: 'center', width: '100%', marginTop: 16 },
+  footerButton: { backgroundColor: '#0ea5e9', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, marginTop: 12, width: '100%', alignItems: 'center' },
+  footerButtonText: { color: '#fff', fontWeight: '700'},
   footerDesc: { color: '#cbd5e1', textAlign: 'left', marginBottom: 12 },
-  footerLinks: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start', marginBottom: 8 },
   footerLink: { color: '#cbd5e1', marginRight: 12, marginBottom: 4 },
   footerCopyright: { color: '#64748b', fontSize: 12, textAlign: 'left' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },

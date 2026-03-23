@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { View, Text, Share, Alert, Linking, StyleSheet, Image, ScrollView, Dimensions, TouchableOpacity, ActivityIndicator, Modal, TextInput, Pressable, StatusBar, KeyboardAvoidingView, Platform } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { loginConFallback } from '../utils/auth';
@@ -417,12 +418,15 @@ export default function BuyScreen() {
   };
 
   // Handler para mandar mensaje a la empresa organizadora
-  const handleSendMessage = async () => {
+  // Handler para mandar mensaje a la empresa organizadora (SMS o email) -- acepta un body personalizado
+  const handleSendMessage = async (customBody) => {
     // Preferir teléfono, si no está usar email. Si no hay contacto, mostrar alerta.
     const companyPhone = empresaData?.telefono || empresaData?.phone || empresaData?.telefono_celular || empresaData?.phone_number;
     const companyEmail = empresaData?.email;
     const subject = encodeURIComponent(`Consulta sobre: ${eventDetails.title}`);
-    const body = encodeURIComponent(`Hola! Vengo de RumbaCSS, me interesa el evento "${eventDetails.title}" programado para ${eventDetails.fecha} ${eventDetails.hora}. ¿Podrían darme más detalles?`);
+    const defaultText = `Hola! Vengo de EVENTIAL CSS, me interesa el evento "${eventDetails.title}" programado para ${eventDetails.fecha} ${eventDetails.hora}. ¿Podrían darme más detalles?`;
+    const rawBody = typeof customBody === 'string' && customBody.length > 0 ? customBody : defaultText;
+    const body = encodeURIComponent(rawBody);
     try {
       if (companyPhone) {
         // sms body parameter differs on platforms
@@ -442,6 +446,7 @@ export default function BuyScreen() {
     }
   };
 
+<<<<<<< HEAD
   const handleReserve = async () => {
     if (!isLogged) {
       setLoginVisible(true);
@@ -479,6 +484,60 @@ export default function BuyScreen() {
   };
 
   // Handler para compartir el evento con otras personas (usa plantilla enriquecida)
+=======
+  // Abrir WhatsApp con mensaje predefinido "Mas informacion"; si no existe, fallback a handleSendMessage
+  const openWhatsApp = async (wa) => {
+    // wa puede ser número o url
+    if (!wa) {
+      // fallback a SMS/Email usando el mismo texto que intentamos enviar por WhatsApp
+      const fallbackMsg = `Hola, vengo por EVENTIAL CCS. Estoy interesado en ${eventDetails.title} programado para ${eventDetails.fecha} a las ${eventDetails.hora}. ¿Podrían darme más detalles?`;
+      await handleSendMessage(fallbackMsg);
+      return;
+    }
+    try {
+      let cleaned = String(wa).trim();
+      if (/^https?:\/\//i.test(cleaned)) {
+        await Linking.openURL(cleaned);
+        return;
+      }
+      if (cleaned.indexOf('@') >= 0) {
+        // probablemente no es número -> fallback a SMS/Email con mensaje consistente
+        const fallbackMsg = `Hola, vengo por EVENTIAL CCS. Estoy interesado en ${eventDetails.title} programado para ${eventDetails.fecha} a las ${eventDetails.hora}. ¿Podrían darme más detalles?`;
+        await handleSendMessage(fallbackMsg);
+        return;
+      }
+      const digits = cleaned.replace(/[^+\d]/g, '').replace(/^00/, '+');
+      const digitsForUrl = digits.replace(/^\+/, '');
+      if (!digitsForUrl) {
+        const fallbackMsg = `Hola, vengo por EVENTIAL CCS. Estoy interesado en ${eventDetails.title} programado para ${eventDetails.fecha} a las ${eventDetails.hora}. ¿Podrían darme más detalles?`;
+        await handleSendMessage(fallbackMsg);
+        return;
+      }
+      const message = encodeURIComponent(`Hola, vengo por EVENTIAL CCS. Estoy interesado en ${eventDetails.title} programado para ${eventDetails.fecha} a las ${eventDetails.hora}. ¿Podrían darme más detalles?`);
+      const waUrl = `https://wa.me/${digitsForUrl}?text=${message}`;
+      const can = await Linking.canOpenURL(waUrl);
+      if (can) {
+        await Linking.openURL(waUrl);
+        return;
+      }
+      const nativeUrl = `whatsapp://send?phone=${digitsForUrl}&text=${message}`;
+      const canNative = await Linking.canOpenURL(nativeUrl);
+      if (canNative) {
+        await Linking.openURL(nativeUrl);
+        return;
+      }
+      // último recurso
+      await Linking.openURL(waUrl).catch(() => {
+        Alert.alert('No disponible', 'No se pudo abrir WhatsApp en este dispositivo.');
+      });
+    } catch (e) {
+      console.log('openWhatsApp error', e);
+      Alert.alert('Error', 'No fue posible abrir WhatsApp.');
+    }
+  };
+
+  // Handler para compartir el evento con otras personas
+>>>>>>> secundary/actualizacion
   const handleShare = async () => {
     try {
       const message = buildShareMessage(eventDetails, idEvento || currentEventoId);
@@ -612,6 +671,7 @@ export default function BuyScreen() {
         </View>
       )}
       {/* Barra de volver debajo del header */}
+<<<<<<< HEAD
       <View style={[styles.backBar, { marginTop: 4 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>
           <Text style={styles.backBarIcon}>‹</Text>
@@ -619,6 +679,19 @@ export default function BuyScreen() {
         </TouchableOpacity>
       </View>
       <ScrollView style={[styles.container, { paddingTop: 12, paddingBottom: 0 }]} contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
+=======
+          <View style={[styles.backBar, { marginTop: 4 }]}>
+            <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>
+              <Text style={styles.backBarIcon}>‹</Text>
+              <Text style={styles.backBarText}>Volver</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleShare} activeOpacity={0.85} style={styles.shareBtn}>
+              <Ionicons name="share-social-outline" size={20} color={COLORS.primary} style={{ marginRight: 8 }} />
+              <Text style={[styles.backBarText, { color: COLORS.primary, fontWeight: '800' }]}>Compartir</Text>
+            </TouchableOpacity>
+          </View>
+  <ScrollView style={[styles.container, { paddingTop: 12, paddingBottom: 0 }]} contentContainerStyle={{ paddingBottom: 32 + insets.bottom }}>
+>>>>>>> secundary/actualizacion
         {/* Carrusel de Evento Principal Mejorado */}
         <Text style={styles.sectionTitle}>Evento Principal</Text>
         <View style={[styles.carouselEnhancedWrapper, styles.fullBleed]}>
@@ -743,6 +816,17 @@ export default function BuyScreen() {
               )}
             </View>
           )}
+           <TouchableOpacity
+              style={[styles.secondaryButton, styles.waButton]}
+              onPress={async () => {
+                const wa = empresaData?.whatsapp || empresaData?.telefono || empresaData?.telefono_celular || empresaData?.phone;
+                await openWhatsApp(wa);
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="logo-whatsapp" size={18} color="#fff" style={{ marginRight: 10 }} />
+              <Text style={styles.secondaryButtonText}>Mas informacion</Text>
+            </TouchableOpacity>
         </View>
 
 
@@ -886,6 +970,7 @@ export default function BuyScreen() {
                 Inicia sesión con una cuenta RUMBERA para guardar eventos.
               </Text>
             </View>
+<<<<<<< HEAD
           )}
           {/* Cuando el usuario haya guardado el evento, mostrar acciones adicionales */}
           {isSaved ? (
@@ -908,6 +993,30 @@ export default function BuyScreen() {
             </View>
           ) : null}
         </View>
+=======
+            {/* Overlay centrado con spinner durante el guardado: fuera del contenido para asegurar posicionamiento relativo al botón */}
+            {saveLoading && (
+              <View style={styles.reserveButtonLoadingOverlay} pointerEvents="none">
+                <ActivityIndicator size="small" color="#fff" />
+              </View>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View>
+            <Text style={{ textAlign: 'center', color: '#ffffffff', marginTop: 12 }}>
+              Inicia sesión con una cuenta RUMBERA para guardar eventos.
+            </Text>
+          </View>
+        )}
+        {/* Cuando el usuario haya guardado el evento, mostrar acciones adicionales */}
+        {isSaved ? (
+          <View style={styles.actionsRow}>
+           
+            {/* El botón de compartir se movió a las tarjetas de evento (icono de 3 puntitos) en las vistas de lista. */}
+          </View>
+        ) : null}
+      </View>
+>>>>>>> secundary/actualizacion
       </ScrollView>
       {/* Modal de Login (traído desde prueba.js) */}
       <Modal
@@ -1113,6 +1222,7 @@ const styles = StyleSheet.create({
   backBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 18,
     marginBottom: 8,
   },
@@ -1123,6 +1233,16 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#23262F',
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderWidth: 1,
     borderColor: '#334155',
   },
@@ -1345,6 +1465,22 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 4,
+  },
+  waButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#18773bff',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    minWidth: 240,
+    marginTop: 8,
+    shadowColor: '#14532d',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
   secondaryButtonText: {
     color: '#fff',

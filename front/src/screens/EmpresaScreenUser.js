@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { loginConFallback } from '../utils/auth';
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image, StyleSheet,
   Dimensions, Animated, Modal, ActivityIndicator,
@@ -8,18 +8,22 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api'; // ✅ Tu instancia centralizada
 import NotificationsModal from '../components/NotificationsModal';
 import { formatPrice } from '../utils/priceUtils';
+import { useFonts } from 'expo-font';
 
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreenUser() {
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [empresaReady, setEmpresaReady] = useState(false);
+  const [fontsLoaded] = useFonts({
+        'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
+      });
 
   useEffect(() => {
     (async () => {
@@ -58,6 +62,24 @@ export default function EmpresaScreenUser() {
 
   // Estado de sesión local (usado por handleLogin)
   const [isLogged, setIsLogged] = useState(false);
+
+  // Mantener isLogged sincronizado leyendo el token local al montar y cada vez que la pantalla entra en foco
+  useFocusEffect(
+    useCallback(() => {
+      let mounted = true;
+      (async () => {
+        try {
+          const token = await AsyncStorage.getItem('accessToken');
+          if (!mounted) return;
+          setIsLogged(!!token);
+        } catch (e) {
+          if (!mounted) return;
+          setIsLogged(false);
+        }
+      })();
+      return () => { mounted = false; };
+    }, [])
+  );
 
 
 
@@ -210,26 +232,41 @@ const handleLogin = async () => {
 
 };
 const seguir = async () => {
+  const token = await AsyncStorage.getItem('accessToken');
+  if (!token) {
+    setLoginVisible(true);
+    return;
+  }
 
-    
-    const token = await AsyncStorage.getItem('accessToken');
-    if (!token) {
-      setLoginVisible(true);
-      return;
-    }
-
-    try {
+  try {
+    if (isFollowing) {
+      // Dejar de seguir
+      const res = await api.post(`/api/empresas/${empresaIdParam}/dejar_de_seguir/`);
+      if (res.status === 200) {
+        setIsFollowing(false);
+        showAppAlert('Información', `Has dejado de seguir a ${empresaData?.nombre || 'la empresa'}`);
+      } else {
+        const detail = res.data?.detail || res.data?.status || 'No se pudo dejar de seguir';
+        showAppAlert('Error', detail);
+      }
+    } else {
+      // Seguir
       const res = await api.post(`/api/empresas/${empresaIdParam}/seguir/`);
-      
       if (res.status === 200) {
         setIsFollowing(true);
+        showAppAlert('Información', `Ahora sigues a ${empresaData?.nombre || 'la empresa'}`);
+      } else if (res.status === 405) {
+        showAppAlert('Información', res.data?.detail || 'Ya sigues a esta empresa');
+      } else {
+        const detail = res.data?.detail || 'No se pudo seguir a la empresa';
+        showAppAlert('Error', detail);
       }
-      else if (res.status === 405) {
-        showAppAlert('Información', 'Ya sigues a esta empresa');
-      }
-    } catch (error) {
-      console.error("Error al seguir a la empresa:", error);
     }
+  } catch (error) {
+    console.error('Error al (de)seguir a la empresa:', error);
+    const msg = error.response?.data?.detail || error.message || 'Error en la petición';
+    showAppAlert('Error', msg);
+  }
 };
 
 console.log('🏢 Datos de la empresa:', empresaData1);
@@ -443,7 +480,7 @@ console.log('🏢 Datos de la empresa:', empresaData1);
         
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>R U M B A</Text>
+          <Text style={{ fontFamily: fontsLoaded ? 'BebasNeue' : undefined, fontSize: 48, color: '#ffffffff' }}>Evential</Text>
           <Text style={styles.logoSubtext}>CCS</Text>
         </View>
         
