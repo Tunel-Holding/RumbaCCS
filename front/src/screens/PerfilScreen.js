@@ -514,11 +514,7 @@ export default function PerfilScreen({ navigation }) {
       setMostrarEmpresasAbajo(false);
     }
   }, [selectedSection]);
-  useFocusEffect(
-    React.useCallback(() => {
-      return () => setMostrarEmpresasAbajo(false);
-    }, [])
-  );
+
 
   // Handler centralizado para acciones del menú (asegura que exista cuando se pase a StandardHeader)
   const handleMenuItemPress = async (item) => {
@@ -644,7 +640,7 @@ export default function PerfilScreen({ navigation }) {
       <View style={[styles.container, { backgroundColor: '#0f172a', flex: 1 }]}>
         <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#00ff00" />
+          <ActivityIndicator size="large" color="#0ea5e9" />
           <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
         </View>
       </View>
@@ -892,7 +888,7 @@ export default function PerfilScreen({ navigation }) {
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
                       <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
-                        <TouchableOpacity style={{ backgroundColor: '#2563eb', paddingVertical: 8, borderRadius: 10, paddingHorizontal: 18, marginRight: 8 }} onPress={() => navigation.navigate('Reservar/Comprar', { idEvento: evento.eventoId })}>
+                        <TouchableOpacity style={{ backgroundColor: '#2563eb', paddingVertical: 8, borderRadius: 10, paddingHorizontal: 18, marginRight: 8 }} onPress={() => navigation.navigate('BuyScreen', { idEvento: evento.eventoId })}>
                           <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Ver detalles</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={{ backgroundColor: '#0ea5e9', paddingVertical: 8, borderRadius: 10, paddingHorizontal: 14, marginRight: 8, justifyContent: 'center', alignItems: 'center' }} onPress={async () => { try { await Share.share({ message: `${evento.titulo} - ${evento.date || ''} ${evento.time || ''}` }); } catch (e) { console.warn('share guardado', e); } }}>

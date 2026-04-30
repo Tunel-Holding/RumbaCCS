@@ -431,7 +431,6 @@ const handleValidarPin = async () => {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 24 : insets.bottom + 24}
           >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             style={{ flex: 1, width: '100%' }}
             contentContainerStyle={{
@@ -581,7 +580,6 @@ const handleValidarPin = async () => {
             )}
           </View>
           </ScrollView>
-          </TouchableWithoutFeedback>
           </KeyboardAvoidingView>
         ) : verificado ? (
           <View style={styles.loadingContainer}>
@@ -594,11 +592,10 @@ const handleValidarPin = async () => {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 24 : insets.bottom + 24}
           >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             ref={scrollRef}
             style={{ flex: 1, width: '100%' }}
-            contentContainerStyle={[styles.formContainer, { paddingTop: topSpacer, paddingBottom: insets.bottom + 340 }]} // padding extra para evitar solapamiento
+            contentContainerStyle={[styles.formContainer, { paddingTop: topSpacer, paddingBottom: insets.bottom + 24 }]}
             keyboardShouldPersistTaps="always"
             showsVerticalScrollIndicator={false}
           >
@@ -817,7 +814,6 @@ const handleValidarPin = async () => {
               <Text style={[styles.errorText, { textAlign: 'center', marginTop: 8 }]}>{generalError}</Text>
             ) : null}
           </ScrollView>
-          </TouchableWithoutFeedback>
           </KeyboardAvoidingView>
         )}
       </View>

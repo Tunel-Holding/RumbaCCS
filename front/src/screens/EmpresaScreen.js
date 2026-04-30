@@ -1,4 +1,3 @@
-  // ...existing code...
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -50,9 +49,9 @@ export default function EmpresaScreen() {
         setSeguidoresHasMore(false);
         return;
       }
-      const res = await api.get(`/api/empresas/${empresaId}/seguidores/?limit=10&offset=${(page-1)*10}`);
+      const res = await api.get(`/api/empresas/${empresaId}/seguidores/?limit=10&offset=${(page - 1) * 10}`);
       const data = res.data || [];
-      
+
       // Si la API devuelve { results: [...] } usa eso
       const items = Array.isArray(data) ? data : (data.results || []);
       setSeguidores(prev => page === 1 ? items : [...prev, ...items]);
@@ -108,11 +107,11 @@ export default function EmpresaScreen() {
             ) : (
               seguidores.map((seguidor, idx) => (
                 <View key={seguidor.id || idx} style={styles.seguidorCard}>
-                  
-                    <View style={styles.seguidorAvatarPlaceholder}>
-                      <Text style={{ fontSize: 20, color: '#94a3b8' }}>👤</Text>
-                    </View>
-                  
+
+                  <View style={styles.seguidorAvatarPlaceholder}>
+                    <Text style={{ fontSize: 20, color: '#94a3b8' }}>👤</Text>
+                  </View>
+
                   <View style={{ flex: 1 }}>
                     <Text style={styles.seguidorName}>{seguidor.username || seguidor.nombre || 'Usuario'}</Text>
                     {seguidor.email && <Text style={styles.seguidorMeta}>{seguidor.email}</Text>}
@@ -200,244 +199,184 @@ export default function EmpresaScreen() {
   };
 
   useEffect(() => {
-  const fetchEmpresa = async () => {
-    try {
-     const empresaId = await AsyncStorage.getItem("empresaId");
-      if (!empresaId) {
-        console.warn("Falta empresaId");
+    const fetchEmpresa = async () => {
+      try {
+        const empresaId = await AsyncStorage.getItem("empresaId");
+        if (!empresaId) {
+          console.warn("Falta empresaId");
+          setLoading(false);
+          return;
+        }
+
+        const response = await api.get(`/api/empresas/${empresaId}/`);
+
+
+        setEmpresaData(response.data);
+
+      } catch (error) {
+        if (error.response) {
+          console.error("❌ Error HTTP:", error.response.status, error.response.data);
+        } else {
+          console.error("❌ Error:", error.message);
+        }
+      } finally {
         setLoading(false);
-        return;
       }
+    };
 
-      const response = await api.get(`/api/empresas/${empresaId}/`);
+    fetchEmpresa();
+  }, []);
 
-      
-      setEmpresaData(response.data);
-      
-   } catch (error) {
-      if (error.response) {
-        console.error("❌ Error HTTP:", error.response.status, error.response.data);
-      } else {
-        console.error("❌ Error:", error.message);
-      }
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (empresaData && empresaData.id) {
+      setEmpresaReady(true);
     }
-  };
-
-  fetchEmpresa();
-}, []);
-
-useEffect(() => {
-  if (empresaData && empresaData.id) {
-    setEmpresaReady(true);
-  }
-}, [empresaData]);
+  }, [empresaData]);
 
 
   // Datos de empresa con valores por defecto si no hay datos
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
-    rif : empresaData?.rif || 'no disponible',
+    rif: empresaData?.rif || 'no disponible',
     seguidores: empresaData?.total_seguidores || 0,
     total_eventos: empresaData?.total_eventos || 0,
   }
 
-const handleUploadFoto = async (empresaId) => {
-  if (!empresaId) return { ok: false, error: 'No empresa id' };
+  const handleUploadFoto = async (empresaId) => {
+    if (!empresaId) return { ok: false, error: 'No empresa id' };
 
-  try {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (perm.status !== 'granted') {
-      Alert.alert('Permisos', 'Se requieren permisos para acceder a la galería.');
-      return { ok: false, cancelled: true };
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker?.MediaType?.Images
-        ? ImagePicker.MediaType.Images
-        : (ImagePicker?.MediaTypeOptions?.Images || undefined),
-      quality: 0.9,
-      allowsEditing: true,
-      aspect: [1, 1],
-      base64: false,
-      exif: false,
-    });
-
-    if (!result || result.canceled) return { ok: false, cancelled: true };
-
-    const uri = result.assets?.[0]?.uri || result.uri;
-    if (!uri) return { ok: false, cancelled: true };
-
-    setAvatarLoading(true);
-
-    let uploadUri = uri;
     try {
-      const manip = await ImageManipulator.manipulateAsync(
-        uri,
-        [],
-        { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted') {
+        Alert.alert('Permisos', 'Se requieren permisos para acceder a la galería.');
+        return { ok: false, cancelled: true };
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker?.MediaType?.Images
+          ? ImagePicker.MediaType.Images
+          : (ImagePicker?.MediaTypeOptions?.Images || undefined),
+        quality: 0.9,
+        allowsEditing: true,
+        aspect: [1, 1],
+        base64: false,
+        exif: false,
+      });
+
+      if (!result || result.canceled) return { ok: false, cancelled: true };
+
+      const uri = result.assets?.[0]?.uri || result.uri;
+      if (!uri) return { ok: false, cancelled: true };
+
+      setAvatarLoading(true);
+
+      let uploadUri = uri;
+      try {
+        const manip = await ImageManipulator.manipulateAsync(
+          uri,
+          [],
+          { compress: 0.85, format: ImageManipulator.SaveFormat.JPEG }
+        );
+        if (manip?.uri) uploadUri = manip.uri;
+      } catch (_) { }
+
+      const fileName = uploadUri.split('/').pop();
+      const match = (fileName || '').match(/\.([0-9a-z]+)(?:\?|$)/i);
+      const ext = match ? match[1] : 'jpg';
+      const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri: uploadUri,
+        name: fileName || `logo_${Date.now()}.${ext}`,
+        type: mime,
+      });
+
+      const response = await api.post(
+        `/api/empresas/${empresaId}/upload-foto/`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
       );
-      if (manip?.uri) uploadUri = manip.uri;
-    } catch (_) {}
 
-    const fileName = uploadUri.split('/').pop();
-    const match = (fileName || '').match(/\.([0-9a-z]+)(?:\?|$)/i);
-    const ext = match ? match[1] : 'jpg';
-    const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
+      setAvatarLoading(false);
 
-    const formData = new FormData();
-    formData.append('file', {
-      uri: uploadUri,
-      name: fileName || `logo_${Date.now()}.${ext}`,
-      type: mime,
-    });
+      const logoUrlRaw = response.data?.logo || null;
+      const cleanLogoUrl = typeof logoUrlRaw === 'string' ? logoUrlRaw.replace(/\?$/, '') : logoUrlRaw;
 
-    const response = await api.post(
-      `/api/empresas/${empresaId}/upload-foto/`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    );
+      setEmpresaData((prev) => ({ ...prev, logo: cleanLogoUrl }));
 
-    setAvatarLoading(false);
-
-    const logoUrlRaw = response.data?.logo || null;
-    const cleanLogoUrl = typeof logoUrlRaw === 'string' ? logoUrlRaw.replace(/\?$/, '') : logoUrlRaw;
-
-    setEmpresaData((prev) => ({ ...prev, logo: cleanLogoUrl }));
-
-    return { ok: true };
-  } catch (err) {
-    if (err.response) {
-    console.log('Respuesta con error:', err.response.status, err.response.data);
-    } else {
-      console.log('Error de red:', err.message);
-    }
-    console.log('Error al subir logo (client):', err);
-    setAvatarLoading(false);
-    const msg = err.response?.data?.error || err.response?.data?.detail || err.message || 'Error inesperado';
-    Alert.alert('Error', msg);
-    return { ok: false, error: msg };
-  }
-};
-
-  const [eventos, setEventos] = useState([]);
-
-// useEffect(() => {
-//   const fetchEventos = async () => {
-//     try {
-//      const empresaId = await AsyncStorage.getItem("empresaId");
-
-//       if (!empresaId) {
-//         console.log("El usuario todavía no tiene empresa asociada.");
-//         setEventos([]);
-//         return;
-//       }
-
-//       const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
-
-//       const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
-
-//       // Filtrar para mostrar solo eventos cuya fecha >= fecha actual (comparación por día)
-//       // Eventos sin `fecha_evento` se mostrarán (no se consideran 'pasados')
-//       const hoy = new Date();
-//       hoy.setHours(0,0,0,0);
-//       const futurosRaw = resultadosRaw.filter(ev => {
-//         if (!ev || !ev.fecha_evento) return true;
-//         const d = new Date(ev.fecha_evento);
-//         if (isNaN(d.getTime())) return true; // si la fecha no es válida, mostrar
-//         d.setHours(0,0,0,0);
-//         return d >= hoy;
-//       });
-
-//       const eventosTransformados = futurosRaw.map(ev => ({
-//         id: ev.id,
-//         titulo: ev.titulo,
-//         fecha: ev.fecha_evento
-//             ? new Date(ev.fecha_evento).toLocaleDateString()
-//             : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : 'Fecha no definida'),
-//         hora: ev.fecha_evento
-//           ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-//           : null,
-//         // fecha: ev.fecha_evento || "Fecha no definida",
-//         // hora: ev.hora_evento || "Hora no definida",
-//   ubicacion: ev.ubicacion,
-//   precio: formatPrice(ev.precio, ev.moneda || 'USD'),
-//         categoria: Array.isArray(ev.categoria) ? ev.categoria.join(' ') : (ev.categoria || "Sin categoría"),
-//         categoriaColor: ev.categoriaColor || "#4f46e5",
-//         imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
-//         imagenes: ev.imagenes,
-//         ownerName: ev.ownerName || `Empresa #${empresaId}`,
-//         empresaId: ev.empresaId || empresaId,
-//       }));
-
-//       setEventos(eventosTransformados);
-//    } catch (error) {
-//       if (error.response) {
-//         console.error("❌ Error HTTP:", error.response.status, error.response.data);
-//       } else {
-//         console.error("❌ Error:", error.message);
-//       }
-//    }
-//   };
-
-//   fetchEventos(); }, []);
-
-  // Animación de notificaciones
-  
-useEffect(() => {
-  const fetchEventos = async () => {
-    try {
-      const empresaId = await AsyncStorage.getItem("empresaId");
-
-      if (!empresaId) {
-        console.log("El usuario todavía no tiene empresa asociada.");
-        setEventos([]);
-        return;
-      }
-
-      const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
-
-      const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
-
-      // ✅ Ya no filtramos por fecha, usamos todos los eventos
-      const eventosTransformados = resultadosRaw.map(ev => ({
-        id: ev.id,
-        titulo: ev.titulo,
-        fecha: ev.fecha_evento
-          ? new Date(ev.fecha_evento).toLocaleDateString()
-          : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : "Fecha no definida"),
-        hora: ev.fecha_evento
-          ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-          : null,
-        ubicacion: ev.ubicacion,
-        precio: formatPrice(ev.precio, ev.moneda || "USD"),
-        categoria: Array.isArray(ev.categoria) ? ev.categoria.join(" ") : (ev.categoria || "Sin categoría"),
-        categoriaColor: ev.categoriaColor || "#4f46e5",
-        imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
-        imagenes: ev.imagenes,
-        ownerName: ev.ownerName || `Empresa #${empresaId}`,
-        empresaId: ev.empresaId || empresaId,
-      }));
-
-      setEventos(eventosTransformados);
-    } catch (error) {
-      if (error.response) {
-        console.error("❌ Error HTTP:", error.response.status, error.response.data);
+      return { ok: true };
+    } catch (err) {
+      if (err.response) {
+        console.log('Respuesta con error:', err.response.status, err.response.data);
       } else {
-        console.error("❌ Error:", error.message);
+        console.log('Error de red:', err.message);
       }
+      console.log('Error al subir logo (client):', err);
+      setAvatarLoading(false);
+      const msg = err.response?.data?.error || err.response?.data?.detail || err.message || 'Error inesperado';
+      Alert.alert('Error', msg);
+      return { ok: false, error: msg };
     }
   };
 
-  fetchEventos();
-}, []);
+  const [eventos, setEventos] = useState([]);
 
-  
+  // Animación de notificaciones
+
+  useEffect(() => {
+    const fetchEventos = async () => {
+      try {
+        const empresaId = await AsyncStorage.getItem("empresaId");
+
+        if (!empresaId) {
+          console.log("El usuario todavía no tiene empresa asociada.");
+          setEventos([]);
+          return;
+        }
+
+        const res = await api.get(`/api/empresas/${empresaId}/eventos/`);
+
+        const resultadosRaw = Array.isArray(res.data.results) ? res.data.results : [];
+
+        // ✅ Ya no filtramos por fecha, usamos todos los eventos
+        const eventosTransformados = resultadosRaw.map(ev => ({
+          id: ev.id,
+          titulo: ev.titulo,
+          fecha: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleDateString()
+            : (ev.creado_en ? new Date(ev.creado_en).toLocaleDateString() : "Fecha no definida"),
+          hora: ev.fecha_evento
+            ? new Date(ev.fecha_evento).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+            : null,
+          ubicacion: ev.ubicacion,
+          precio: formatPrice(ev.precio, ev.moneda || "USD"),
+          categoria: Array.isArray(ev.categoria) ? ev.categoria.join(" ") : (ev.categoria || "Sin categoría"),
+          categoriaColor: ev.categoriaColor || "#4f46e5",
+          imagen: ev.imagen || "https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/c6cd1090-2218-4767-9cc4-fd828519ee85.png",
+          imagenes: ev.imagenes,
+          ownerName: ev.ownerName || `Empresa #${empresaId}`,
+          empresaId: ev.empresaId || empresaId,
+        }));
+
+        setEventos(eventosTransformados);
+      } catch (error) {
+        if (error.response) {
+          console.error("❌ Error HTTP:", error.response.status, error.response.data);
+        } else {
+          console.error("❌ Error:", error.message);
+        }
+      }
+    };
+
+    fetchEventos();
+  }, []);
+
+
   useEffect(() => {
     if (modalVisible.notifications) {
       Animated.timing(notifAnim, {
@@ -470,7 +409,7 @@ useEffect(() => {
       <View style={styles.headerContainer}>
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>R U M B A</Text>
+          <Text style={styles.logoText}>Evential</Text>
           <Text style={styles.logoSubtext}>CCS</Text>
         </View>
         {/* Menú hamburguesa */}
@@ -499,7 +438,7 @@ useEffect(() => {
   const renderPerfilEmpresa = () => (
     <View style={styles.perfilContainer}>
       <View style={styles.perfilContent}>
- <View style={{ marginBottom: 8 }}>
+        <View style={{ marginBottom: 8 }}>
           <Text style={styles.profileHintText}>Presione aquí para ver ajustes de cuenta</Text>
         </View>
         {/* Foto de perfil */}
@@ -528,15 +467,15 @@ useEffect(() => {
               />
             ) : (
               <View style={{ width: '100%', height: '100%', borderRadius: 64, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-                            <Image
-                              source={require('../../assets/cotele.png')}
-                              // Imagen más pequeña (96x96) centrada; la desplazamos levemente hacia arriba para ocultar texto inferior
-                              style={{ width: '100%', height: '100%'}}
-                              resizeMode="cover"
-                            />
-                          </View>
+                <Image
+                  source={require('../../assets/cotele.png')}
+                  // Imagen más pequeña (96x96) centrada; la desplazamos levemente hacia arriba para ocultar texto inferior
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              </View>
             )}
-        </TouchableOpacity>
+          </TouchableOpacity>
         </View>
 
         {/* Modal de ajustes de cuenta para la empresa (similar a PerfilScreen) */}
@@ -549,7 +488,7 @@ useEffect(() => {
           <View style={styles.modalBackdrop}>
             <View style={styles.settingsCard}>
               <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setSettingsModal(false)}>
-                <Text style={{ color:'#ffffffff', fontSize: 18, fontWeight:'700' }}>X</Text>
+                <Text style={{ color: '#ffffffff', fontSize: 18, fontWeight: '700' }}>X</Text>
               </TouchableOpacity>
               <Text style={styles.settingsTitle}>Ajustes de empresa</Text>
 
@@ -560,7 +499,7 @@ useEffect(() => {
                   ) : empresaData?.logo ? (
                     <Image source={{ uri: empresaData.logo }} style={styles.avatarPreview} />
                   ) : (
-                    <View style={styles.avatarPlaceholder}><Text style={{ color:'#94a3b8' }}>🏢</Text></View>
+                    <View style={styles.avatarPlaceholder}><Text style={{ color: '#94a3b8' }}>🏢</Text></View>
                   )}
                 </View>
 
@@ -580,7 +519,7 @@ useEffect(() => {
                     {empresaData?.email && <Text style={styles.settingsEmail}>{empresaData?.email}</Text>}
                   </View>
 
-                 
+
                 </View>
               </View>
 
@@ -589,9 +528,9 @@ useEffect(() => {
                 onPress={async () => {
                   setSettingsModal(false);
                   const empresaId = empresaData?.id || await AsyncStorage.getItem('empresaId');
-                  if (!empresaId) { Alert.alert('Error','Empresa no identificada'); return; }
+                  if (!empresaId) { Alert.alert('Error', 'Empresa no identificada'); return; }
                   const res = await handleUploadFoto(empresaId);
-                  if (res?.ok) Alert.alert('Éxito','Foto de perfil actualizada correctamente.');
+                  if (res?.ok) Alert.alert('Éxito', 'Foto de perfil actualizada correctamente.');
                 }}
               >
                 <Text style={styles.settingsButtonText}>Cambiar foto de empresa</Text>
@@ -599,7 +538,7 @@ useEffect(() => {
 
               {/* Botón para añadir redes sociales desde ajustes */}
               <TouchableOpacity
-                style={[styles.settingsButton, { backgroundColor: '#0b1220', borderWidth:1, borderColor:'#0ea5e9' }]}
+                style={[styles.settingsButton, { backgroundColor: '#0b1220', borderWidth: 1, borderColor: '#0ea5e9' }]}
                 onPress={async () => {
                   // Abrir modal para añadir red social
                   setSettingsModal(false);
@@ -618,13 +557,13 @@ useEffect(() => {
           <View style={styles.modalBackdrop}>
             <View style={styles.settingsCard}>
               <Text style={styles.settingsTitle}>Editar nombre de empresa</Text>
-              <TextInput value={editEmpresaNameText} onChangeText={setEditEmpresaNameText} placeholder="Nombre de la empresa" placeholderTextColor="#94a3b8" style={{ backgroundColor: '#0b1220', color:'#fff', padding:10, borderRadius:8 }} />
-              <View style={{ flexDirection:'row', marginTop:12 }}>
-                <TouchableOpacity style={[styles.settingsButton, { flex:1, marginRight:8 }]} onPress={async () => {
+              <TextInput value={editEmpresaNameText} onChangeText={setEditEmpresaNameText} placeholder="Nombre de la empresa" placeholderTextColor="#94a3b8" style={{ backgroundColor: '#0b1220', color: '#fff', padding: 10, borderRadius: 8 }} />
+              <View style={{ flexDirection: 'row', marginTop: 12 }}>
+                <TouchableOpacity style={[styles.settingsButton, { flex: 1, marginRight: 8 }]} onPress={async () => {
                   try {
                     setEditEmpresaNameLoading(true);
                     const empresaId = empresaData?.id || await AsyncStorage.getItem('empresaId');
-                    if (!empresaId) { Alert.alert('Error','Empresa no identificada'); setEditEmpresaNameLoading(false); return; }
+                    if (!empresaId) { Alert.alert('Error', 'Empresa no identificada'); setEditEmpresaNameLoading(false); return; }
                     const payload = { nombre: editEmpresaNameText };
                     await api.patch(`/api/empresas/${empresaId}/`, payload);
                     setEmpresaData(prev => ({ ...prev, nombre: editEmpresaNameText }));
@@ -632,13 +571,13 @@ useEffect(() => {
                     setSettingsModal(true);
                   } catch (e) {
                     console.log('Error guardando nombre de empresa', e);
-                    Alert.alert('Error','No se pudo guardar el nombre.');
+                    Alert.alert('Error', 'No se pudo guardar el nombre.');
                   } finally { setEditEmpresaNameLoading(false); }
                 }} disabled={editEmpresaNameLoading}>
                   {editEmpresaNameLoading ? <ActivityIndicator color="#051025" /> : <Text style={styles.settingsButtonText}>Guardar</Text>}
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.settingsButton, { flex:1, backgroundColor:'#374151' }]} onPress={() => { setEditNameModalEmpresa(false); setSettingsModal(true); }}>
-                  <Text style={[styles.settingsButtonText, { color:'#fff' }]}>Cancelar</Text>
+                <TouchableOpacity style={[styles.settingsButton, { flex: 1, backgroundColor: '#374151' }]} onPress={() => { setEditNameModalEmpresa(false); setSettingsModal(true); }}>
+                  <Text style={[styles.settingsButtonText, { color: '#fff' }]}>Cancelar</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -694,7 +633,7 @@ useEffect(() => {
                       } else {
                         console.log('Error ratings', data);
                       }
-                    } catch(e){
+                    } catch (e) {
                       console.log('Error fetch ratings', e.message);
                     } finally {
                       setRatingsLoading(false);
@@ -719,75 +658,75 @@ useEffect(() => {
   };
 
   // ...
-const renderSocialCircles = () => {
-  // Mostrar siempre la sección, incluso si aún no está "ready"
+  const renderSocialCircles = () => {
+    // Mostrar siempre la sección, incluso si aún no está "ready"
 
-  const redesMap = {};
-  const normalizeSocialType = (t) => {
-    const v = String(t || '').toLowerCase();
-    if (v === 'x' || v === 'twitter') return 'twitter';
-    if (v === 'ig' || v === 'instagram') return 'instagram';
-    if (v === 'fb' || v === 'facebook') return 'facebook';
-    if (v === 'tt' || v === 'tiktok') return 'tiktok';
-    if (v === 'yt' || v === 'youtube') return 'youtube';
-    if (v === 'wa' || v === 'whatsapp') return 'whatsapp';
-    if (v === 'mail' || v === 'email' || v === 'correo') return 'email';
-    if (v === 'web' || v === 'website' || v === 'pagina' || v === 'página') return 'website';
-    return v; // fallback to original
-  };
+    const redesMap = {};
+    const normalizeSocialType = (t) => {
+      const v = String(t || '').toLowerCase();
+      if (v === 'x' || v === 'twitter') return 'twitter';
+      if (v === 'ig' || v === 'instagram') return 'instagram';
+      if (v === 'fb' || v === 'facebook') return 'facebook';
+      if (v === 'tt' || v === 'tiktok') return 'tiktok';
+      if (v === 'yt' || v === 'youtube') return 'youtube';
+      if (v === 'wa' || v === 'whatsapp') return 'whatsapp';
+      if (v === 'mail' || v === 'email' || v === 'correo') return 'email';
+      if (v === 'web' || v === 'website' || v === 'pagina' || v === 'página') return 'website';
+      return v; // fallback to original
+    };
 
-  const redesFromEmpresa = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
-  redesFromEmpresa.forEach(red => {
-    const key = normalizeSocialType(red.tipo);
-    if (key) redesMap[key] = red.url;
-  });
+    const redesFromEmpresa = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
+    redesFromEmpresa.forEach(red => {
+      const key = normalizeSocialType(red.tipo);
+      if (key) redesMap[key] = red.url;
+    });
 
-  const redes = [
-    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap?.instagram || null },
-    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap?.twitter || null },
-    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap?.facebook || null },
-    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap?.tiktok || null },
-    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap?.youtube || null },
-    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap?.whatsapp || null },
-    { id: 'email', label: 'Email', icon: '✉️', color: '#f97316', url: redesMap?.email || null },
-    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap?.website || null },
-  ];
+    const redes = [
+      { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap?.instagram || null },
+      { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap?.twitter || null },
+      { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap?.facebook || null },
+      { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap?.tiktok || null },
+      { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap?.youtube || null },
+      { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap?.whatsapp || null },
+      { id: 'email', label: 'Email', icon: '✉️', color: '#f97316', url: redesMap?.email || null },
+      { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap?.website || null },
+    ];
 
-  const hasAny = redes.some(r => !!r.url);
+    const hasAny = redes.some(r => !!r.url);
 
-  if (!hasAny) return null;
+    if (!hasAny) return null;
 
-  return (
-    <View style={styles.socialStripContainer}>
-      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginRight:4 }}>
-        <Text style={styles.socialStripTitle}>Redes sociales</Text>
-        {!isBlocked && (
-          <TouchableOpacity onPress={() => setManageSocialModal(true)}>
-            <Text style={{ color:'#0ea5e9', fontWeight:'700' }}>Editar/Eliminar</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {redes.filter(r => r.url).map(r => (
+    return (
+      <View style={styles.socialStripContainer}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginRight: 4 }}>
+          <Text style={styles.socialStripTitle}>Redes sociales</Text>
+          {!isBlocked && (
+            <TouchableOpacity onPress={() => setManageSocialModal(true)}>
+              <Text style={{ color: '#0ea5e9', fontWeight: '700' }}>Editar/Eliminar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {redes.filter(r => r.url).map(r => (
+            <TouchableOpacity
+              key={r.id}
+              style={[styles.socialCircle, { borderColor: r.color }]}
+              activeOpacity={0.75}
+              onPress={() => Linking.openURL(r.url)}
+            >
+              <Text style={styles.socialIcon}>{r.icon}</Text>
+            </TouchableOpacity>
+          ))}
           <TouchableOpacity
-            key={r.id}
-            style={[styles.socialCircle, { borderColor: r.color }]}
-            activeOpacity={0.75}
-            onPress={() => Linking.openURL(r.url)}
+            style={[styles.socialCircle, { borderColor: '#9ca3af' }]}
+            onPress={() => setAddSocialModal(true)}
           >
-            <Text style={styles.socialIcon}>{r.icon}</Text>
+            <Text style={[styles.socialIcon, { fontSize: 20 }]}>+</Text>
           </TouchableOpacity>
-        ))}
-        <TouchableOpacity
-          style={[styles.socialCircle, { borderColor: '#9ca3af' }]}
-          onPress={() => setAddSocialModal(true)}
-        >
-          <Text style={[styles.socialIcon, { fontSize: 20 }]}>+</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
-  );
-}
+        </ScrollView>
+      </View>
+    );
+  }
 
   // Social add modal state
   const [addSocialModal, setAddSocialModal] = useState(false);
@@ -957,7 +896,7 @@ const renderSocialCircles = () => {
       }
 
       return (
-        <View style={[styles.eventosContainer, { alignItems: 'center', paddingVertical: 40 }]}> 
+        <View style={[styles.eventosContainer, { alignItems: 'center', paddingVertical: 40 }]}>
           <Text style={{ color: '#f59e0b', fontSize: 18, fontWeight: '700' }}>Esperando verificación</Text>
           <Text style={{ color: '#94a3b8', marginTop: 8, textAlign: 'center', maxWidth: 480 }}>Tu empresa está en proceso de revisión. Este proceso de verificación puede tardar de 24 a 48 horas.</Text>
         </View>
@@ -968,7 +907,7 @@ const renderSocialCircles = () => {
       return (
         <View style={styles.eventosContainer}>
           <View style={styles.eventosHeader}>
-            <View style={{ flex:1 }}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.eventosTitle}>Valoraciones y reseñas</Text>
               {(() => {
                 if (ratingsLoading) {
@@ -977,16 +916,16 @@ const renderSocialCircles = () => {
                 if (!ratings.length) {
                   return <Text style={styles.eventosTotalLinea}>Sin valoraciones</Text>;
                 }
-                const sum = ratings.reduce((acc,r)=> acc + (Number(r.rating || r.valor || 0) || 0), 0);
+                const sum = ratings.reduce((acc, r) => acc + (Number(r.rating || r.valor || 0) || 0), 0);
                 const avg = sum / ratings.length;
                 const full = Math.round(avg * 10) / 10; // 1 decimal
-                const stars = [0,1,2,3,4];
+                const stars = [0, 1, 2, 3, 4];
                 return (
-                  <View style={{ flexDirection:'row', alignItems:'center', marginTop:4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                     {stars.map(i => (
-                      <Text key={i} style={{ fontSize:22, marginRight:2, color: i < Math.round(avg) ? '#facc15' : '#475569' }}>★</Text>
+                      <Text key={i} style={{ fontSize: 22, marginRight: 2, color: i < Math.round(avg) ? '#facc15' : '#475569' }}>★</Text>
                     ))}
-                    <Text style={{ color:'#f1f5f9', marginLeft:8, fontWeight:'600' }}>{full}/5 ({ratings.length})</Text>
+                    <Text style={{ color: '#f1f5f9', marginLeft: 8, fontWeight: '600' }}>{full}/5 ({ratings.length})</Text>
                   </View>
                 );
               })()}
@@ -996,25 +935,25 @@ const renderSocialCircles = () => {
             {ratingsLoading ? (
               <ActivityIndicator color="#facc15" size="large" />
             ) : ratings.length === 0 ? (
-              <Text style={{ color:'#94a3b8', textAlign:'center', marginTop:32 }}>No hay reseñas todavía.</Text>
+              <Text style={{ color: '#94a3b8', textAlign: 'center', marginTop: 32 }}>No hay reseñas todavía.</Text>
             ) : (
               <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
                 {ratings.map((r, idx) => {
                   const filled = Math.max(0, Math.min(5, r.rating || r.valor || 0));
                   const stars = Array.from({ length: 5 });
                   return (
-                    <View key={r.id || idx} style={{ backgroundColor:'#1e293b', padding:16, borderRadius:16, marginBottom:14, borderWidth:1, borderColor:'rgba(255,255,255,0.07)' }}>
-                      <View style={{ flexDirection:'row', justifyContent:'space-between', marginBottom:6 }}>
-                        <Text style={{ color:'#fff', fontWeight:'600' }}>{r.usuario_username || r.user_name || 'Usuario'}</Text>
-                        <Text style={{ color:'#facc15', fontWeight:'700' }}>{filled}/5</Text>
+                    <View key={r.id || idx} style={{ backgroundColor: '#1e293b', padding: 16, borderRadius: 16, marginBottom: 14, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <Text style={{ color: '#fff', fontWeight: '600' }}>{r.usuario_username || r.user_name || 'Usuario'}</Text>
+                        <Text style={{ color: '#facc15', fontWeight: '700' }}>{filled}/5</Text>
                       </View>
-                      <View style={{ flexDirection:'row', marginBottom:6 }}>
+                      <View style={{ flexDirection: 'row', marginBottom: 6 }}>
                         {stars.map((_, i) => (
-                          <Text key={i} style={{ color: i < filled ? '#facc15' : '#475569', fontSize:18 }}>★</Text>
+                          <Text key={i} style={{ color: i < filled ? '#facc15' : '#475569', fontSize: 18 }}>★</Text>
                         ))}
                       </View>
-                      {!!r.comentario && <Text style={{ color:'#e2e8f0', lineHeight:20 }}>{r.comentario}</Text>}
-                      {r.created_at && <Text style={{ color:'#64748b', marginTop:6, fontSize:12 }}>{new Date(r.created_at).toLocaleDateString()}</Text>}
+                      {!!r.comentario && <Text style={{ color: '#e2e8f0', lineHeight: 20 }}>{r.comentario}</Text>}
+                      {r.created_at && <Text style={{ color: '#64748b', marginTop: 6, fontSize: 12 }}>{new Date(r.created_at).toLocaleDateString()}</Text>}
                     </View>
                   );
                 })}
@@ -1030,7 +969,7 @@ const renderSocialCircles = () => {
       <View style={styles.eventosContainer}>
         {/* Botón superior para agregar red social (eliminado por solicitud) */}
         <View style={styles.eventosHeader}>
-          <View style={{ flex:1 }}>
+          <View style={{ flex: 1 }}>
             <Text style={styles.eventosTitle}>Eventos publicados</Text>
             <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.total_eventos}</Text></Text>
           </View>
@@ -1051,41 +990,41 @@ const renderSocialCircles = () => {
         </View>
         <View style={styles.eventosGrid}>
           {eventos.length === 0 ? (
-        
-        <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
+
+            <Text style={styles.eventosEmptyText}>Presiona el botón "+" para crear un evento</Text>
           ) : (
             eventos.map((evento) => (
               <View key={evento.id} style={styles.eventoCard}>
                 <View style={styles.eventoImageContainer}>
                   {/* <Image source={{ uri: evento.imagenes }} style={styles.eventoImage} resizeMode="cover" /> */}
                   <Image
-                    source={ 
-                      evento.imagenes?.[0]?.url 
+                    source={
+                      evento.imagenes?.[0]?.url
                         ? { uri: evento.imagenes[0].url }
                         : require('../../assets/register-bg.jpg')
                     }
                     style={styles.eventoImage}
                     resizeMode="cover"
                   />
-                  <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}> 
+                  <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
                     <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
                   </View>
                 </View>
                 <View style={styles.eventoContent}>
                   <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-                                      
+
                   {evento.hora && evento.hora !== 'Hora no definida' && (
                     <View style={styles.eventoInfo}>
                       <Text style={styles.eventoInfoText}>📅 {evento.fecha}  ⏰ {evento.hora}</Text>
                     </View>
                   )}
-                  
+
                   <View style={styles.eventoInfo}>
                     <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
                   </View>
                   <View style={styles.eventoFooter}>
                     <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                  
+
                     <TouchableOpacity
                       style={[styles.verDetallesButton, { backgroundColor: '#ef4444', marginRight: 8 }]}
                       onPress={async () => {
@@ -1095,7 +1034,8 @@ const renderSocialCircles = () => {
                           '¿Estás seguro de que deseas eliminar este evento?',
                           [
                             { text: 'Cancelar', style: 'cancel' },
-                            { text: 'Eliminar', style: 'destructive', onPress: async () => {
+                            {
+                              text: 'Eliminar', style: 'destructive', onPress: async () => {
                                 try {
                                   await api.delete(`/api/empresas/${evento.empresaId}/eventos/${evento.id}/`);
                                   setEventos(prev => prev.filter(ev => ev.id !== evento.id));
@@ -1114,18 +1054,18 @@ const renderSocialCircles = () => {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={styles.verDetallesButton}
-                        onPress={() => {
-                          navigation.navigate('Reservar/Comprar', {
-                            idEvento: evento.id,
-                            idEmpresa: evento.ownerName?.startsWith('Empresa #')
-                              ? evento.ownerName.replace('Empresa #', '')
-                              : undefined
-                          });
-                        }}
-                      >
-                        <Text style={styles.verDetallesText}>Ver detalles</Text>
-                      </TouchableOpacity>
+                      style={styles.verDetallesButton}
+                      onPress={() => {
+                        navigation.navigate('BuyScreen', {
+                          idEvento: evento.id,
+                          idEmpresa: evento.ownerName?.startsWith('Empresa #')
+                            ? evento.ownerName.replace('Empresa #', '')
+                            : undefined
+                        });
+                      }}
+                    >
+                      <Text style={styles.verDetallesText}>Ver detalles</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               </View>
@@ -1135,22 +1075,22 @@ const renderSocialCircles = () => {
       </View>
     );
   };
-  
+
   if (loading) {
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
-      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#00ff00" /> 
-        <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
-      </View>
-    </SafeAreaView>
-  );
-}
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
+        <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#00ff00" />
+          <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
 
-  <SafeAreaView style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}> 
+    <SafeAreaView style={[styles.container, { paddingTop: insets.top, paddingBottom: Math.max(insets.bottom, 12) }]}>
       {/* Modal de cambiar foto de perfil */}
       <Modal
         visible={profilePicModal}
@@ -1158,22 +1098,22 @@ const renderSocialCircles = () => {
         transparent
         onRequestClose={() => setProfilePicModal(false)}
       >
-        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
-          <View style={{ backgroundColor:'#fff', borderRadius:16, padding:24, alignItems:'center', width:300 }}>
-            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16 }}>Cambiar foto de perfil</Text>
-            <TouchableOpacity style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginBottom:12, width:'100%' }} onPress={() => {/* lógica de selección */}}>
-              <Text style={{ color:'#fff', textAlign:'center' }}>Seleccionar imagen</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, alignItems: 'center', width: 300 }}>
+            <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16 }}>Cambiar foto de perfil</Text>
+            <TouchableOpacity style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 12, marginBottom: 12, width: '100%' }} onPress={() => {/* lógica de selección */ }}>
+              <Text style={{ color: '#fff', textAlign: 'center' }}>Seleccionar imagen</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={{ marginTop:8 }} onPress={() => setProfilePicModal(false)}>
-              <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+            <TouchableOpacity style={{ marginTop: 8 }} onPress={() => setProfilePicModal(false)}>
+              <Text style={{ color: '#0ea5e9', fontWeight: 'bold' }}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-  {renderHeader()}
-  {renderNotificationsModal()}
-  {renderSeguidoresModal()}
-  <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
+      {renderHeader()}
+      {renderNotificationsModal()}
+      {renderSeguidoresModal()}
+      <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
           {renderSocialCircles()}
@@ -1188,11 +1128,11 @@ const renderSocialCircles = () => {
         transparent
         onRequestClose={() => setProfilePicEditVisible(false)}
       >
-        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
-          <View style={{ backgroundColor:'#1e293b', borderRadius:16, padding:24, alignItems:'center', width:320, borderWidth:1, borderColor:'#334155' }}>
-            <Text style={{ fontWeight:'bold', fontSize:18, marginBottom:16, color:'#fff' }}>Ajusta tu foto de perfil</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, alignItems: 'center', width: 320, borderWidth: 1, borderColor: '#334155' }}>
+            <Text style={{ fontWeight: 'bold', fontSize: 18, marginBottom: 16, color: '#fff' }}>Ajusta tu foto de perfil</Text>
             {profilePicEdit && (
-              <View style={{ width: 200, height: 200, borderRadius: 100, overflow: 'hidden', backgroundColor: '#334155', marginBottom: 16, justifyContent:'center', alignItems:'center' }}>
+              <View style={{ width: 200, height: 200, borderRadius: 100, overflow: 'hidden', backgroundColor: '#334155', marginBottom: 16, justifyContent: 'center', alignItems: 'center' }}>
                 <Image
                   source={{ uri: profilePicEdit.uri }}
                   style={{ width: 200, height: 200, borderRadius: 100 }}
@@ -1200,9 +1140,9 @@ const renderSocialCircles = () => {
                 />
               </View>
             )}
-            <View style={{ flexDirection:'row', gap:16 }}>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
               <TouchableOpacity
-                style={{ backgroundColor:'#0ea5e9', borderRadius:8, padding:12, marginRight:8 }}
+                style={{ backgroundColor: '#0ea5e9', borderRadius: 8, padding: 12, marginRight: 8 }}
                 onPress={async () => {
                   // Bloquear actualización si la cuenta no está verificada
                   if (isBlocked) {
@@ -1241,13 +1181,13 @@ const renderSocialCircles = () => {
                   }
                 }}
               >
-                <Text style={{ color:'#fff', fontWeight:'bold' }}>Aceptar</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Aceptar</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={{ backgroundColor:'#e5e7eb', borderRadius:8, padding:12 }}
+                style={{ backgroundColor: '#e5e7eb', borderRadius: 8, padding: 12 }}
                 onPress={() => setProfilePicEditVisible(false)}
               >
-                <Text style={{ color:'#0ea5e9', fontWeight:'bold' }}>Cancelar</Text>
+                <Text style={{ color: '#0ea5e9', fontWeight: 'bold' }}>Cancelar</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1261,28 +1201,28 @@ const renderSocialCircles = () => {
         transparent
         onRequestClose={() => setManageSocialModal(false)}
       >
-        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.7)', justifyContent:'center', alignItems:'center' }}>
-          <View style={{ backgroundColor:'#0b1220', borderRadius:16, padding:20, width: width < 400 ? width - 32 : 360, borderWidth:1, borderColor:'#111827' }}>
-            <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-              <Text style={{ color:'#fff', fontWeight:'700', fontSize:16 }}>Gestionar redes</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#0b1220', borderRadius: 16, padding: 20, width: width < 400 ? width - 32 : 360, borderWidth: 1, borderColor: '#111827' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Gestionar redes</Text>
               <TouchableOpacity onPress={() => setManageSocialModal(false)}>
-                <Text style={{ color:'#0ea5e9', fontSize:18 }}>×</Text>
+                <Text style={{ color: '#0ea5e9', fontSize: 18 }}>×</Text>
               </TouchableOpacity>
             </View>
             {(!empresaData?.redes_sociales || empresaData.redes_sociales.length === 0) ? (
-              <Text style={{ color:'#94a3b8' }}>No hay redes sociales agregadas.</Text>
+              <Text style={{ color: '#94a3b8' }}>No hay redes sociales agregadas.</Text>
             ) : (
               <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
                 {empresaData.redes_sociales.map((r, i) => (
                   <View key={`${r.tipo}-${i}`} style={styles.manageSocialRow}>
-                    <View style={{ flex:1 }}>
-                      <Text style={{ color:'#e2e8f0', fontWeight:'600' }}>{String(r.tipo).toUpperCase()}</Text>
-                      <Text style={{ color:'#94a3b8' }} numberOfLines={1}>{r.url}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: '#e2e8f0', fontWeight: '600' }}>{String(r.tipo).toUpperCase()}</Text>
+                      <Text style={{ color: '#94a3b8' }} numberOfLines={1}>{r.url}</Text>
                     </View>
-                    <TouchableOpacity style={[styles.manageSocialBtn, { backgroundColor:'#0ea5e9' }]} onPress={() => startEditSocial(i)}>
+                    <TouchableOpacity style={[styles.manageSocialBtn, { backgroundColor: '#0ea5e9' }]} onPress={() => startEditSocial(i)}>
                       <Text style={styles.manageSocialBtnText}>Editar</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.manageSocialBtn, { backgroundColor:'#ef4444' }]} onPress={() => handleDeleteSocial(i)}>
+                    <TouchableOpacity style={[styles.manageSocialBtn, { backgroundColor: '#ef4444' }]} onPress={() => handleDeleteSocial(i)}>
                       <Text style={styles.manageSocialBtnText}>Eliminar</Text>
                     </TouchableOpacity>
                   </View>
@@ -1300,37 +1240,37 @@ const renderSocialCircles = () => {
         transparent
         onRequestClose={() => setAddSocialModal(false)}
       >
-        <View style={{ flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' }}>
-          <View style={{ backgroundColor:'#0b1220', borderRadius:12, padding:18, width:320, borderWidth:1, borderColor:'#111827' }}>
-            <Text style={{ color:'#fff', fontWeight:'700', fontSize:16, marginBottom:8 }}>Añadir red social</Text>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#0b1220', borderRadius: 12, padding: 18, width: 320, borderWidth: 1, borderColor: '#111827' }}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16, marginBottom: 8 }}>Añadir red social</Text>
 
-            <Text style={{ color:'#cbd5e1', marginBottom:6 }}>Red</Text>
-            <View style={{ backgroundColor:'#071029', padding:8, borderRadius:8, marginBottom:12 }}>
+            <Text style={{ color: '#cbd5e1', marginBottom: 6 }}>Red</Text>
+            <View style={{ backgroundColor: '#071029', padding: 8, borderRadius: 8, marginBottom: 12 }}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {availableSocials.map(s => (
-                  <TouchableOpacity key={s.key} onPress={() => setNewSocialType(s.key)} style={{ padding:8, marginRight:8, borderRadius:8, borderWidth: newSocialType === s.key ? 2 : 1, borderColor: newSocialType === s.key ? '#0ea5e9' : 'rgba(255,255,255,0.04)' }}>
+                  <TouchableOpacity key={s.key} onPress={() => setNewSocialType(s.key)} style={{ padding: 8, marginRight: 8, borderRadius: 8, borderWidth: newSocialType === s.key ? 2 : 1, borderColor: newSocialType === s.key ? '#0ea5e9' : 'rgba(255,255,255,0.04)' }}>
                     <Text style={{ color: newSocialType === s.key ? '#0ea5e9' : '#cbd5e1' }}>{s.label}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
             </View>
 
-            <Text style={{ color:'#cbd5e1', marginBottom:6 }}>URL</Text>
+            <Text style={{ color: '#cbd5e1', marginBottom: 6 }}>URL</Text>
             <TextInput
               value={newSocialUrl}
               onChangeText={setNewSocialUrl}
               placeholder="https://..."
               placeholderTextColor="#6b7280"
-              style={{ backgroundColor:'#071029', color:'#e2e8f0', padding:10, borderRadius:8, marginBottom:12 }}
+              style={{ backgroundColor: '#071029', color: '#e2e8f0', padding: 10, borderRadius: 8, marginBottom: 12 }}
               autoCapitalize="none"
             />
 
-            <View style={{ flexDirection:'row', justifyContent:'flex-end', gap:8 }}>
-              <TouchableOpacity style={{ padding:10, borderRadius:8, marginRight:8 }} onPress={() => setAddSocialModal(false)}>
-                <Text style={{ color:'#9ca3af' }}>Cancelar</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
+              <TouchableOpacity style={{ padding: 10, borderRadius: 8, marginRight: 8 }} onPress={() => setAddSocialModal(false)}>
+                <Text style={{ color: '#9ca3af' }}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={{ backgroundColor:'#0ea5e9', padding:10, borderRadius:8 }} onPress={handleSaveSocial} disabled={savingSocial}>
-                {savingSocial ? <ActivityIndicator color="#fff" /> : <Text style={{ color:'#fff', fontWeight:'700' }}>{editingSocialIndex >= 0 ? 'Actualizar' : 'Guardar'}</Text>}
+              <TouchableOpacity style={{ backgroundColor: '#0ea5e9', padding: 10, borderRadius: 8 }} onPress={handleSaveSocial} disabled={savingSocial}>
+                {savingSocial ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700' }}>{editingSocialIndex >= 0 ? 'Actualizar' : 'Guardar'}</Text>}
               </TouchableOpacity>
             </View>
           </View>
@@ -1354,7 +1294,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
   },
-  
+
   // Header styles
   header: {
     backgroundColor: '#0f172a',
@@ -1371,19 +1311,19 @@ const styles = StyleSheet.create({
   logoContainer: { flexDirection: 'row', alignItems: 'flex-end' },
   logoText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
   logoSubtext: { fontSize: 18, fontWeight: '600', color: '#ff007f', marginLeft: 8 },
-  
-     
 
-  
+
+
+
 
   // Perfil styles
   perfilContainer: {
     backgroundColor: 'rgba(30, 41, 59, 0.6)',
-  borderRadius: 16,
-  paddingHorizontal: 24,
-  paddingTop: 22,
-  paddingBottom: 18,
-  marginBottom: 8,
+    borderRadius: 16,
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    paddingBottom: 18,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -1595,7 +1535,7 @@ const styles = StyleSheet.create({
   },
   // Estilos para el modal (agrega al final del objeto styles):
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { backgroundColor: '#0b1220', borderRadius: 16, padding: 20, width: width < 400 ? width - 32 : 360, alignItems: 'center', position: 'relative', borderWidth:1, borderColor:'#111827' },
+  modalContent: { backgroundColor: '#0b1220', borderRadius: 16, padding: 20, width: width < 400 ? width - 32 : 360, alignItems: 'center', position: 'relative', borderWidth: 1, borderColor: '#111827' },
   modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
   profileHintText: { color: '#cbd5e1', textAlign: 'center', marginBottom: 6 },
   seguidorCard: {
@@ -1655,7 +1595,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 12,
   },
-  modalBackdrop: { flex:1, backgroundColor:'rgba(0,0,0,0.6)', justifyContent:'center', alignItems:'center' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
   settingsCard: { width: 340, backgroundColor: '#071029', borderRadius: 14, padding: 18, alignItems: 'stretch' },
   settingsTitle: { color: '#fff', fontSize: 18, fontWeight: '700', marginBottom: 12, textAlign: 'center' },
   settingsAvatarRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },

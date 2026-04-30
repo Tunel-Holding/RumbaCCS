@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'; // <-- useCallback es buena práctica con useFocusEffect
 import { useNavigation, useFocusEffect } from '@react-navigation/native'; // <-- Importa useFocusEffect
-import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator, Share, Linking, Platform } from 'react-native';
+import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator, Share, Linking, Platform, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { loginConFallback } from '../utils/auth';
@@ -19,17 +19,39 @@ const { width } = Dimensions.get('window');
 
 
 export default function HomeScreen() {
+  const { width: windowWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const scrollRef = useRef(null);
   const heroScrollRef = useRef(null);
+  const headerSearchInputRef = useRef(null);
+  
+  // Constantes de diseño dinámicas
+  const isWeb = Platform.OS === 'web';
+  const isDesktop = windowWidth >= 1024;
+  const isTablet = windowWidth >= 640 && windowWidth < 1024;
+  const contentWidth = Math.min(windowWidth, 1280);
+  
+  // Cálculo de columnas basado en el tamaño disponible
+  const columns = isDesktop ? 3 : isTablet ? 2 : 1;
+  const CARD_GAP = 20;
+  const CONTENT_PADDING = isDesktop ? 48 : isTablet ? 24 : 16; // padding horizontal del contenedor
+  const effectiveWidth = contentWidth - CONTENT_PADDING * 2;
+  const dynamicCardWidth = isDesktop
+    ? (effectiveWidth - CARD_GAP * 2) / 3
+    : isTablet
+    ? (effectiveWidth - CARD_GAP) / 2
+    : effectiveWidth;
+  // Altura del hero adaptativa
+  const heroHeight = isDesktop ? 420 : isTablet ? 320 : 200;
+  
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   // Carousel events state (independent)
   const [carouselEvents, setCarouselEvents] = useState([]);
 
   // index: target slide index (0-based). animated: whether to animate the scroll.
   const scrollToHeroIndex = (index, animated = true) => {
-    const cardW = width; // full-bleed card width (no gap)
+    const cardW = contentWidth; // Responsive full-bleed hero width using contentWidth
     if (heroScrollRef.current && typeof heroScrollRef.current.scrollTo === 'function') {
       try {
         const realCount = (carouselEvents && carouselEvents.length) ? carouselEvents.length : 0;
@@ -51,7 +73,7 @@ export default function HomeScreen() {
         const wrappingForward = prev === (realCount - 1) && next === 0;
         if (wrappingForward) {
           // animate forward to the cloned first (offset = realCount+1), then onMomentumScrollEnd will snap to real first
-          try { heroScrollRef.current?.scrollTo({ x: (realCount + 1) * width, animated: true }); } catch (e) { }
+          try { heroScrollRef.current?.scrollTo({ x: (realCount + 1) * contentWidth, animated: true }); } catch (e) { }
           return next;
         }
         // normal advance
@@ -62,7 +84,7 @@ export default function HomeScreen() {
     return () => clearInterval(interval);
   }, [carouselEvents]);
 
-  // When carousel events change, position scroll at first real item (offset = width) if using clones
+  // When carousel events change, position scroll at first real item (offset = contentWidth) if using clones
   useEffect(() => {
     const realCount = (carouselEvents && carouselEvents.length) ? carouselEvents.length : 0;
     if (realCount <= 1) {
@@ -71,9 +93,9 @@ export default function HomeScreen() {
       return;
     }
     setCurrentHeroIndex(0);
-    // position to the first real item (index 0 -> offset = 1 * width)
-    setTimeout(() => { try { heroScrollRef.current?.scrollTo({ x: width, animated: false }); } catch (e) { } }, 60);
-  }, [carouselEvents]);
+    // position to the first real item (index 0 -> offset = 1 * contentWidth)
+    setTimeout(() => { try { heroScrollRef.current?.scrollTo({ x: contentWidth, animated: false }); } catch (e) { } }, 60);
+  }, [carouselEvents, contentWidth]);
 
   // Fetch first 3 events for carousel (independent of filters/search)
   useEffect(() => {
@@ -123,6 +145,8 @@ export default function HomeScreen() {
   const [typeFilter, setTypeFilter] = useState('all');
   const [typeOpen, setTypeOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [webSearchHovered, setWebSearchHovered] = useState(false);
+  const [webSearchFocused, setWebSearchFocused] = useState(false);
   const [eventoPromoted, setEventoPromoted] = useState(null);
   const [loginVisible, setLoginVisible] = useState(false);
   const [user, setUser] = useState('');
@@ -155,6 +179,8 @@ export default function HomeScreen() {
   // Estado y helpers para status de empresa sin depender de empresaData
   const [empresaStatus, setEmpresaStatus] = useState(null); // string normalizada
   const normalizeStatus = (s) => (s || '').toString().trim().toLowerCase();
+  const webSearchExpandedWidth = windowWidth <= 620 ? 150 : 240;
+  const isWebSearchOpen = webSearchHovered || webSearchFocused || !!search;
   const isStatusAprobada = (statusStr) => {
     const s = normalizeStatus(statusStr);
     return s === 'verificado' || s === 'verificada' || s === 'aceptado' || s === 'aceptada' || s === 'aprobado' || s === 'aprobada' || s === 'approved' || s === 'accepted' || s === 'verified';
@@ -263,9 +289,6 @@ export default function HomeScreen() {
       setLoading(false);
     }, [refreshEmpresaData])
   );
-
-  // ELIMINAMOS LOS OTROS useEffect que llamaban a checkSession.
-  // useFocusEffect ahora es la única fuente de verdad para los datos de sesión.
 
   //Funcion de logout
   const handleLogout = async () => {
@@ -710,21 +733,15 @@ export default function HomeScreen() {
 
   // Reiniciar página si cambian filtros o búsqueda
   useEffect(() => { setPage(0); }, [scopeFilter, typeFilter, search]);
-  const totalPages = Math.ceil(filteredEvents.length / pageSize) || 1;
-  // With infinite scroll we render `filteredEvents` directly; keep page state for compatibility but disable client-side paging.
-  const canPrev = false;
-  const canNext = false;
-  const goPrev = () => { };
-  const goNext = () => { };
 
-  // Cuando cambia filtro o búsqueda, reinicia página y sube arriba
-  //   useEffect(() => {
-  //   scrollRef.current?.scrollTo({ y: 0, animated: true });
-  // }, [filter]);
+
 
   // --- ESTADOS PARA CALENDARIO DE EVENTOS GUARDADOS ---
   const [eventosPorMes, setEventosPorMes] = useState({}); // { '2025-10': [eventos] }
-  const [mesActual, setMesActual] = useState({ year: 2025, month: 10 }); // Inicializa con el mes actual
+  const [mesActual, setMesActual] = useState(() => {
+    const hoy = new Date();
+    return { year: hoy.getFullYear(), month: hoy.getMonth() + 1 };
+  });
   const [loadingEventosCalendario, setLoadingEventosCalendario] = useState(false);
   const [offsetPorMes, setOffsetPorMes] = useState({}); // { '2025-10': offset }
   const [totalPorMes, setTotalPorMes] = useState({}); // { '2025-10': total }
@@ -841,12 +858,12 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top, paddingBottom: 0 }}>
+    <View style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top }}>
       <ScrollView
         ref={scrollRef}
         style={styles.container}
-        contentContainerStyle={{ paddingTop: 32 }}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: isWeb ? 0 : (insets.bottom || 16) }}
+        showsVerticalScrollIndicator={Platform.OS === 'web'}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={200}
         onScroll={({ nativeEvent }) => {
@@ -894,22 +911,60 @@ export default function HomeScreen() {
           style={styles.header}
           logoContainerStyle={styles.logoContainer}
           menuButtonStyle={styles.headerRight}
+          menuLeft={isWeb ? (
+            <View
+              style={styles.headerSearchBoxWeb}
+              onMouseEnter={() => setWebSearchHovered(true)}
+              onMouseLeave={() => setWebSearchHovered(false)}
+            >
+              <TextInput
+                ref={headerSearchInputRef}
+                style={[
+                  styles.headerSearchInputWeb,
+                  {
+                    width: isWebSearchOpen ? webSearchExpandedWidth : 0,
+                    paddingHorizontal: isWebSearchOpen ? 6 : 0,
+                  },
+                ]}
+                placeholder="Buscar eventos..."
+                placeholderTextColor="#cbd5e1"
+                value={search}
+                onChangeText={setSearch}
+                onFocus={() => setWebSearchFocused(true)}
+                onBlur={() => setWebSearchFocused(false)}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.headerSearchButtonWeb,
+                  isWebSearchOpen && styles.headerSearchButtonWebActive,
+                ]}
+                onPress={() => headerSearchInputRef.current?.focus?.()}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name="search"
+                  size={16}
+                  color={isWebSearchOpen ? '#2f3640' : '#ffffff'}
+                />
+              </TouchableOpacity>
+            </View>
+          ) : null}
         />
 
         {/* Hero: carrusel de fotos de eventos publicados (independiente, solo los 3 primeros) */}
-        <View style={styles.heroSection}>
+        <View style={[styles.heroSection, { height: heroHeight, marginHorizontal: isWeb ? 0 : 0 }]}>
           <ScrollView
             ref={heroScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.heroCarousel}
             contentContainerStyle={{ paddingHorizontal: 0 }}
-            snapToInterval={width}
+            snapToInterval={contentWidth}
             decelerationRate={'fast'}
             pagingEnabled={true}
             onMomentumScrollEnd={(e) => {
               const x = e.nativeEvent.contentOffset.x;
-              const w = width; // full-bleed card width
+              const w = contentWidth; // full-bleed responsive card width
               const idx = Math.round(x / w);
               const real = (carouselEvents && carouselEvents.length) ? carouselEvents : [];
               const realCount = real.length;
@@ -941,7 +996,7 @@ export default function HomeScreen() {
                 return [null, null, null].map((ev, idx) => {
                   const defaultImg = require('../../assets/register-bg.jpg');
                   return (
-                    <TouchableOpacity key={`ph-${idx}`} activeOpacity={0.9} style={styles.heroCard}>
+                    <TouchableOpacity key={`ph-${idx}`} activeOpacity={0.9} style={[styles.heroCard, { width: contentWidth }]}>
                       <Image source={defaultImg} style={styles.heroCardImage} resizeMode="cover" />
                       <View style={styles.heroCardOverlay} />
                       <View style={styles.heroCardText}>
@@ -964,9 +1019,9 @@ export default function HomeScreen() {
                 const source = imgUri ? { uri: imgUri } : require('../../assets/register-bg.jpg');
                 const key = ev?.id ? `c-${ev.id}-${idx}` : `c-ph-${idx}`;
                 return (
-                  <TouchableOpacity key={key} activeOpacity={0.9} style={styles.heroCard} onPress={() => {
+                  <TouchableOpacity key={key} activeOpacity={0.9} style={[styles.heroCard, { width: contentWidth }]} onPress={() => {
                     if (ev && ev.id) {
-                      navigation.navigate('Reservar/Comprar', { idEvento: ev.id, idEmpresa: ev.rawEmpresaId });
+                      navigation.navigate('BuyScreen', { idEvento: ev.id, idEmpresa: ev.rawEmpresaId });
                     }
                   }}>
                     <Image source={source} style={styles.heroCardImage} resizeMode="cover" />
@@ -1015,7 +1070,7 @@ export default function HomeScreen() {
                     const wrappingForward = currentHeroIndex === realCount - 1 && next === 0; // last -> first
                     if (wrappingForward) {
                       // animate forward to the cloned first (offset = realCount+1), then onMomentumScrollEnd will snap to real first
-                      try { heroScrollRef.current?.scrollTo({ x: (realCount + 1) * width, animated: true }); } catch (e) { }
+                      try { heroScrollRef.current?.scrollTo({ x: (realCount + 1) * contentWidth, animated: true }); } catch (e) { }
                       setCurrentHeroIndex(next);
                       return;
                     }
@@ -1030,72 +1085,121 @@ export default function HomeScreen() {
           })()}
         </View>
 
-        {/* Buscador */}
-        <TextInput
-          style={styles.search}
-          placeholder="Buscar eventos..."
-          placeholderTextColor="#888"
-          value={search}
-          onChangeText={setSearch}
-        />
-        {/* Compact row: two small buttons + arrow-only select on the right */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%', paddingHorizontal: 8, marginTop: 8, gap: 8 }}>
-          <View style={{ flexDirection: 'row', gap: 8, flex: 1 }}>
+        {/* Buscador (solo móvil) */}
+        {!isWeb && (
+          <TextInput
+            style={[styles.search, { marginHorizontal: CONTENT_PADDING }]}
+            placeholder="Buscar eventos..."
+            placeholderTextColor="#888"
+            value={search}
+            onChangeText={setSearch}
+          />
+        )}
+        {/* Filtros - Fila 1: Alcance (Todos / Cercanos) — solo en web */}
+        {isWeb && (
+          <View style={[styles.filtersRowScope, { paddingHorizontal: CONTENT_PADDING }]}>
             <TouchableOpacity
               style={[styles.smallBtn, scopeFilter === 'all' && styles.smallBtnActive]}
-              onPress={() => { setScopeFilter('all'); setTypeOpen(false); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
+              onPress={() => { setScopeFilter('all'); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
             >
-              <Text style={[styles.smallBtnText, scopeFilter === 'all' && styles.smallBtnTextActive]}>Todos</Text>
+              <Text style={[styles.smallBtnText, scopeFilter === 'all' && styles.smallBtnTextActive]}>🌍 Todos</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.smallBtn, scopeFilter === 'nearby' && styles.smallBtnActive]}
-              onPress={() => { setScopeFilter('nearby'); setTypeOpen(false); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
+              onPress={() => { setScopeFilter('nearby'); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
             >
-              <Text style={[styles.smallBtnText, scopeFilter === 'nearby' && styles.smallBtnTextActive]}>Cercanos a ti</Text>
+              <Text style={[styles.smallBtnText, scopeFilter === 'nearby' && styles.smallBtnTextActive]}>📍 Cercanos a ti</Text>
             </TouchableOpacity>
           </View>
+        )}
 
-          {/* Arrow-only select */}
-          <View style={{ width: 48, alignItems: 'center', justifyContent: 'center' }}>
-            <TouchableOpacity
-              onPress={() => setTypeOpen(o => !o)}
-              style={[{ padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#334155', backgroundColor: '#0f172a' }, typeOpen && { borderColor: '#0ea5e9' }]}
+        {/* Filtros - Fila 2: Tipos de evento con scroll horizontal — solo en web */}
+        {isWeb && (
+          <View style={[styles.filtersRowTypes, { paddingHorizontal: CONTENT_PADDING }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersScrollContent}
             >
-              <Text style={{ color: '#94a3b8', fontSize: 18 }}>{typeOpen ? '▲' : '▼'}</Text>
-            </TouchableOpacity>
-            {typeOpen && (
-              <Modal
-                visible={typeOpen}
-                transparent={true}
-                animationType="fade"
-                onRequestClose={() => setTypeOpen(false)}
+              <TouchableOpacity
+                style={[styles.typeFilterBtn, typeFilter === 'all' && styles.typeFilterBtnActive]}
+                onPress={() => { setTypeFilter('all'); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
               >
-                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPressOut={() => setTypeOpen(false)}>
-                  <View style={{ backgroundColor: '#1e293b', borderRadius: 0, paddingVertical: 12, paddingHorizontal: 12, width: '100%', maxHeight: '100%', alignSelf: 'stretch', alignItems: 'stretch', justifyContent: 'flex-start' }}>
-                    <TouchableOpacity style={[styles.modalClose, { padding: 8 }]} onPress={() => setTypeOpen(false)}>
-                      <Ionicons name="close" size={28} color="#fff" />
-                    </TouchableOpacity>
-                    <ScrollView contentContainerStyle={{ paddingVertical: 8 }}>
-                      <TouchableOpacity onPress={() => { setTypeFilter('all'); setTypeOpen(false); }} style={{ paddingVertical: 14 }}>
-                        <Text style={{ color: typeFilter === 'all' ? '#0ea5e9' : '#cbd5e1', fontSize: 20, fontWeight: '600' }}>De todo tipo</Text>
-                      </TouchableOpacity>
-                      {sortedEventTypes.map(e => (
-                        <TouchableOpacity key={e.key} onPress={() => { setTypeFilter(e.key); setTypeOpen(false); }} style={{ paddingVertical: 14 }}>
-                          <Text style={{ color: typeFilter === e.key ? '#0ea5e9' : '#cbd5e1', fontSize: 20, fontWeight: '600' }}>{e.label}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
+                <Text style={[styles.typeFilterText, typeFilter === 'all' && styles.typeFilterTextActive]}>De todo tipo</Text>
+              </TouchableOpacity>
+              {sortedEventTypes.map(e => (
+                <TouchableOpacity
+                  key={e.key}
+                  style={[styles.typeFilterBtn, typeFilter === e.key && styles.typeFilterBtnActive]}
+                  onPress={() => { setTypeFilter(e.key); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
+                >
+                  <Text style={[styles.typeFilterText, typeFilter === e.key && styles.typeFilterTextActive]}>{e.label}</Text>
                 </TouchableOpacity>
-              </Modal>
-            )}
+              ))}
+            </ScrollView>
           </View>
-        </View>
+        )}
+
+        {/* Filtros móvil: Todos / Cercanos + dropdown de tipos */}
+        {!isWeb && (
+          <View style={[styles.filtersRow, { paddingHorizontal: 8 }]}>
+            <View style={styles.filtersLeftGroup}>
+              <TouchableOpacity
+                style={[styles.smallBtn, scopeFilter === 'all' && styles.smallBtnActive]}
+                onPress={() => { setScopeFilter('all'); setTypeOpen(false); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
+              >
+                <Text style={[styles.smallBtnText, scopeFilter === 'all' && styles.smallBtnTextActive]}>Todos</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.smallBtn, scopeFilter === 'nearby' && styles.smallBtnActive]}
+                onPress={() => { setScopeFilter('nearby'); setTypeOpen(false); scrollRef.current?.scrollTo({ y: 0, animated: true }); }}
+              >
+                <Text style={[styles.smallBtnText, scopeFilter === 'nearby' && styles.smallBtnTextActive]}>Cercanos a ti</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Selector por flecha solo en móvil */}
+            <View style={{ width: 48, alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity
+                onPress={() => setTypeOpen(o => !o)}
+                style={[{ padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#334155', backgroundColor: '#0f172a' }, typeOpen && { borderColor: '#0ea5e9' }]}
+              >
+                <Text style={{ color: '#94a3b8', fontSize: 18 }}>{typeOpen ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              {typeOpen && (
+                <Modal
+                  visible={typeOpen}
+                  transparent={true}
+                  animationType="fade"
+                  onRequestClose={() => setTypeOpen(false)}
+                >
+                  <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPressOut={() => setTypeOpen(false)}>
+                    <View style={{ backgroundColor: '#1e293b', borderRadius: 0, paddingVertical: 12, paddingHorizontal: 12, width: '100%', maxHeight: '100%', alignSelf: 'stretch', alignItems: 'stretch', justifyContent: 'flex-start' }}>
+                      <TouchableOpacity style={[styles.modalClose, { padding: 8 }]} onPress={() => setTypeOpen(false)}>
+                        <Ionicons name="close" size={28} color="#fff" />
+                      </TouchableOpacity>
+                      <ScrollView contentContainerStyle={{ paddingVertical: 8 }}>
+                        <TouchableOpacity onPress={() => { setTypeFilter('all'); setTypeOpen(false); }} style={{ paddingVertical: 14 }}>
+                          <Text style={{ color: typeFilter === 'all' ? '#0ea5e9' : '#cbd5e1', fontSize: 20, fontWeight: '600' }}>De todo tipo</Text>
+                        </TouchableOpacity>
+                        {sortedEventTypes.map(e => (
+                          <TouchableOpacity key={e.key} onPress={() => { setTypeFilter(e.key); setTypeOpen(false); }} style={{ paddingVertical: 14 }}>
+                            <Text style={{ color: typeFilter === e.key ? '#0ea5e9' : '#cbd5e1', fontSize: 20, fontWeight: '600' }}>{e.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </TouchableOpacity>
+                </Modal>
+              )}
+            </View>
+          </View>
+        )}
 
 
 
         {/* Eventos */}
-        <Text style={styles.sectionTitle}>
+        <Text style={[styles.sectionTitle, isWeb && { paddingHorizontal: CONTENT_PADDING }]}>
           {scopeFilter === 'nearby' && 'Eventos cerca de ti'}
           {scopeFilter !== 'nearby' && typeFilter === 'all' && 'Próximos eventos'}
           {scopeFilter !== 'nearby' && typeFilter !== 'all' && `Eventos de ${(sortedEventTypes.find(t => t.key === typeFilter)?.label) || typeFilter}`}
@@ -1110,11 +1214,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.permissionBtn}
               onPress={async () => {
-                if (!isLogged) {
-                  Alert.alert('Inicia sesión', 'Debes iniciar sesión para ver eventos cerca de ti.');
-                  return;
-                }
-                // Si está logueado, ejecutamos la solicitud de ubicación
+                // Cualquier usuario puede solicitar ubicación para ver eventos cercanos
                 solicitarUbicacion();
               }}
               disabled={locationStatus === 'requesting'}
@@ -1132,26 +1232,39 @@ export default function HomeScreen() {
         {/* Lista de eventos (oculta si se requiere ubicación para 'nearby') */}
         {!(scopeFilter === 'nearby' && !userLocation) && (
           <>
-            <View style={styles.eventsGrid}>
+            <View style={[
+              styles.eventsGrid,
+              isWeb && {
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                paddingHorizontal: CONTENT_PADDING,
+                gap: CARD_GAP,
+              },
+              !isWeb && { flexDirection: 'column' },
+            ]}>
 
               {/* Loading inline */}
               {loadingline && (
-                <View style={{ paddingVertical: 20, alignItems: 'center', width: '100%' }}>
-                  <ActivityIndicator size="small" color="#4f46e5" />
-                  <Text style={{ color: '#fff', marginTop: 5 }}>Cargando eventos...</Text>
+                <View style={{ paddingVertical: 40, alignItems: 'center', width: '100%' }}>
+                  <ActivityIndicator size="large" color="#6366f1" />
+                  <Text style={{ color: '#94a3b8', marginTop: 12, fontSize: 15 }}>Cargando eventos...</Text>
                 </View>
               )}
 
               {/* No hay eventos (mensajes diferenciados según filtro) */}
               {!loadingline && filteredEvents.length === 0 && (
-                <Text style={{ color: '#fff', textAlign: 'center', marginVertical: 20, width: '100%' }}>
-                  {typeFilter && typeFilter !== 'all' ? 'No se han encontrado eventos de este tipo' : 'No hay eventos para mostrar.'}
-                </Text>
+                <View style={{ alignItems: 'center', paddingVertical: 48, width: '100%' }}>
+                  <Text style={{ color: '#64748b', fontSize: 48, marginBottom: 12 }}>🎉</Text>
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600', textAlign: 'center' }}>
+                    {typeFilter && typeFilter !== 'all' ? 'No se han encontrado eventos de este tipo' : 'No hay eventos para mostrar.'}
+                  </Text>
+                  <Text style={{ color: '#64748b', fontSize: 14, marginTop: 8, textAlign: 'center' }}>Prueba con otros filtros</Text>
+                </View>
               )}
 
               {/* Lista de eventos (infinite scroll): mostramos los eventos filtrados cargados desde API */}
               {!loadingline && filteredEvents.map(event => (
-                <View key={event.id} style={styles.eventCard}>
+                <View key={event.id} style={[styles.eventCard, isWeb ? { width: dynamicCardWidth, flexGrow: 0, flexShrink: 0 } : { width: dynamicCardWidth, alignSelf: 'center' }]}>
                   <View style={styles.ownerRow}>
                     {event.ownerLogo ? (
                       <Image
@@ -1219,7 +1332,7 @@ export default function HomeScreen() {
                     <TouchableOpacity
                       style={styles.reserveBtn}
                       onPress={() => {
-                        navigation.navigate('Reservar/Comprar', {
+                        navigation.navigate('BuyScreen', {
                           idEvento: event.id,
                           idEmpresa: event.ownerName?.startsWith('Empresa #') ? event.ownerName.replace('Empresa #', '') : undefined
                         });
@@ -1256,22 +1369,12 @@ export default function HomeScreen() {
 
         {/* Footer */}
         <View style={styles.footer}>
-          {/* Footer row: logo on the left, text block on the right */}
           <View style={styles.footerInner}>
             <Image source={require('../../assets/footer_logo.jpg')} style={styles.footerLogo} />
             <View style={styles.footerText}>
               <Text style={styles.footerTitle}>EVENTIALccs</Text>
-
               <Text style={styles.footerCopyright}>© 2025 IA Tecnología y Servicios. Todos los derechos reservados.</Text>
             </View>
-
-
-
-          </View>
-          <View style={styles.footerActions}>
-            <TouchableOpacity style={styles.footerButton} onPress={handleRateApp} accessibilityRole="button">
-              <Text style={styles.footerButtonText}>¿Qué te parece Evential? Califícanos</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -1365,10 +1468,8 @@ export default function HomeScreen() {
   );
 }
 
-const CARD_WIDTH = width < 600 ? width - 32 : (width - 48) / 2;
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a', paddingHorizontal: 8 },
+  container: { flex: 1, backgroundColor: '#0f172a' },
   // fixedBottomPad eliminado: ahora usamos padding dinámico con insets.bottom
   header: { backgroundColor: '#0f172a', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', marginBottom: 12 },
   headerContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -1378,13 +1479,13 @@ const styles = StyleSheet.create({
   headerRight: { flexDirection: 'row', alignItems: 'center' },
   loginBtn: { backgroundColor: '#0ea5e9', paddingVertical: 6, paddingHorizontal: 16, borderRadius: 8 },
   loginBtnText: { color: '#fff', fontWeight: 'bold' },
-  heroSection: { height: width < 600 ? 180 : 260, marginBottom: 16, borderRadius: 16, overflow: 'hidden', position: 'relative' },
+  heroSection: { marginBottom: 24, overflow: 'hidden', position: 'relative' },
   heroImage: { width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 },
   heroOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(49,46,129,0.7)' },
 
   heroCarousel: { flexDirection: 'row' },
-  // Full-bleed hero card: match window width and remove gap
-  heroCard: { width: width, height: '100%', borderRadius: 0, overflow: 'hidden', marginRight: 0, backgroundColor: '#111827' },
+  // Full-bleed hero card: removed fixed width from style
+  heroCard: { height: '100%', borderRadius: 0, overflow: 'hidden', marginRight: 0, backgroundColor: '#111827' },
   heroCardImage: { width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 },
   heroCardOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)' },
   heroCardText: { position: 'absolute', bottom: 12, left: 12, right: 12, zIndex: 2 },
@@ -1394,6 +1495,107 @@ const styles = StyleSheet.create({
   heroArrowLeft: { left: 8 },
   heroArrowRight: { right: 8 },
   search: { backgroundColor: '#fff', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 16 },
+  // ── Filtros: fila 1 (alcance: Todos / Cercanos) ──────────────────
+  filtersRowScope: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  // ── Filtros: fila 2 (tipos de evento con scroll) ──────────────────
+  filtersRowTypes: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    // el paddingHorizontal se pasa inline desde el render
+  },
+  filtersScrollContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingRight: 16,
+    paddingVertical: 6,
+  },
+  // Botones de tipo (fila 2 web): estilo pill más sutil que smallBtn
+  typeFilterBtn: {
+    backgroundColor: 'transparent',
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#334155',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeFilterBtnActive: {
+    backgroundColor: '#6366f1',
+    borderColor: '#6366f1',
+  },
+  typeFilterText: {
+    color: '#94a3b8',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  typeFilterTextActive: {
+    color: '#fff',
+  },
+  // ── Filtros móvil ───────────────────────────────────────────────
+  filtersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 8,
+    marginBottom: 8,
+    gap: 8,
+  },
+  filtersRowWeb: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  filterGroupDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#334155',
+    marginHorizontal: 4,
+  },
+  filtersLeftGroup: {
+    flexDirection: 'row',
+    gap: 8,
+    flex: 1,
+  },
+  filtersLeftGroupWeb: {
+    flexWrap: 'wrap',
+    justifyContent: 'flex-start',
+  },
+  headerSearchBoxWeb: {
+    backgroundColor: '#2f3640',
+    height: 40,
+    borderRadius: 40,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 6,
+  },
+  headerSearchButtonWeb: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2f3640',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerSearchButtonWebActive: {
+    backgroundColor: '#ffffff',
+  },
+  headerSearchInputWeb: {
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    color: '#ffffff',
+    fontSize: 16,
+    height: 40,
+    paddingVertical: 0,
+  },
   filters: { flexDirection: 'row', marginBottom: 12 },
   filterBtn: { backgroundColor: '#334155', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16, marginRight: 8 },
   filterBtnActive: { backgroundColor: '#0ea5e9' },
@@ -1410,9 +1612,9 @@ const styles = StyleSheet.create({
   smallBtnText: { color: '#cbd5e1', fontWeight: '700', fontSize: 13 },
   smallBtnTextActive: { color: '#07102a', fontWeight: '800', fontSize: 13 },
   smallBtnTextLarge: { fontSize: 15 },
-  sectionTitle: { fontSize: 20, color: '#fff', fontWeight: 'bold', marginVertical: 12 },
-  eventsGrid: { flexDirection: width < 600 ? 'column' : 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
-  eventCard: { backgroundColor: '#334155', borderRadius: 12, padding: 12, marginBottom: 16, position: 'relative', width: CARD_WIDTH, alignSelf: 'center', marginHorizontal: 4 },
+  sectionTitle: { fontSize: 22, color: '#fff', fontWeight: 'bold', marginVertical: 16 },
+  eventsGrid: { justifyContent: 'flex-start' },
+  eventCard: { backgroundColor: '#1e293b', borderRadius: 16, padding: 14, marginBottom: 16, position: 'relative', borderWidth: 1, borderColor: '#334155' },
   ownerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   ownerAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#6366f1', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
   ownerAvatarText: { color: '#fff', fontWeight: '700', fontSize: 16 },
@@ -1441,9 +1643,9 @@ const styles = StyleSheet.create({
   pageArrowDisabled: { backgroundColor: '#1e293b' },
   pageArrowText: { color: '#fff', fontSize: 18, fontWeight: '700' },
   pageIndicator: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  footer: { backgroundColor: '#1e293b', borderRadius: 16, padding: 20, marginTop: 24, alignItems: 'center', marginBottom: 32 },
-  footerTitle: { fontSize: 18, fontWeight: 'bold', color: '#cadce4ff', marginBottom: 8 },
-  footerLogo: { width: 64, height: 64, borderRadius: 32, marginRight: 12, overflow: 'hidden', resizeMode: 'cover' },
+  footer: { backgroundColor: '#1e293b', borderRadius: 16, padding: 28, marginTop: 24, marginBottom: 0 },
+  footerTitle: { fontSize: 28, fontWeight: 'bold', color: '#e2e8f0', marginBottom: 8 },
+  footerLogo: { width: 96, height: 96, borderRadius: 48, marginRight: 20, overflow: 'hidden', resizeMode: 'cover' },
   footerInner: { flexDirection: 'row', alignItems: 'flex-start', width: '100%' },
   footerText: { flex: 1 },
   footerActions: { justifyContent: 'center', alignItems: 'center', width: '100%', marginTop: 16 },
@@ -1451,7 +1653,7 @@ const styles = StyleSheet.create({
   footerButtonText: { color: '#fff', fontWeight: '700' },
   footerDesc: { color: '#cbd5e1', textAlign: 'left', marginBottom: 12 },
   footerLink: { color: '#cbd5e1', marginRight: 12, marginBottom: 4 },
-  footerCopyright: { color: '#64748b', fontSize: 12, textAlign: 'left' },
+  footerCopyright: { color: '#94a3b8', fontSize: 15, textAlign: 'left' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
   modalClose: { right: 12, zIndex: 2, position: 'absolute' },

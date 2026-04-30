@@ -547,7 +547,7 @@ export default function BuyScreen() {
       try {
         setRelatedLoading(true);
         setCompanyEventsLoading(true);
-        const res = await api.get('/api/eventos-publicos/');
+        const res = await api.get('/api/eventos-publicos/', { params: { page_size: 10 } });
         if (cancelado) return;
 
         const sourceData = Array.isArray(res?.data)
@@ -649,7 +649,7 @@ export default function BuyScreen() {
       )}
       {/* Barra de volver debajo del header */}
       <View style={[styles.backBar, { marginTop: 4 }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.85} style={styles.backBarBtn}>
+        <TouchableOpacity onPress={() => { if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('HomeScreen'); } }} activeOpacity={0.85} style={styles.backBarBtn}>
           <Text style={styles.backBarIcon}>‹</Text>
           <Text style={styles.backBarText}>Volver</Text>
         </TouchableOpacity>

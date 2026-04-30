@@ -152,3 +152,10 @@ Para eliminar el contenedor:
 
     docker rm redis-server
 -----------------------------------------------------------------------------------------------------------------
+
+
+Version web:
+
+npx expo start --web
+
+Forzar puerto distinto: --port 8082

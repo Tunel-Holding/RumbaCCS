@@ -45,8 +45,8 @@ export const registerUser = async (formData) => {
 
 export default function RegisterScreen({ navigation, route }) {
   const [fontsLoaded] = useFonts({
-      'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
-    });
+    'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
+  });
   const insets = useSafeAreaInsets();
   const topSpacer = insets.top + 8;
   const bottomSpacer = insets.bottom + 24;
@@ -70,13 +70,13 @@ export default function RegisterScreen({ navigation, route }) {
   const { accountType } = route.params ?? {};
 
   const [errors, setErrors] = useState({});
-  
+
 
   // --- Flujo PIN (similar a FormularioScreen) ---
   const [cargando, setCargando] = useState(false); // reutilizado como paso de verificación activo
   const [verificado, setVerificado] = useState(false);
   const PIN_LENGTH = 6;
-  const [pinDigits, setPinDigits] = useState(['','','','','','']);
+  const [pinDigits, setPinDigits] = useState(['', '', '', '', '', '']);
   const pinRefs = useRef([]);
   const [pinResendAvailable, setPinResendAvailable] = useState(false);
   const [pinError, setPinError] = useState(false);
@@ -96,7 +96,7 @@ export default function RegisterScreen({ navigation, route }) {
   };
 
   const ESTADOS_VE = [
-    'Amazonas','Anzoátegui','Apure','Aragua','Barinas','Bolívar','Carabobo','Cojedes','Delta Amacuro','Distrito Capital','Falcón','Guárico','Lara','Mérida','Miranda','Monagas','Nueva Esparta','Portuguesa','Sucre','Táchira','Trujillo','La Guaira','Yaracuy','Zulia'
+    'Amazonas', 'Anzoátegui', 'Apure', 'Aragua', 'Barinas', 'Bolívar', 'Carabobo', 'Cojedes', 'Delta Amacuro', 'Distrito Capital', 'Falcón', 'Guárico', 'Lara', 'Mérida', 'Miranda', 'Monagas', 'Nueva Esparta', 'Portuguesa', 'Sucre', 'Táchira', 'Trujillo', 'La Guaira', 'Yaracuy', 'Zulia'
   ];
 
   useEffect(() => {
@@ -123,13 +123,13 @@ export default function RegisterScreen({ navigation, route }) {
       if (!telefono.trim()) newErrors.telefono = 'Este campo es obligatorio';
       else if (!/^\d{11}$/.test(telefono.trim())) newErrors.telefono = 'El número debe tener exactamente 11 dígitos';
 
-    // Región
+      // Región
       if (!region) newErrors.region = 'Este campo es obligatorio';
 
-  // Email: obligatorio, debe ser válido (cualquier dominio)
-  if (!email.trim()) newErrors.email = 'Este campo es obligatorio';
-  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) newErrors.email = 'El correo debe ser válido';
-  else if (errors.email === 'Vuelva a introducir su correo') newErrors.email = errors.email;
+      // Email: obligatorio, debe ser válido (cualquier dominio)
+      if (!email.trim()) newErrors.email = 'Este campo es obligatorio';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) newErrors.email = 'El correo debe ser válido';
+      else if (errors.email === 'Vuelva a introducir su correo') newErrors.email = errors.email;
 
       // Contraseña
       if (!pass) newErrors.pass = 'Este campo es obligatorio';
@@ -168,7 +168,7 @@ export default function RegisterScreen({ navigation, route }) {
         password: pass
       };
 
-      setPinDigits(['','','','','','']);
+      setPinDigits(['', '', '', '', '', '']);
       setVerificado(false);
       setCargando(true);
       try {
@@ -211,23 +211,23 @@ export default function RegisterScreen({ navigation, route }) {
         {cargando ? (
           <View style={styles.loadingContainer}>
             <TouchableOpacity
-              onPress={() => { setCargando(false); setPinDigits(['','','','','','']); }}
+              onPress={() => { setCargando(false); setPinDigits(['', '', '', '', '', '']); }}
               style={{
-                flexDirection:'row',
-                alignItems:'center',
-                backgroundColor:'rgba(255,255,255,0.06)',
-                paddingVertical:6,
-                paddingHorizontal:12,
-                borderRadius:10,
-                borderWidth:1,
-                borderColor:'rgba(255,255,255,0.12)',
-                alignSelf:'center',
-                marginBottom:18
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: 'rgba(255,255,255,0.06)',
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                borderRadius: 10,
+                borderWidth: 1,
+                borderColor: 'rgba(255,255,255,0.12)',
+                alignSelf: 'center',
+                marginBottom: 18
               }}
               activeOpacity={0.85}
             >
-              <Text style={{ fontSize:18, fontWeight:'bold', color:'#fff', marginRight:6, marginTop:-1 }}>←</Text>
-              <Text style={{ color:'#fff', fontSize:13, fontWeight:'600' }}>Volver al registro</Text>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#fff', marginRight: 6, marginTop: -1 }}>←</Text>
+              <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Volver al registro</Text>
             </TouchableOpacity>
             {!pinError && (
               <>
@@ -247,7 +247,7 @@ export default function RegisterScreen({ navigation, route }) {
                     style={[styles.pinErrorBtnPrimary]}
                     onPress={() => {
                       setPinError(false);
-                      setPinDigits(['','','','','','']);
+                      setPinDigits(['', '', '', '', '', '']);
                       pinRefs.current[0]?.focus();
                     }}
                     activeOpacity={0.85}
@@ -265,7 +265,7 @@ export default function RegisterScreen({ navigation, route }) {
                         const res = await api.post(endpoint, { email });
                         // Alert.alert('PIN reenviado', res?.data?.detail || res?.data?.message || 'Revisa tu correo');
                         setPinError(false);
-                        setPinDigits(['','','','','','']);
+                        setPinDigits(['', '', '', '', '', '']);
                         setPinResendAvailable(false);
                         setTimeout(() => setPinResendAvailable(true), 60000);
                         pinRefs.current[0]?.focus();
@@ -289,16 +289,16 @@ export default function RegisterScreen({ navigation, route }) {
             {!pinError && (pinResendAvailable ? (
               <TouchableOpacity onPress={async () => {
                 setPinResendAvailable(false);
-                setPinDigits(['','','','','','']);
+                setPinDigits(['', '', '', '', '', '']);
                 try {
                   const endpoint =
-                      accountType === 'empresa'
-                        ? 'api/reenviar-pin-empresa/'
-                        : 'api/send-verification-code/';
+                    accountType === 'empresa'
+                      ? 'api/reenviar-pin-empresa/'
+                      : 'api/send-verification-code/';
 
                   const res = await api.post(endpoint, { email });
                   const result = res.data;
-                
+
                 } catch (err) {
                   Alert.alert('Error', err.message || 'No se pudo reenviar el PIN.');
                 }
@@ -309,7 +309,7 @@ export default function RegisterScreen({ navigation, route }) {
             ) : (
               !pinError && <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 14 }}>Puedes solicitar un nuevo pin en 1 minuto…</Text>
             ))}
-            {!pinError && <Animated.View style={[styles.pinRow, { transform: [{ translateX: shakeAnim.interpolate({ inputRange:[-1,1], outputRange:[-8,8] }) }] }] }>
+            {!pinError && <Animated.View style={[styles.pinRow, { transform: [{ translateX: shakeAnim.interpolate({ inputRange: [-1, 1], outputRange: [-8, 8] }) }] }]}>
               {pinDigits.map((val, i) => (
                 <TextInput
                   key={i}
@@ -321,17 +321,17 @@ export default function RegisterScreen({ navigation, route }) {
                   ]}
                   value={val}
                   onChangeText={(txt) => {
-                    const onlyNum = txt.replace(/\D/g,'');
+                    const onlyNum = txt.replace(/\D/g, '');
                     const nextDigits = [...pinDigits];
                     nextDigits[i] = onlyNum.slice(-1);
                     setPinDigits(nextDigits);
-                    if (onlyNum && i < PIN_LENGTH -1) {
-                      pinRefs.current[i+1]?.focus();
+                    if (onlyNum && i < PIN_LENGTH - 1) {
+                      pinRefs.current[i + 1]?.focus();
                     }
                   }}
                   onKeyPress={({ nativeEvent }) => {
-                    if (nativeEvent.key === 'Backspace' && !pinDigits[i] && i>0) {
-                      pinRefs.current[i-1]?.focus();
+                    if (nativeEvent.key === 'Backspace' && !pinDigits[i] && i > 0) {
+                      pinRefs.current[i - 1]?.focus();
                     }
                   }}
                   maxLength={1}
@@ -347,7 +347,7 @@ export default function RegisterScreen({ navigation, route }) {
               <Text style={styles.pinInlineError}>Completa los 6 dígitos para continuar</Text>
             )}
             {!pinError && <TouchableOpacity
-              style={[styles.registerBtn, { marginTop: 32, alignItems:'center', justifyContent:'center' }]}
+              style={[styles.registerBtn, { marginTop: 32, alignItems: 'center', justifyContent: 'center' }]}
               disabled={confirmingPin}
               activeOpacity={confirmingPin ? 1 : 0.85}
               onPress={async () => {
@@ -431,251 +431,277 @@ export default function RegisterScreen({ navigation, route }) {
                   }
                   await AsyncStorage.setItem('userName', userObj.username);
                 }
-              } catch(e) {}
+              } catch (e) { }
               navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
             }}>
               <Text style={styles.registerBtnText}>Ir al inicio</Text>
             </TouchableOpacity>
           </View>
         ) : (
-        <KeyboardAvoidingView
-          style={{ flex:1, width:'100%' }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 24 : insets.bottom + 24}
-        >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView
-          ref={scrollRef}
-          style={{ flex: 1, width: '100%' }}
-          contentContainerStyle={{
-            alignItems: 'center',
-            paddingHorizontal: 16,
-            paddingTop: topSpacer,
-            paddingBottom: bottomSpacer,
-          }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-        <View style={styles.bgImageContainer}>
-          <Image source={require('../../assets/register-bg.jpg')} style={styles.bgImage} resizeMode="cover" />
-        </View>
-  <View style={[styles.registerContainer, { marginTop: 0 }]}> 
-          {/* Flecha para volver */}
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('AccountTypeScreen')}>
-            <Text style={styles.backArrow}>←</Text>
-            <Text style={styles.backText}>Volver</Text>
-          </TouchableOpacity>
-          <Text style={{ fontFamily: fontsLoaded ? 'BebasNeue' : undefined, fontSize: 48, color: '#bb2776ff' }}>EVENTIAL</Text>
-          <Text style={styles.subtitle}>¡Regístrate para continuar!</Text>
-          {/* Descripción según tipo de cuenta */}
-          {accountType === 'normal' ? null : (
-            <Text style={{ color: '#fff', marginBottom: 12, textAlign: 'center' }}>
-              Cuenta Empresa: Cuenta empresarial para publicar eventos y ser tu el que prende la rumba
-            </Text>
-          )}
-          <View style={styles.inputGroup} onLayout={e => registerFieldPosition('user', e.nativeEvent.layout.y)}>
-            <TextInput
-              style={[styles.input, errors.user && styles.inputError]}
-              placeholder="Nombre de Usuario"
-              placeholderTextColor="#888"
-              value={user}
-              onChangeText={text => { setUser(text); if (errors.user) setErrors(e => ({ ...e, user: undefined })); }}
-              onFocus={() => scrollToField('user')}
-            />
-            {errors.user && <Text style={styles.errorMsg}>{errors.user}</Text>}
-          </View>
-          <View style={styles.inputGroup} onLayout={e => registerFieldPosition('telefono', e.nativeEvent.layout.y)}>
-            <TextInput
-              style={[styles.input, errors.telefono && styles.inputError]}
-              placeholder="Número de teléfono"
-              placeholderTextColor="#888"
-              value={telefono}
-              onChangeText={text => { setTelefono(text); if (errors.telefono) setErrors(e => ({ ...e, telefono: undefined })); }}
-              keyboardType="phone-pad"
-              maxLength={15}
-              onFocus={() => scrollToField('telefono')}
-            />
-            {errors.telefono && <Text style={styles.errorMsg}>{errors.telefono}</Text>}
-          </View>
-          <View style={styles.inputGroup}>
-            <TouchableOpacity
-              onPress={() => setShowEdadModal(true)}
-              style={[styles.input, { justifyContent: 'start', flexDirection: 'row', alignItems: 'start' }]}
-              activeOpacity={0.8}
-            >
-              <Text style={{ color: fechaNacimiento ? '#fff' : '#888', fontSize: 16 }}>
-                {fechaNacimiento ? ` ${fechaNacimiento.toLocaleDateString()}` : 'Fecha de nacimiento'}
-              </Text>
-            </TouchableOpacity>
-            {/* Modal de advertencia de edad mínima */}
-            <Modal
-              visible={showEdadModal}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setShowEdadModal(false)}
-            >
-              <View style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.85)', justifyContent: 'center', alignItems: 'center' }}>
-                <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, alignItems: 'center', maxWidth: 320 }}>
-                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>
-                    Para registrarte debes tener al menos 15 años de edad. Selecciona tu fecha de nacimiento y asegúrate de cumplir con este requisito.
-                  </Text>
-                  <TouchableOpacity onPress={() => { setShowEdadModal(false); setShowDatePicker(true); }} style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 32, marginTop: 8 }}>
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Aceptar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </Modal>
-            {showDatePicker && (
-              <View style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(15,23,42,0.95)',
-                justifyContent: 'center',
+          <KeyboardAvoidingView
+            style={{ flex: 1, width: '100%' }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 24 : insets.bottom + 24}
+          >
+            <ScrollView
+              ref={scrollRef}
+              style={{ flex: 1, width: '100%' }}
+              contentContainerStyle={{
                 alignItems: 'center',
-                zIndex: 10,
-              }}>
-                <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 16, elevation: 10 }}>
-                  <DateTimePicker
-                    value={fechaNacimiento || new Date()}
-                    mode="date"
-                    display={Platform.OS === 'android' ? 'calendar' : 'spinner'}
-                    themeVariant="dark"
-                    onChange={(event, selectedDate) => {
-                      // no cerramos hasta seleccionar explícitamente (en Android se cierra solo)
-                      if (Platform.OS === 'android') setShowDatePicker(false);
-                      if (selectedDate) setFechaNacimiento(selectedDate);
-                    }}
-                    maximumDate={(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 15); return d; })()} // solo permite seleccionar fechas de hace 15 años o más
-                  />
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)} style={{ marginTop: 12, alignSelf: 'center' }}>
-                    <Text style={{ color: '#ec4899', fontWeight: 'bold', fontSize: 16 }}>Cerrar</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            {errors.fechaNacimiento && <Text style={styles.errorMsg}>{errors.fechaNacimiento}</Text>}
-          </View>
-
-          {/* Selector de sexo tipo radio */}
-          <View style={[styles.inputGroup, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}> 
-            <TouchableOpacity onPress={() => setSexo('masculino')} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 24 }}>
-              <MaterialCommunityIcons name={sexo === 'masculino' ? 'radiobox-marked' : 'radiobox-blank'} size={24} color={sexo === 'masculino' ? '#0ea5e9' : '#888'} />
-              <Text style={{ color: '#fff', marginLeft: 8, fontSize: 16 }}>Masculino</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setSexo('femenino')} style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <MaterialCommunityIcons name={sexo === 'femenino' ? 'radiobox-marked' : 'radiobox-blank'} size={24} color={sexo === 'femenino' ? '#ec4899' : '#888'} />
-              <Text style={{ color: '#fff', marginLeft: 8, fontSize: 16 }}>Femenino</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <TouchableOpacity
-              style={styles.regionSelector}
-              activeOpacity={0.8}
-              onPress={() => { setShowRegionModal(true); setRegionSearch(''); }}
+                paddingHorizontal: 16,
+                paddingTop: topSpacer,
+                paddingBottom: bottomSpacer,
+              }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
             >
-              <Text style={[styles.regionSelectorText, !region && { color: '#64748b' }]}>{region || 'Selecciona tu estado'}</Text>
-              <Ionicons name={showRegionModal ? 'chevron-up' : 'chevron-down'} size={20} color='#0ea5e9' style={{ marginLeft: 8 }} />
-            </TouchableOpacity>
-            {errors.region && <Text style={styles.errorMsg}>{errors.region}</Text>}
-          </View>
-
-          {/* Modal selector región consistente iOS/Android */}
-          {showRegionModal && (
-            <Modal transparent animationType='fade' onRequestClose={() => setShowRegionModal(false)}>
-              <View style={styles.regionModalOverlay}>
-                <View style={styles.regionModalContent}>
-                  <Text style={styles.regionModalTitle}>Selecciona tu estado</Text>
+              <View style={styles.bgImageContainer}>
+                <Image source={require('../../assets/register-bg.jpg')} style={styles.bgImage} resizeMode="cover" />
+              </View>
+              <View style={[styles.registerContainer, { marginTop: 0 }]}>
+                {/* Flecha para volver */}
+                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('AccountTypeScreen')}>
+                  <Text style={styles.backArrow}>←</Text>
+                  <Text style={styles.backText}>Volver</Text>
+                </TouchableOpacity>
+                <Text style={{ fontFamily: fontsLoaded ? 'BebasNeue' : undefined, fontSize: 48, color: '#bb2776ff' }}>EVENTIAL</Text>
+                <Text style={styles.subtitle}>¡Regístrate para continuar!</Text>
+                {/* Descripción según tipo de cuenta */}
+                {accountType === 'normal' ? null : (
+                  <Text style={{ color: '#fff', marginBottom: 12, textAlign: 'center' }}>
+                    Cuenta Empresa: Cuenta empresarial para publicar eventos y ser tu el que prende la rumba
+                  </Text>
+                )}
+                <View style={styles.inputGroup} onLayout={e => registerFieldPosition('user', e.nativeEvent.layout.y)}>
                   <TextInput
-                    value={regionSearch}
-                    onChangeText={setRegionSearch}
-                    placeholder='Buscar...'
-                    placeholderTextColor='#64748b'
-                    style={styles.regionSearchInput}
+                    style={[styles.input, errors.user && styles.inputError]}
+                    placeholder="Nombre de Usuario"
+                    placeholderTextColor="#888"
+                    value={user}
+                    onChangeText={text => { setUser(text); if (errors.user) setErrors(e => ({ ...e, user: undefined })); }}
+                    onFocus={() => scrollToField('user')}
                   />
-                  <ScrollView style={{ maxHeight: 300, width: '100%', marginTop: 4 }} keyboardShouldPersistTaps='handled' showsVerticalScrollIndicator={false}>
-                    {ESTADOS_VE.filter(e => e.toLowerCase().includes(regionSearch.toLowerCase())).map(est => (
-                      <TouchableOpacity
-                        key={est}
-                        activeOpacity={0.9}
-                        style={[styles.regionOption, est === region && styles.regionOptionActive]}
-                        onPress={() => { setRegion(est); setShowRegionModal(false); if (errors.region) setErrors(e=>({...e, region: undefined})); }}
-                      >
-                        <Text style={styles.regionOptionText}>{est}</Text>
-                        {est === region && <Ionicons name='checkmark-circle' size={20} color='#10b981' />}
-                      </TouchableOpacity>
-                    ))}
-                    {ESTADOS_VE.filter(e => e.toLowerCase().includes(regionSearch.toLowerCase())).length === 0 && (
-                      <Text style={styles.regionEmptyText}>Sin resultados</Text>
-                    )}
-                  </ScrollView>
-                  <TouchableOpacity style={styles.regionCloseBtn} onPress={() => setShowRegionModal(false)}>
-                    <Text style={styles.regionCloseText}>Cerrar</Text>
+                  {errors.user && <Text style={styles.errorMsg}>{errors.user}</Text>}
+                </View>
+                <View style={styles.inputGroup} onLayout={e => registerFieldPosition('telefono', e.nativeEvent.layout.y)}>
+                  <TextInput
+                    style={[styles.input, errors.telefono && styles.inputError]}
+                    placeholder="Número de teléfono"
+                    placeholderTextColor="#888"
+                    value={telefono}
+                    onChangeText={text => { setTelefono(text); if (errors.telefono) setErrors(e => ({ ...e, telefono: undefined })); }}
+                    keyboardType="phone-pad"
+                    maxLength={15}
+                    onFocus={() => scrollToField('telefono')}
+                  />
+                  {errors.telefono && <Text style={styles.errorMsg}>{errors.telefono}</Text>}
+                </View>
+                <View style={styles.inputGroup}>
+                  {Platform.OS === 'web' ? (
+                    <View style={[styles.input, { justifyContent: 'center' }]}>
+                      <input
+                        type="date"
+                        max={new Date(new Date().setFullYear(new Date().getFullYear() - 15)).toISOString().split('T')[0]}
+                        style={{
+                          backgroundColor: 'transparent',
+                          color: '#fff',
+                          fontSize: 16,
+                          border: 'none',
+                          outline: 'none',
+                          width: '100%',
+                          fontFamily: 'inherit',
+                          colorScheme: 'dark'
+                        }}
+                        value={fechaNacimiento ? fechaNacimiento.toISOString().split('T')[0] : ''}
+                        onChange={(e) => {
+                          if (e.target.value) {
+                            const [y, m, d] = e.target.value.split('-');
+                            setFechaNacimiento(new Date(y, m - 1, d));
+                          } else {
+                            setFechaNacimiento(null);
+                          }
+                        }}
+                      />
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => setShowEdadModal(true)}
+                      style={[styles.input, { justifyContent: 'flex-start', flexDirection: 'row', alignItems: 'flex-start' }]}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ color: fechaNacimiento ? '#fff' : '#888', fontSize: 16 }}>
+                        {fechaNacimiento ? ` ${fechaNacimiento.toLocaleDateString()}` : 'Fecha de nacimiento'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  {/* Modal de advertencia de edad mínima */}
+                  <Modal
+                    visible={showEdadModal}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={() => setShowEdadModal(false)}
+                  >
+                    <View style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.85)', justifyContent: 'center', alignItems: 'center' }}>
+                      <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 24, alignItems: 'center', maxWidth: 320 }}>
+                        <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>
+                          Para registrarte debes tener al menos 15 años de edad. Selecciona tu fecha de nacimiento y asegúrate de cumplir con este requisito.
+                        </Text>
+                        <TouchableOpacity onPress={() => { setShowEdadModal(false); setShowDatePicker(true); }} style={{ backgroundColor: '#0ea5e9', borderRadius: 8, paddingVertical: 10, paddingHorizontal: 32, marginTop: 8 }}>
+                          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>Aceptar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </Modal>
+                  {showDatePicker && (
+                    <View style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      backgroundColor: 'rgba(15,23,42,0.95)',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      zIndex: 10,
+                    }}>
+                      <View style={{ backgroundColor: '#1e293b', borderRadius: 16, padding: 16, elevation: 10 }}>
+                        <DateTimePicker
+                          value={fechaNacimiento || new Date()}
+                          mode="date"
+                          display={Platform.OS === 'android' ? 'calendar' : 'spinner'}
+                          themeVariant="dark"
+                          onChange={(event, selectedDate) => {
+                            // no cerramos hasta seleccionar explícitamente (en Android se cierra solo)
+                            if (Platform.OS === 'android') setShowDatePicker(false);
+                            if (selectedDate) setFechaNacimiento(selectedDate);
+                          }}
+                          maximumDate={(() => { const d = new Date(); d.setFullYear(d.getFullYear() - 15); return d; })()} // solo permite seleccionar fechas de hace 15 años o más
+                        />
+                        <TouchableOpacity onPress={() => setShowDatePicker(false)} style={{ marginTop: 12, alignSelf: 'center' }}>
+                          <Text style={{ color: '#ec4899', fontWeight: 'bold', fontSize: 16 }}>Cerrar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  )}
+                  {errors.fechaNacimiento && <Text style={styles.errorMsg}>{errors.fechaNacimiento}</Text>}
+                </View>
+
+                {/* Selector de sexo tipo radio */}
+                <View style={[styles.inputGroup, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]}>
+                  <TouchableOpacity onPress={() => setSexo('masculino')} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 24 }}>
+                    <MaterialCommunityIcons name={sexo === 'masculino' ? 'radiobox-marked' : 'radiobox-blank'} size={24} color={sexo === 'masculino' ? '#0ea5e9' : '#888'} />
+                    <Text style={{ color: '#fff', marginLeft: 8, fontSize: 16 }}>Masculino</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setSexo('femenino')} style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <MaterialCommunityIcons name={sexo === 'femenino' ? 'radiobox-marked' : 'radiobox-blank'} size={24} color={sexo === 'femenino' ? '#ec4899' : '#888'} />
+                    <Text style={{ color: '#fff', marginLeft: 8, fontSize: 16 }}>Femenino</Text>
                   </TouchableOpacity>
                 </View>
-              </View>
-            </Modal>
-          )}
-          <View style={styles.inputGroup} onLayout={e => registerFieldPosition('email', e.nativeEvent.layout.y)}>
-            <TextInput
-              style={[styles.input, errors.email && styles.inputError]}
-              placeholder="Email"
-              placeholderTextColor="#888"
-              value={email}
-              onChangeText={text => { setEmail(text); if (errors.email) setErrors(e => ({ ...e, email: undefined })); }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              onFocus={() => scrollToField('email')}
-            />
-            {checkingEmail && <Text style={{ color: '#0ea5e9', fontSize: 12, marginTop: 2 }}>Verificando correo…</Text>}
-            {errors.email && <Text style={styles.errorMsg}>{Array.isArray(errors.email) ? errors.email[0] : errors.email}</Text>}
-          </View>
 
-          <View style={styles.inputGroup} onLayout={e => registerFieldPosition('pass', e.nativeEvent.layout.y)}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TextInput
-                style={[styles.input, { flex: 1 }, errors.pass && styles.inputError]}
-                placeholder="Contraseña"
-                placeholderTextColor="#888"
-                value={pass}
-                onChangeText={text => { setPass(text); if (errors.pass) setErrors(e => ({ ...e, pass: undefined })); }}
-                secureTextEntry={!showPass}
-                onFocus={() => scrollToField('pass')}
-              />
-              <TouchableOpacity onPress={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 12 }}>
-                <Ionicons name={showPass ? 'eye-off' : 'eye'} size={24} color="#888" />
-              </TouchableOpacity>
-            </View>
-            {errors.pass && <Text style={styles.errorMsg}>{errors.pass}</Text>}
-          </View>
-          <View style={styles.inputGroup} onLayout={e => registerFieldPosition('repeatPass', e.nativeEvent.layout.y)}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TextInput
-                style={[styles.input, { flex: 1 }, errors.repeatPass && styles.inputError]} 
-                placeholder="Repetir contraseña"
-                placeholderTextColor="#888"
-                value={repeatPass}
-                onChangeText={text => { setRepeatPass(text); if (errors.repeatPass) setErrors(e => ({ ...e, repeatPass: undefined })); }}
-                secureTextEntry={!showRepeatPass}
-                onFocus={() => scrollToField('repeatPass')}
-              />
-              <TouchableOpacity onPress={() => setShowRepeatPass(!showRepeatPass)} style={{ position: 'absolute', right: 12 }}>
-                <Ionicons name={showRepeatPass ? 'eye-off' : 'eye'} size={24} color="#888" />
-              </TouchableOpacity>
-            </View>
-            {errors.repeatPass && <Text style={styles.errorMsg}>{errors.repeatPass}</Text>}
-          </View>
-          <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
-            <Text style={styles.registerBtnText}>Registrarse</Text>
-          </TouchableOpacity>
-  </View>
-  </ScrollView>
-  </TouchableWithoutFeedback>
-  </KeyboardAvoidingView>
-  )}
+                <View style={styles.inputGroup}>
+                  <TouchableOpacity
+                    style={styles.regionSelector}
+                    activeOpacity={0.8}
+                    onPress={() => { setShowRegionModal(true); setRegionSearch(''); }}
+                  >
+                    <Text style={[styles.regionSelectorText, !region && { color: '#64748b' }]}>{region || 'Selecciona tu estado'}</Text>
+                    <Ionicons name={showRegionModal ? 'chevron-up' : 'chevron-down'} size={20} color='#0ea5e9' style={{ marginLeft: 8 }} />
+                  </TouchableOpacity>
+                  {errors.region && <Text style={styles.errorMsg}>{errors.region}</Text>}
+                </View>
+
+                {/* Modal selector región consistente iOS/Android */}
+                {showRegionModal && (
+                  <Modal transparent animationType='fade' onRequestClose={() => setShowRegionModal(false)}>
+                    <View style={styles.regionModalOverlay}>
+                      <View style={styles.regionModalContent}>
+                        <Text style={styles.regionModalTitle}>Selecciona tu estado</Text>
+                        <TextInput
+                          value={regionSearch}
+                          onChangeText={setRegionSearch}
+                          placeholder='Buscar...'
+                          placeholderTextColor='#64748b'
+                          style={styles.regionSearchInput}
+                        />
+                        <ScrollView style={{ maxHeight: 300, width: '100%', marginTop: 4 }} keyboardShouldPersistTaps='handled' showsVerticalScrollIndicator={false}>
+                          {ESTADOS_VE.filter(e => e.toLowerCase().includes(regionSearch.toLowerCase())).map(est => (
+                            <TouchableOpacity
+                              key={est}
+                              activeOpacity={0.9}
+                              style={[styles.regionOption, est === region && styles.regionOptionActive]}
+                              onPress={() => { setRegion(est); setShowRegionModal(false); if (errors.region) setErrors(e => ({ ...e, region: undefined })); }}
+                            >
+                              <Text style={styles.regionOptionText}>{est}</Text>
+                              {est === region && <Ionicons name='checkmark-circle' size={20} color='#10b981' />}
+                            </TouchableOpacity>
+                          ))}
+                          {ESTADOS_VE.filter(e => e.toLowerCase().includes(regionSearch.toLowerCase())).length === 0 && (
+                            <Text style={styles.regionEmptyText}>Sin resultados</Text>
+                          )}
+                        </ScrollView>
+                        <TouchableOpacity style={styles.regionCloseBtn} onPress={() => setShowRegionModal(false)}>
+                          <Text style={styles.regionCloseText}>Cerrar</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </Modal>
+                )}
+                <View style={styles.inputGroup} onLayout={e => registerFieldPosition('email', e.nativeEvent.layout.y)}>
+                  <TextInput
+                    style={[styles.input, errors.email && styles.inputError]}
+                    placeholder="Email"
+                    placeholderTextColor="#888"
+                    value={email}
+                    onChangeText={text => { setEmail(text); if (errors.email) setErrors(e => ({ ...e, email: undefined })); }}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    onFocus={() => scrollToField('email')}
+                  />
+                  {checkingEmail && <Text style={{ color: '#0ea5e9', fontSize: 12, marginTop: 2 }}>Verificando correo…</Text>}
+                  {errors.email && <Text style={styles.errorMsg}>{Array.isArray(errors.email) ? errors.email[0] : errors.email}</Text>}
+                </View>
+
+                <View style={styles.inputGroup} onLayout={e => registerFieldPosition('pass', e.nativeEvent.layout.y)}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }, errors.pass && styles.inputError]}
+                      placeholder="Contraseña"
+                      placeholderTextColor="#888"
+                      value={pass}
+                      onChangeText={text => { setPass(text); if (errors.pass) setErrors(e => ({ ...e, pass: undefined })); }}
+                      secureTextEntry={!showPass}
+                      onFocus={() => scrollToField('pass')}
+                    />
+                    <TouchableOpacity onPress={() => setShowPass(!showPass)} style={{ position: 'absolute', right: 12 }}>
+                      <Ionicons name={showPass ? 'eye-off' : 'eye'} size={24} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                  {errors.pass && <Text style={styles.errorMsg}>{errors.pass}</Text>}
+                </View>
+                <View style={styles.inputGroup} onLayout={e => registerFieldPosition('repeatPass', e.nativeEvent.layout.y)}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TextInput
+                      style={[styles.input, { flex: 1 }, errors.repeatPass && styles.inputError]}
+                      placeholder="Repetir contraseña"
+                      placeholderTextColor="#888"
+                      value={repeatPass}
+                      onChangeText={text => { setRepeatPass(text); if (errors.repeatPass) setErrors(e => ({ ...e, repeatPass: undefined })); }}
+                      secureTextEntry={!showRepeatPass}
+                      onFocus={() => scrollToField('repeatPass')}
+                    />
+                    <TouchableOpacity onPress={() => setShowRepeatPass(!showRepeatPass)} style={{ position: 'absolute', right: 12 }}>
+                      <Ionicons name={showRepeatPass ? 'eye-off' : 'eye'} size={24} color="#888" />
+                    </TouchableOpacity>
+                  </View>
+                  {errors.repeatPass && <Text style={styles.errorMsg}>{errors.repeatPass}</Text>}
+                </View>
+                <TouchableOpacity style={styles.registerBtn} onPress={handleRegister}>
+                  <Text style={styles.registerBtnText}>Registrarse</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -768,11 +794,11 @@ export function AccountTypeScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
         <View style={{ marginTop: 20, width: '100%', backgroundColor: 'rgba(234,179,8,0.15)', borderLeftWidth: 4, borderLeftColor: '#f59e0b', padding: 12, borderRadius: 8 }}>
-            <Text style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Aviso</Text>
-            <Text style={{ color: '#fde68a', fontSize: 13, lineHeight: 18 }}>
-              Para tener una cuenta de organizador, se debe pasar primero por una verificación.
-            </Text>
-          </View>
+          <Text style={{ color: '#fbbf24', fontWeight: 'bold', fontSize: 14, marginBottom: 4 }}>Aviso</Text>
+          <Text style={{ color: '#fde68a', fontSize: 13, lineHeight: 18 }}>
+            Para tener una cuenta de organizador, se debe pasar primero por una verificación.
+          </Text>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -941,15 +967,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   pinRow: {
-  flexDirection: 'row',
-  marginTop: 36,
-  width: '100%',
-  maxWidth: 340,
-  justifyContent: 'space-between'
+    flexDirection: 'row',
+    marginTop: 36,
+    width: '100%',
+    maxWidth: 340,
+    justifyContent: 'space-between'
   },
   pinBox: {
-  width: 52,
-  height: 62,
+    width: 52,
+    height: 62,
     backgroundColor: '#1e293b',
     borderRadius: 14,
     textAlign: 'center',
@@ -963,10 +989,10 @@ const styles = StyleSheet.create({
   pinBoxFocused: {
     borderColor: '#0ea5e9',
     shadowColor: '#0ea5e9',
-  shadowOpacity: 0.55,
-  shadowOffset: { width: 0, height: 3 },
-  shadowRadius: 8,
-  elevation: 8,
+    shadowOpacity: 0.55,
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 8,
+    elevation: 8,
   },
   pinInlineError: {
     color: '#ef4444',
@@ -1003,9 +1029,9 @@ const styles = StyleSheet.create({
   pinErrorTitle: { fontSize: 22, fontWeight: 'bold', color: '#ef4444', marginBottom: 8, textAlign: 'center' },
   pinErrorSubtitle: { fontSize: 15, color: '#cbd5e1', textAlign: 'center', lineHeight: 20, marginBottom: 22 },
   pinErrorButtonsRow: { flexDirection: 'row', width: '100%', justifyContent: 'space-between', marginTop: 8 },
-  pinErrorBtnPrimary: { flex:0.48, minWidth: 120, backgroundColor: '#3b82f6', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor:'#000', shadowOpacity:0.25, shadowOffset:{width:0,height:2}, shadowRadius:4, elevation:4, marginRight: 12 },
+  pinErrorBtnPrimary: { flex: 0.48, minWidth: 120, backgroundColor: '#3b82f6', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.25, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 4, marginRight: 12 },
   pinErrorBtnPrimaryText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
-  pinErrorBtnSecondary: { flex:0.48, minWidth: 120, backgroundColor: '#6366f1', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor:'#000', shadowOpacity:0.2, shadowOffset:{width:0,height:2}, shadowRadius:4, elevation:4 },
+  pinErrorBtnSecondary: { flex: 0.48, minWidth: 120, backgroundColor: '#6366f1', paddingVertical: 12, borderRadius: 10, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4, elevation: 4 },
   pinErrorBtnSecondaryText: { color: '#fff', fontWeight: 'bold', fontSize: 14 },
   pinErrorMenuLink: { marginTop: 20 },
   pinErrorMenuLinkText: { color: '#94a3b8', fontSize: 14, textDecorationLine: 'underline' },

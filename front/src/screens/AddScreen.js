@@ -874,7 +874,7 @@ useEffect(() => {
       <View style={[styles.header, { paddingTop: hasNotchDevice ? 8 : 12 }]}>
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => { if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('HomeScreen'); } }}
         >
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>

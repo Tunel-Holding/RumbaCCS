@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Evential CCS</title>
+    <style>
+      /* ── Reset base ─────────────────────────────────────── */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #0f172a;
+        /* Habilitar scroll nativo del navegador en web */
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+      }
+
+      /* El contenedor raíz de React/Expo */
+      #root {
+        display: flex;
+        flex-direction: column;
+        height: auto !important;         /* No forzar altura 100vh */
+        min-height: 100%;
+        overflow: visible !important;    /* Permitir que el contenido desborde */
+      }
+
+      /*
+       * React Native Web pone overflow:hidden en los contenedores de navegación.
+       * Los overrides a continuación permiten scroll en cada pantalla.
+       */
+
+      /* Contenedor del NavigationContainer */
+      #root > div,
+      #root > div > div {
+        overflow: visible !important;
+        height: auto !important;
+        flex: 1;
+      }
+
+      /*
+       * Los ScrollView de RN Web se renderizan como divs con overflow:scroll.
+       * Nos aseguramos de que el scroll interno funcione bien.
+       */
+      [data-focusable="true"] {
+        outline: none;
+      }
+
+      /* Quitar la barra de scroll horizontal del body */
+      body::-webkit-scrollbar {
+        width: 8px;
+      }
+      body::-webkit-scrollbar-track {
+        background: #0f172a;
+      }
+      body::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 4px;
+      }
+      body::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>Necesitas JavaScript para ejecutar esta aplicación.</noscript>
+    <div id="root"></div>
+  </body>
+</html>

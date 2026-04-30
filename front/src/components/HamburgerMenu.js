@@ -163,7 +163,7 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress, ha
     setCalendarVisible(false);
     try {
       const id = ev.eventoId || ev.id || ev.evento_id;
-      if (id) navigation.navigate('Reservar/Comprar', { idEvento: id });
+      if (id) navigation.navigate('BuyScreen', { idEvento: id });
     } catch (e) {
       console.log('HamburgerMenu: navigation to event failed', e);
     }
@@ -201,8 +201,7 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress, ha
               </TouchableOpacity>
             ) : (
               <TouchableOpacity onPress={handleFormularioPress} style={styles.menuItem}>
-                <Text style={styles.menuText}>¿Tienes una empresa? </Text>
-                <Text style={styles.menuText}>¡Regístrala!</Text>
+                <Text style={styles.menuText}>¿Tienes una empresa? ¡Regístrala!</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={() => { setVisible(false); handleLogoutConfirm(); }} style={[styles.menuItem, styles.logoutItem]}>

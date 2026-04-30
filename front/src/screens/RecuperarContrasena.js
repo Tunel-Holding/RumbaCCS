@@ -37,32 +37,42 @@ export default function RecuperarContrasena({ onBack }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 24}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             ref={scrollRef}
             contentContainerStyle={{ flexGrow: 1 }}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.header}> 
-              <TouchableOpacity accessibilityLabel="Volver" style={styles.backButton} onPress={navigation.goBack} activeOpacity={0.85}>
+            <View style={styles.header}>
+              <TouchableOpacity
+                accessibilityLabel="Volver"
+                style={styles.backButton}
+                onPress={() => {
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    navigation.navigate('LoginScreen');
+                  }
+                }}
+                activeOpacity={0.85}
+              >
                 <Ionicons name="chevron-back" size={40} color="#ffffffff" />
               </TouchableOpacity>
             </View>
-              
+
             <View style={styles.inner}>
               <Text style={styles.title}>Recuperar contraseña</Text>
               <View style={styles.content}>
                 {paso === 1 && (
-                  <PantallaSolicitarRecuperacion 
-                    onSuccess={handleSuccess} 
+                  <PantallaSolicitarRecuperacion
+                    onSuccess={handleSuccess}
                     registerFieldPosition={registerFieldPosition}
                     scrollToField={scrollToField}
                   />
                 )}
                 {paso === 2 && (
-                  <ConfirmarRecuperacion 
-                    email={email} 
-                    navigation={navigation} 
+                  <ConfirmarRecuperacion
+                    email={email}
+                    navigation={navigation}
                     registerFieldPosition={registerFieldPosition}
                     scrollToField={scrollToField}
                   /> // ← pasa navigation
@@ -70,8 +80,7 @@ export default function RecuperarContrasena({ onBack }) {
               </View>
             </View>
           </ScrollView>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -106,7 +115,8 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 2,
     top: 14,
-   
+    zIndex: 50,
+    elevation: 5,
   },
   header: {
     width: '100%',
@@ -114,5 +124,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 10,
     paddingBottom: 6,
+    zIndex: 40,
+    minHeight: 60,
   },
 });

@@ -851,9 +851,7 @@ class EventosPublicosViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Devuelve eventos futuros y aplica filtros opcionales: category y search.
         """
-        # Temporariamente permitir todos los eventos (incluyendo pasados) para pruebas
-        queryset = Evento2.objects.annotate(views_count=Count('views')).order_by('fecha_evento')
-        # queryset = Evento2.objects.annotate(views_count=Count('views')).filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
+        queryset = Evento2.objects.annotate(views_count=Count('views')).filter(fecha_evento__gte=timezone.now()).order_by('fecha_evento')
 
         # Filtrar por categoría si se recibe en query params
         categoria = self.request.query_params.get('categoria')

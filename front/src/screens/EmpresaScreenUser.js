@@ -142,8 +142,7 @@ export default function EmpresaScreenUser() {
   fetchEmpresa();
 }, [empresaIdParam]);
 
-console.log("Empresa Data:", empresaData);
-  
+
 
 const [loginVisible, setLoginVisible] = useState(false);
 const [user, setUser] = useState('');
@@ -268,8 +267,6 @@ const seguir = async () => {
     showAppAlert('Error', msg);
   }
 };
-
-console.log('🏢 Datos de la empresa:', empresaData1);
 
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
@@ -472,7 +469,7 @@ console.log('🏢 Datos de la empresa:', empresaData1);
         {/* Botón de regreso */}
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => { if (navigation.canGoBack()) { navigation.goBack(); } else { navigation.navigate('HomeScreen'); } }}
           activeOpacity={0.7}
         >
           <Text style={styles.backButtonText}>←</Text>
@@ -1030,8 +1027,7 @@ const renderSocialCircles = () => {
                               <TouchableOpacity 
                                 style={styles.verDetallesButton}
                                 onPress={() => {
-                                  console.log('Navegando a Reservar/Comprar con:', evento.id, empresaIdParam || empresaData?.id);
-                                  navigation.navigate('Reservar/Comprar', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
+                                  navigation.navigate('BuyScreen', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
                                 }}
                               >
                                 <Text style={styles.verDetallesText}>{'Ver detalles'}</Text>
@@ -1054,7 +1050,7 @@ const renderSocialCircles = () => {
       <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
         <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#00ff00" /> 
+          <ActivityIndicator size="large" color="#0ea5e9" />
           <Text style={{ color: '#ffffff', marginTop: 10, fontSize: 16 }}>Cargando datos...</Text>
         </View>
       </SafeAreaView>

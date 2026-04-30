@@ -59,19 +59,23 @@ export const getSafeMargins = () => {
   // Ajustes específicos por plataforma
   const platformAdjustments = {
     ios: {
-      top: Platform.OS === 'ios' ? 0 : 0, // iOS maneja automáticamente
-      bottom: Platform.OS === 'ios' ? 0 : 0
+      top: 0,
+      bottom: 0
     },
     android: {
-      top: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
-      bottom: Platform.OS === 'android' ? 0 : 0
-    }
+      top: StatusBar.currentHeight || 0,
+      bottom: 0
+    },
+    web: {
+      top: 0,
+      bottom: 0
+    },
   };
-  
+
   const currentPlatform = Platform.OS;
   const margins = baseMargins[deviceType];
-  const adjustments = platformAdjustments[currentPlatform];
-  
+  const adjustments = platformAdjustments[currentPlatform] ?? { top: 0, bottom: 0 };
+
   return {
     top: margins.top + adjustments.top,
     bottom: margins.bottom + adjustments.bottom,
