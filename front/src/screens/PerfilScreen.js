@@ -4,7 +4,7 @@ import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StandardHeader from '../components/StandardHeader';
 import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator, TextInput, Share, Dimensions, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '../components/AppIcons';
 import { SvgXml } from 'react-native-svg';
 
 

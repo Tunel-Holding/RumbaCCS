@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { useNavigation, useFocusEffect } from '@react-navigation/native'; // <-- Importa useFocusEffect
 import { View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, TextInput, Modal, Pressable, Dimensions, Alert, StatusBar, ActivityIndicator, Share, Linking, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '../components/AppIcons';
 import { loginConFallback } from '../utils/auth';
 import axios from 'axios';
 import { Calendar } from 'react-native-calendars'; // Si ya está importado, omite esta línea

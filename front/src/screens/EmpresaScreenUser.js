@@ -6,7 +6,7 @@ import {
   Dimensions, Animated, Modal, ActivityIndicator,
   StatusBar, Alert, Linking, TextInput, Pressable, Share
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '../components/AppIcons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import PersonIcon from '../components/PersonIcon';

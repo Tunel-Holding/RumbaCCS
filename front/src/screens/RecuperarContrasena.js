@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '../components/AppIcons';
 import PantallaSolicitarRecuperacion from './PantallaSolicitarRecuperacion';
 import ConfirmarRecuperacion from './ConfirmarRecuperacion';
 import { useNavigation } from '@react-navigation/native'; // ← importa useNavigation
