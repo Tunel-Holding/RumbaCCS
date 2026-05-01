@@ -13,7 +13,7 @@ import { formatPrice } from '../utils/priceUtils';
 import EVENT_TYPES from '../constants/eventTypes';
 import StandardHeader from '../components/StandardHeader';
 
-const { width } = Dimensions.get('window');
+const { width, height: windowHeight } = Dimensions.get('window');
 
 const getLocationModule = () => {
   if (Platform.OS === 'web') return null;
@@ -33,6 +33,38 @@ export default function HomeScreen() {
   const [currentHeroIndex, setCurrentHeroIndex] = useState(0);
   // Carousel events state (independent)
   const [carouselEvents, setCarouselEvents] = useState([]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    const syncWebScrollHeight = () => {
+      const node = Array.from(document.querySelectorAll('div')).find((candidate) => {
+        const style = getComputedStyle(candidate);
+        return style.overflowY === 'auto' && candidate.scrollHeight >= candidate.clientHeight;
+      });
+      if (!node) return;
+
+      const viewportHeight = window.innerHeight;
+      node.style.height = `${viewportHeight}px`;
+      node.style.maxHeight = `${viewportHeight}px`;
+      node.style.overflowY = 'auto';
+      node.style.overflowX = 'hidden';
+    };
+
+    document.body.style.overflow = 'auto';
+    document.documentElement.style.overflow = 'auto';
+    requestAnimationFrame(() => requestAnimationFrame(syncWebScrollHeight));
+    window.addEventListener('resize', syncWebScrollHeight);
+    const observer = new MutationObserver(syncWebScrollHeight);
+    observer.observe(document.body, { childList: true, subtree: true });
+    const intervalId = window.setInterval(syncWebScrollHeight, 250);
+
+    return () => {
+      window.removeEventListener('resize', syncWebScrollHeight);
+      observer.disconnect();
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   // index: target slide index (0-based). animated: whether to animate the scroll.
   const scrollToHeroIndex = (index, animated = true) => {
@@ -829,11 +861,11 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top, paddingBottom: 0 }}>
+    <View style={{ flex: 1, minHeight: 0, backgroundColor: '#0f172a', paddingTop: insets.top, paddingBottom: 0 }}>
       <ScrollView
         ref={scrollRef}
-        style={styles.container}
-        contentContainerStyle={{ paddingTop: 32 }}
+        style={[styles.container, Platform.OS === 'web' && styles.webScrollContainer]}
+        contentContainerStyle={[{ paddingTop: 32 }, Platform.OS === 'web' && styles.webScrollContent]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={200}
@@ -1354,6 +1386,8 @@ const CARD_WIDTH = width < 600 ? width - 32 : (width - 48) / 2;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f172a', paddingHorizontal: 8 },
+  webScrollContainer: { minHeight: 0, height: windowHeight },
+  webScrollContent: { flexGrow: 1 },
   // fixedBottomPad eliminado: ahora usamos padding dinámico con insets.bottom
   header: { backgroundColor: '#0f172a', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#1e293b', marginBottom: 12 },
   headerContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
