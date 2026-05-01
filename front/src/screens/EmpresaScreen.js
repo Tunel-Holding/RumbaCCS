@@ -15,9 +15,8 @@ import {
   Alert,
   Linking,
   TextInput,
+  Platform,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import EmpresaMenu from '../components/EmpresaMenu';
@@ -28,6 +27,24 @@ import api from '../services/api';
 import { formatPrice } from '../utils/priceUtils';
 
 const { width } = Dimensions.get('window');
+
+const getImagePickerModule = () => {
+  if (Platform.OS === 'web') return null;
+  try {
+    return require('expo-image-picker');
+  } catch (error) {
+    return null;
+  }
+};
+
+const getImageManipulatorModule = () => {
+  if (Platform.OS === 'web') return null;
+  try {
+    return require('expo-image-manipulator');
+  } catch (error) {
+    return null;
+  }
+};
 
 export default function EmpresaScreen() {
   // Estado y lógica para seguidores
@@ -247,6 +264,13 @@ const handleUploadFoto = async (empresaId) => {
   if (!empresaId) return { ok: false, error: 'No empresa id' };
 
   try {
+    const ImagePicker = getImagePickerModule();
+    const ImageManipulator = getImageManipulatorModule();
+    if (!ImagePicker || !ImageManipulator) {
+      Alert.alert('Función no disponible', 'La subida de foto no está disponible en web.');
+      return { ok: false, cancelled: true };
+    }
+
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (perm.status !== 'granted') {
       Alert.alert('Permisos', 'Se requieren permisos para acceder a la galería.');
@@ -1206,6 +1230,11 @@ const renderSocialCircles = () => {
                   if (isBlocked) {
                     Alert.alert('Aviso', 'No se pudo actualizar la foto hasta que este verificado');
                     setProfilePicEditVisible(false);
+                    return;
+                  }
+                  const ImageManipulator = getImageManipulatorModule();
+                  if (!ImageManipulator) {
+                    Alert.alert('Función no disponible', 'La edición de foto no está disponible en web.');
                     return;
                   }
                   setProfilePicLoading(true);

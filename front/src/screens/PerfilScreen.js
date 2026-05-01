@@ -3,14 +3,30 @@ import { useFocusEffect } from '@react-navigation/native';
 import api from "../services/api"
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import StandardHeader from '../components/StandardHeader';
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator, TextInput, Share, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet, Image, Modal, Animated, StatusBar, ActivityIndicator, TextInput, Share, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
 
 
 const { width } = Dimensions.get('window');
+
+const getImagePickerModule = () => {
+  if (Platform.OS === 'web') return null;
+  try {
+    return require('expo-image-picker');
+  } catch (error) {
+    return null;
+  }
+};
+
+const getImageManipulatorModule = () => {
+  if (Platform.OS === 'web') return null;
+  try {
+    return require('expo-image-manipulator');
+  } catch (error) {
+    return null;
+  }
+};
 
 // SVGs originales
 const svgGuardados = `<svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M8 6C8 4.89543 8.89543 4 10 4H22C23.1046 4 24 4.89543 24 6V26C24 26.5523 23.4477 27 23 27C22.7893 27 22.5858 26.9216 22.4375 26.7812L16 20.3438L9.5625 26.7812C9.41421 26.9216 9.21071 27 9 27C8.55228 27 8 26.5523 8 26V6Z" stroke="#2563eb" stroke-width="2" fill="#e0e7ff"/></svg>`;
@@ -92,6 +108,13 @@ export default function PerfilScreen({ navigation }) {
   const handleUploadAvatar = async (userId) => {
     if (!userId) return { ok: false, error: 'No user id' };
     try {
+      const ImagePicker = getImagePickerModule();
+      const ImageManipulator = getImageManipulatorModule();
+      if (!ImagePicker || !ImageManipulator) {
+        Alert.alert('Función no disponible', 'La subida de avatar no está disponible en web.');
+        return { ok: false, cancelled: true };
+      }
+
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (perm.status && perm.status !== 'granted') {
         Alert.alert('Permisos', 'Se requieren permisos para acceder a la galería.');

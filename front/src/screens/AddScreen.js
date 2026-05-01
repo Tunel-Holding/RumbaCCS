@@ -26,7 +26,6 @@ import { Calendar } from 'react-native-calendars';
 import { useSafeMargins, getDeviceType, hasNotch } from '../utils/safeAreaUtils';
 import { getResponsiveStyles, getBottomSafeAreaHeight, getTopSafeAreaHeight } from '../utils/deviceConfig';
 import api from '../services/api'; // Ajusta el path según tu estructura
-import * as ImagePicker from "expo-image-picker";
 import { uploadImage } from "../services/uploadImage"; // Ajusta path
 
 export default function AddScreen() {
@@ -90,6 +89,15 @@ export default function AddScreen() {
   const [submitMsg, setSubmitMsg] = useState('Creando evento...');
   const MAX_DESC_CHARS = 500;
   const [errors, setErrors] = useState({});
+
+  const getImagePickerModule = () => {
+    if (Platform.OS === 'web') return null;
+    try {
+      return require('expo-image-picker');
+    } catch (error) {
+      return null;
+    }
+  };
   
 
   
@@ -143,6 +151,12 @@ export default function AddScreen() {
 
   const handlePickImages = async () => {
   try {
+    const ImagePicker = getImagePickerModule();
+    if (!ImagePicker) {
+      Alert.alert('Función no disponible', 'La selección de imágenes no está disponible en web.');
+      return;
+    }
+
     const currentTotal = (formData.imagenesLocales?.length || 0) + (formData.imagenesTemp?.length || 0);
     if (currentTotal >= MAX_IMAGES) {
       setErrors((prev) => ({ ...prev, imagenes: `Solo puedes agregar hasta ${MAX_IMAGES} imágenes.` }));
@@ -429,7 +443,7 @@ const createEvento = async (payload, empresaId) => {
  * Devuelve un objeto con la propiedad mediaTypes si se detectó alguna API válida,
  * o un objeto vacío (sin mediaTypes) si no hay una opción segura.
  */
-function getMediaTypesOption() {
+function getMediaTypesOption(ImagePicker) {
   // Preferir el API moderno: arreglo con ImagePicker.MediaType.Images
   if (ImagePicker?.MediaType?.Images) {
     return { mediaTypes: [ImagePicker.MediaType.Images] };
@@ -447,13 +461,19 @@ function getMediaTypesOption() {
  */
 const pickAndUploadImage = async (eventoId) => {
   try {
+    const ImagePicker = getImagePickerModule();
+    if (!ImagePicker) {
+      Alert.alert('Función no disponible', 'La selección de imágenes no está disponible en web.');
+      return;
+    }
+
     const baseOptions = {
       allowsMultipleSelection: true,
       allowsEditing: true,
       quality: 0.8,
     };
 
-    const mediaOpt = getMediaTypesOption();
+    const mediaOpt = getMediaTypesOption(ImagePicker);
     let result;
 
     // Intentamos la llamada con la opción detectada (si la hay)

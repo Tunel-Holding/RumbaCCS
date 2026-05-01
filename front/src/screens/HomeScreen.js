@@ -11,11 +11,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
 import { formatPrice } from '../utils/priceUtils';
 import EVENT_TYPES from '../constants/eventTypes';
-
-import * as Location from 'expo-location';
 import StandardHeader from '../components/StandardHeader';
 
 const { width } = Dimensions.get('window');
+
+const getLocationModule = () => {
+  if (Platform.OS === 'web') return null;
+  try {
+    return require('expo-location');
+  } catch (error) {
+    return null;
+  }
+};
 
 
 export default function HomeScreen() {
@@ -400,6 +407,11 @@ export default function HomeScreen() {
 
   // Función real para solicitar permisos y ubicación usando expo-location
   const solicitarUbicacion = async () => {
+    const Location = getLocationModule();
+    if (!Location) {
+      setLocationStatus('denied');
+      return;
+    }
     setLocationStatus('requesting');
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
