@@ -4,10 +4,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LOCAL_IP = '192.168.0.141'; // ← Cámbiala por tu IP real
 const PORT = '8000';
-const baseURL = `http://${LOCAL_IP}:${PORT}`;
+const baseURL = `https://evential.onrender.com`;
 
 const api = axios.create({
-  baseURL,
+  baseURL: baseURL,
   timeout: 20000,
 });
 
