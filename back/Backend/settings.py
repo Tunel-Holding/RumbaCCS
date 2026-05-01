@@ -83,6 +83,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -209,6 +210,11 @@ TIME_ZONE = "America/Caracas"
 
 STATIC_URL = 'static/'
 
+
+# Esta es la línea que falta:
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
@@ -245,6 +251,7 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'noreplyrumbaccs@gmail.com'  # Cambia por tu correo real si usas Gmail
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'swpe vapt tezf fqtp')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
+# Al final del archivo settings.py
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 
