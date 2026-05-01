@@ -39,6 +39,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export --platform web",
-    "build:web": "expo export --platform web"
+    "build:web": "expo export --platform web",
+    "postinstall": "node ./scripts/fix-expo-asset.js"
   }
 }
