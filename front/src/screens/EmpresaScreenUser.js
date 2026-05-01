@@ -14,16 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api'; // ✅ Tu instancia centralizada
 import NotificationsModal from '../components/NotificationsModal';
 import { formatPrice } from '../utils/priceUtils';
-import { useFonts } from 'expo-font';
 
 const { width } = Dimensions.get('window');
 
 export default function EmpresaScreenUser() {
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [empresaReady, setEmpresaReady] = useState(false);
-  const [fontsLoaded] = useFonts({
-        'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
-      });
 
   useEffect(() => {
     (async () => {

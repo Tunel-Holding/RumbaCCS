@@ -5,7 +5,6 @@ import EmpresaMenu from '../components/EmpresaMenu';
 import { getResponsiveStyles } from '../utils/deviceConfig';
 import { useSafeMargins } from '../utils/safeAreaUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useFonts } from 'expo-font';
 
 
 // Componente base para header estandarizado y adaptable
@@ -27,10 +26,6 @@ export default function StandardHeader({
   isHomeScreen = false,
   children,
 }) {
-
-  const [fontsLoaded] = useFonts({
-    'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
-  });
   const responsive = getResponsiveStyles();
   const safe = useSafeMargins();
 
@@ -58,13 +53,11 @@ export default function StandardHeader({
   const logoTextStyle = {
     // Incrementamos ligeramente el tamaño base responsivo para que el logo destaque más
     fontSize: responsive.text.xlarge.fontSize + 12,
-    // Remove fontWeight to avoid conflicts with the custom font on some platforms
     color: '#ffffffff',
-    fontFamily: fontsLoaded ? 'BebasNeue' : undefined,
+    fontWeight: '800',
   };
   const logoSubtextStyle = {
     fontSize: responsive.text.large.fontSize +6,
-    // Use the same display font for the subtext when loaded (fallback to system if not)
     color: '#ff007f',
     fontWeight: 'bold',
 

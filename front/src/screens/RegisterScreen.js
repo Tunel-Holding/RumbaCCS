@@ -10,7 +10,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../services/api';
-import { useFonts } from 'expo-font';
 
 const { width } = Dimensions.get('window');
 
@@ -44,9 +43,6 @@ export const registerUser = async (formData) => {
 };
 
 export default function RegisterScreen({ navigation, route }) {
-  const [fontsLoaded] = useFonts({
-      'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
-    });
   const insets = useSafeAreaInsets();
   const topSpacer = insets.top + 8;
   const bottomSpacer = insets.bottom + 24;
@@ -460,7 +456,7 @@ export default function RegisterScreen({ navigation, route }) {
             <Text style={styles.backArrow}>←</Text>
             <Text style={styles.backText}>Volver</Text>
           </TouchableOpacity>
-          <Text style={{ fontFamily: fontsLoaded ? 'BebasNeue' : undefined, fontSize: 48, color: '#bb2776ff' }}>EVENTIAL</Text>
+          <Text style={{ fontSize: 48, color: '#bb2776ff', fontWeight: '800' }}>EVENTIAL</Text>
           <Text style={styles.subtitle}>¡Regístrate para continuar!</Text>
           {/* Descripción según tipo de cuenta */}
           {accountType === 'normal' ? null : (
