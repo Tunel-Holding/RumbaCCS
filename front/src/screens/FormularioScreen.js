@@ -10,7 +10,7 @@ import api from '../services/api'; // ✅ Tu instancia centralizada
 export default function FormularioScreen({ navigation, route }) {
   const [mostrarPin, setMostrarPin] = useState(false);
   const [focusedPinIndex, setFocusedPinIndex] = useState(-1); // para resaltar el dígito activo
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets?.() ?? { top: 0, bottom: 0, left: 0, right: 0 };
   const topSpacer = insets.top + 8;
   const [nombre, setNombre] = useState('');
   const [rif, setRif] = useState('');

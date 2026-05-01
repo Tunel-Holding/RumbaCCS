@@ -12,9 +12,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
  *  - contentBottomExtra: número opcional para añadir espacio extra inferior sobre insets.bottom
  */
 export default function SafeAreaContainer({ children, style, contentBottomExtra = 0 }) {
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets?.() ?? { top: 0, bottom: 0, left: 0, right: 0 };
   return (
-    <SafeAreaView style={[styles.base, { paddingTop: insets.top, paddingBottom: insets.bottom + contentBottomExtra }, style]}>
+    <SafeAreaView style={[styles.base, { paddingTop: insets.top ?? 0, paddingBottom: (insets.bottom ?? 0) + contentBottomExtra }, style]}>
       {children}
     </SafeAreaView>
   );

@@ -42,7 +42,7 @@ export const registerUser = async (formData) => {
 };
 
 export default function RegisterScreen({ navigation, route }) {
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets?.() ?? { top: 0, bottom: 0, left: 0, right: 0 };
   const topSpacer = insets.top + 8;
   const bottomSpacer = insets.bottom + 24;
   const scrollRef = useRef();
@@ -674,7 +674,7 @@ export default function RegisterScreen({ navigation, route }) {
 // Nueva pantalla para seleccionar tipo de cuenta
 export function AccountTypeScreen({ navigation, route }) {
   const origin = route?.params?.origin; // 'home' o 'perfil'
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets?.() ?? { top: 0, bottom: 0, left: 0, right: 0 };
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', paddingTop: insets.top }}>
       {/* Botón volver al menú principal mejorado (azul) */}

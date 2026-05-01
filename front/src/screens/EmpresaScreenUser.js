@@ -31,7 +31,7 @@ export default function EmpresaScreenUser() {
       }
     })();
   }, []);
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets?.() ?? { top: 0, bottom: 0, left: 0, right: 0 };
   const navigation = useNavigation();
   const route = useRoute();
   const empresaIdParam = route.params?.empresaId;

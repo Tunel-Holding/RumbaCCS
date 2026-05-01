@@ -82,16 +82,16 @@ export const getSafeMargins = () => {
 
 // Hook personalizado para usar márgenes seguros
 export const useSafeMargins = () => {
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets?.() ?? { top: 0, bottom: 0, left: 0, right: 0 };
   const deviceMargins = getSafeMargins();
   
   return {
     ...deviceMargins,
     // Combinar con insets nativos cuando estén disponibles
-    top: Math.max(deviceMargins.top, insets.top),
-    bottom: Math.max(deviceMargins.bottom, insets.bottom),
-    left: Math.max(deviceMargins.horizontal, insets.left),
-    right: Math.max(deviceMargins.horizontal, insets.right)
+    top: Math.max(deviceMargins.top, insets.top ?? 0),
+    bottom: Math.max(deviceMargins.bottom, insets.bottom ?? 0),
+    left: Math.max(deviceMargins.horizontal, insets.left ?? 0),
+    right: Math.max(deviceMargins.horizontal, insets.right ?? 0)
   };
 };
 

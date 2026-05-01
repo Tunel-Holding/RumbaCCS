@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import HamburgerMenu from '../components/HamburgerMenu';
 import EmpresaMenu from '../components/EmpresaMenu';
 import { getResponsiveStyles } from '../utils/deviceConfig';
@@ -27,7 +27,9 @@ export default function StandardHeader({
   children,
 }) {
   const responsive = getResponsiveStyles();
-  const safe = useSafeMargins();
+  const safe = Platform.OS === 'web'
+    ? { top: 0, bottom: 0, left: 0, right: 0 }
+    : useSafeMargins();
 
   // Alto y paddings adaptativos
   // Dejar solo 0.5cm (~9.5px) de espacio respecto al notch/cámara

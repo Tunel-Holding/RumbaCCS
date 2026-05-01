@@ -26,7 +26,7 @@ const getLocationModule = () => {
 
 
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
+  const insets = useSafeAreaInsets?.() ?? { top: 0, bottom: 0, left: 0, right: 0 };
   const navigation = useNavigation();
   const scrollRef = useRef(null);
   const heroScrollRef = useRef(null);
