@@ -16,12 +16,28 @@ export default function EmpresaMenu({ visible, setVisible, onMenuItemPress, onLo
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
   const [sessionClosedVisible, setSessionClosedVisible] = useState(false);
 
-  // Cuando se abre el menú, verificar estado de la empresa para ocultar opciones si no está verificada
+  // Cargar estado desde caché al montar para que el menú abra rápido
+  useEffect(() => {
+    let mounted = true;
+    const loadCache = async () => {
+      try {
+        const cached = await AsyncStorage.getItem('empresaStatus');
+        if (cached && mounted) {
+          setIsBlocked(cached === 'pending' || cached === 'rejected');
+          setStatusLoaded(true);
+        }
+      } catch (_) { }
+    };
+    loadCache();
+    return () => { mounted = false; };
+  }, []);
+
+  // Actualizar estado silenciosamente en background al abrir el menú
   useEffect(() => {
     let mounted = true;
     const checkEmpresaStatus = async () => {
       if (!visible) return;
-      setStatusLoaded(false);
+
       try {
         const empresaId = await AsyncStorage.getItem('empresaId');
         if (!empresaId) {
@@ -31,39 +47,36 @@ export default function EmpresaMenu({ visible, setVisible, onMenuItemPress, onLo
           }
           return;
         }
-        // Intento rápido: usar estado cacheado si existe
-        try {
-          const cached = await AsyncStorage.getItem('empresaStatus');
-          if (cached != null && mounted) {
-            const blockedCached = cached === 'pending' || cached === 'rejected';
-            setIsBlocked(blockedCached);
-            setStatusLoaded(true);
-          }
-        } catch (_) {}
+
         const res = await api.get(`/api/empresas/${empresaId}/`);
         const status = res?.data?.status;
         const blocked = status === 'pending' || status === 'rejected';
+        
         if (mounted) {
           setIsBlocked(!!blocked);
           setStatusLoaded(true);
         }
-        // Actualizar caché de estado
-        try { await AsyncStorage.setItem('empresaStatus', String(status ?? '')); } catch (_) {}
+        
+        // Actualizar caché
+        try { await AsyncStorage.setItem('empresaStatus', String(status ?? '')); } catch (_) { }
       } catch (e) {
-        // Si falla, bloquear por defecto y marcar como cargado
-        if (mounted) {
+        // Si falla la API y aún no había cargado, bloqueamos por seguridad
+        if (mounted && !statusLoaded) {
           setIsBlocked(true);
           setStatusLoaded(true);
         }
       }
     };
+    
     checkEmpresaStatus();
     return () => { mounted = false; };
   }, [visible]);
 
   const handleNavigateInicioTuPerfil = async () => {
     setVisible(false);
-    try { onMenuItemPress && onMenuItemPress('inicio'); } catch (_) {}
+
+
+    try { onMenuItemPress && onMenuItemPress('inicio'); } catch (_) { }
     try {
       if (isHome) {
         const isEmpresaAcc = await AsyncStorage.getItem('isEmpresaAccount');
@@ -78,27 +91,29 @@ export default function EmpresaMenu({ visible, setVisible, onMenuItemPress, onLo
   };
 
   const handleItem = async (item) => {
+
     // Close menu first
-    try { setVisible(false); } catch (_) {}
+    try { setVisible(false); } catch (_) { }
     // Call parent's handler if provided
-    try { if (onMenuItemPress) onMenuItemPress(item); } catch (_) {}
+    try { if (onMenuItemPress) onMenuItemPress(item); } catch (_) { }
 
     if (item === 'agregar_evento') {
       navigation.navigate('Add');
     } else if (item === 'notifications') {
       // open internal notifications modal
       setNotificationsVisible(true);
+      console.log(await AsyncStorage.getItem('userId'), "hola");
     } else if (item === 'inicio') {
       await handleNavigateInicioTuPerfil();
     } else if (item === 'register') {
       // fallback: navigate to registration flow
-      try { navigation.navigate('AccountTypeScreen'); } catch (_) {}
+      try { navigation.navigate('AccountTypeScreen'); } catch (_) { }
     }
   };
 
   const handleLogout = async () => {
     // close menu and open our inline confirmation modal
-    try { setVisible(false); } catch (_) {}
+    try { setVisible(false); } catch (_) { }
     setLogoutConfirmVisible(true);
   };
 
@@ -167,7 +182,7 @@ export default function EmpresaMenu({ visible, setVisible, onMenuItemPress, onLo
                 } catch (e) {
                   console.log('EmpresaMenu: error clearing session storage', e);
                 }
-                try { onLogoutPress && onLogoutPress(); } catch (_) {}
+                try { onLogoutPress && onLogoutPress(); } catch (_) { }
                 setLogoutConfirmVisible(false);
                 setSessionClosedVisible(true);
               }} style={[styles.alertBtn, styles.alertConfirm]}>

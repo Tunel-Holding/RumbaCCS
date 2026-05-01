@@ -535,45 +535,49 @@ const handleImageUpload = async (eventoId, file) => {
 
 
 const searchAddress = async (query) => {
-    if (!query || query.trim() === "") return [];
+  console.log("Iniciando searchAddress con query:", query);
+  if (!query || query.trim() === "") return [];
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=VE&limit=5`;
+    // Usamos Photon (basado en OpenStreetMap) porque Nominatim frecuentemente bloquea o da timeout.
+    // Le agregamos 'Venezuela' sutilmente a la query para enfocar resultados si no lo tiene.
+    const searchQuery = query.toLowerCase().includes('venezuela') ? query : `${query} Venezuela`;
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery)}&limit=5`;
+    console.log("URL de búsqueda:", url);
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'RumbaApp/1.0 (noreplyrumbaccs@gmail.com)'
-      }
-    });
+    let options = {};
+    if (Platform.OS !== 'web') {
+      options.headers = { 'Accept': 'application/json' };
+    }
+
+    const response = await fetch(url, options);
+    console.log("Status de la respuesta:", response.status);
+
+    if (!response.ok) {
+      console.warn("Error en la respuesta de la API:", response.status);
+      return [];
+    }
 
     const data = await response.json();
+    console.log("Resultados crudos encontrados:", data.features?.length || 0);
 
-    return data.map((item) => {
-      const addr = item.address || {};
+    if (!data.features) return [];
 
-      // // Prioridad para sitio específico
+    return data.features.map((item) => {
+      const props = item.properties || {};
+      const coords = item.geometry?.coordinates || [0, 0]; // [lon, lat]
 
-      // 1. Construimos la dirección ideal por partes, dando prioridad a los campos más específicos.
-      const placeName = addr.amenity || addr.shop || addr.tourism || addr.leisure || addr.building || addr.house_number;
-      const street = addr.road || addr.pedestrian;
-      const neighborhood = addr.suburb || addr.neighbourhood || addr.quarter;
-      const city = addr.city || addr.town || addr.village;
+      // Construimos el nombre priorizando el más específico
+      const parts = [props.name, props.street, props.district, props.city, props.state].filter(Boolean);
+      let constructedName = [...new Set(parts)].join(', ');
 
-      // 2. Combinamos las partes que existen en un array.
-      const parts = [placeName, street, neighborhood, city].filter(Boolean); // Elimina partes vacías
-
-      // 3. Creamos el nombre a partir de las partes.
-      let constructedName = [...new Set(parts)].join(', '); // `new Set` para evitar duplicados (ej: "Sambil, Sambil, Caracas")
-
-      // 4. Si el nombre construido es muy pobre (ej. solo "Caracas"), usamos el 'display_name' como fallback.
-      if (parts.length <= 1 && item.display_name) {
-        constructedName = item.display_name.replace(/, Venezuela$/, '').replace(/, \d{4,5}$/, ''); // Limpia el código postal y el país.
-      }
+      // Fallback
+      if (!constructedName) constructedName = "Ubicación sin nombre";
 
       return {
-        name: constructedName,                  // "Edificio XYZ, Avenida Urdaneta, La Candelaria, Caracas"
-        latitude: parseFloat(item.lat),
-        longitude: parseFloat(item.lon),
+        name: constructedName,
+        latitude: parseFloat(coords[1]), // Photon devuelve [lon, lat]
+        longitude: parseFloat(coords[0]),
       };
     });
 
@@ -585,7 +589,8 @@ const searchAddress = async (query) => {
 
 useEffect(() => {
   const delayDebounce = setTimeout(async () => {
-    if (!searchQuery || searchQuery.trim() === "") {
+    // Solo buscar si el modal está abierto y hay texto
+    if (!ubicacionModalVisible || !searchQuery || searchQuery.trim() === "") {
       setSearchResults([]);
       setLocationLoading(false);
       return;
@@ -596,15 +601,33 @@ useEffect(() => {
       const results = await searchAddress(searchQuery);
       setSearchResults(results);
     } catch (e) {
-      console.log("Error fetch dentro de useEffect:", e);
+      console.error("Error fetch en segundo plano:", e);
       setSearchResults([]);
     } finally {
       setLocationLoading(false);
     }
-  }, 500); // 500ms debounce
+  }, 600); // 600ms debounce
 
   return () => clearTimeout(delayDebounce);
-}, [searchQuery]);
+}, [searchQuery, ubicacionModalVisible]);
+
+const handleManualSearch = async () => {
+  if (!searchQuery || searchQuery.trim() === "") {
+    setSearchResults([]);
+    return;
+  }
+
+  setLocationLoading(true);
+  try {
+    const results = await searchAddress(searchQuery);
+    setSearchResults(results);
+  } catch (e) {
+    console.error("Error fetch manual:", e);
+    setSearchResults([]);
+  } finally {
+    setLocationLoading(false);
+  }
+};
 
 
   const renderCategoriaModal = () => (
@@ -814,9 +837,11 @@ useEffect(() => {
             placeholder="Ingresa una dirección..."
             placeholderTextColor="#64748b"
             value={searchQuery}
-            onChangeText={setSearchQuery} // ahora solo actualiza el estado, el useEffect hace fetch
+            onChangeText={setSearchQuery} // solo actualiza texto
+            onSubmitEditing={handleManualSearch} // busca al dar enter en el teclado
+            returnKeyType="search"
           />
-          <TouchableOpacity style={styles.searchButton}>
+          <TouchableOpacity style={styles.searchButton} onPress={handleManualSearch}>
             <Text style={styles.searchButtonText}>🔍</Text>
           </TouchableOpacity>
         </View>

@@ -25,6 +25,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import api from '../services/api';
 import { formatPrice } from '../utils/priceUtils';
+import { useFonts } from 'expo-font';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +37,9 @@ export default function EmpresaScreen() {
   const [seguidoresPage, setSeguidoresPage] = useState(1);
   const [seguidoresHasMore, setSeguidoresHasMore] = useState(true);
   const [empresaReady, setEmpresaReady] = useState(false);
+  const [fontsLoaded] = useFonts({
+    'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
+  });
 
 
   // Función para obtener los seguidores de la empresa
@@ -409,7 +413,7 @@ export default function EmpresaScreen() {
       <View style={styles.headerContainer}>
         {/* Logo */}
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>Evential</Text>
+          <Text style={{ fontFamily: fontsLoaded ? 'BebasNeue' : undefined, fontSize: 48, color: '#ffffffff' }}>Evential</Text>
           <Text style={styles.logoSubtext}>CCS</Text>
         </View>
         {/* Menú hamburguesa */}

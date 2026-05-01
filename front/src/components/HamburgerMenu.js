@@ -93,6 +93,7 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress, ha
   const [empresaInfoVisible, setEmpresaInfoVisible] = useState(false);
   const [logoutConfirmVisible, setLogoutConfirmVisible] = useState(false);
   const [sessionClosedVisible, setSessionClosedVisible] = useState(false);
+  const [perfilEmpresaConfirmVisible, setPerfilEmpresaConfirmVisible] = useState(false);
   const handleOpenNotifications = () => {
     // Close menu then open notifications modal
     setVisible(false);
@@ -102,34 +103,40 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress, ha
 
   const handlePerfilEmpresaPress = async () => {
     setVisible(false);
+    // Verificar que haya empresa antes de mostrar el modal
     try {
       const empresaId = await AsyncStorage.getItem('empresaId');
       if (!empresaId) {
         Alert.alert('No tienes empresa afiliada', 'No se encontró una empresa asociada a tu cuenta.');
         return;
       }
+    } catch (e) {
+      Alert.alert('Error', 'No se pudo verificar la empresa.');
+      return;
+    }
+    // Mostrar modal de confirmación
+    setPerfilEmpresaConfirmVisible(true);
+  };
 
-      // Switch session to affiliated company.
-      // NOTE: We keep the accessToken (no backend call). Just flip session flags to empresa mode.
+  const handleConfirmGoToEmpresa = async () => {
+    setPerfilEmpresaConfirmVisible(false);
+    try {
+      const empresaId = await AsyncStorage.getItem('empresaId');
+      if (!empresaId) return;
+
+      // Limpiar datos de sesión de usuario (requiere re-login para volver)
       try {
         await AsyncStorage.multiRemove(['userName', 'userEmail', 'userId', 'isUserAccount']);
-      } catch (e) {
-        // ignore remove errors
-      }
+      } catch (e) { /* ignorar */ }
 
-      try {
-        await AsyncStorage.multiSet([
-          ['sessionMode', 'empresa'],
-          ['isEmpresaAccount', 'true'],
-          ['isUserAccount', 'false'],
-          ['empresaId', empresaId],
-          ['userKind', 'empresa'],
-        ]);
-      } catch (e) {
-        console.log('HamburgerMenu: error setting empresa session keys', e);
-      }
+      await AsyncStorage.multiSet([
+        ['sessionMode', 'empresa'],
+        ['isEmpresaAccount', 'true'],
+        ['isUserAccount', 'false'],
+        ['empresaId', empresaId],
+        ['userKind', 'empresa'],
+      ]);
 
-      // Reset navigation to the Empresa screen so the new session mode takes effect
       navigation.reset({ index: 0, routes: [{ name: 'Empresa', params: { empresaId } }] });
     } catch (e) {
       console.log('HamburgerMenu: error navigating to EmpresaScreen', e);
@@ -244,6 +251,26 @@ export default function HamburgerMenu({ visible, setVisible, onMenuItemPress, ha
               </TouchableOpacity>
               <TouchableOpacity onPress={() => { setEmpresaInfoVisible(false); try { navigation.navigate('FormularioScreen'); } catch (e) { console.log('HamburgerMenu: error navigating to FormularioScreen', e); Alert.alert('Error', 'No se pudo abrir el formulario.'); } }} style={[styles.alertBtn, styles.alertConfirm]}>
                 <Text style={[styles.alertBtnText, styles.alertConfirmText]}>Ir al formulario</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de confirmación para ir al perfil de empresa */}
+      <Modal visible={perfilEmpresaConfirmVisible} transparent animationType="fade">
+        <View style={styles.backdropCentered}>
+          <View style={styles.alertBox}>
+            <Text style={styles.alertTitle}>Ir al perfil de empresa</Text>
+            <Text style={styles.alertMessage}>
+              Al cambiar al perfil de empresa, tu sesión de usuario se cerrará. Para volver a tu cuenta de usuario tendrás que iniciar sesión nuevamente.
+            </Text>
+            <View style={styles.alertBtnsRow}>
+              <TouchableOpacity onPress={() => setPerfilEmpresaConfirmVisible(false)} style={[styles.alertBtn, styles.alertCancel]}>
+                <Text style={[styles.alertBtnText, styles.alertCancelText]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleConfirmGoToEmpresa} style={[styles.alertBtn, styles.alertConfirm]}>
+                <Text style={[styles.alertBtnText, styles.alertConfirmText]}>Ir al perfil</Text>
               </TouchableOpacity>
             </View>
           </View>

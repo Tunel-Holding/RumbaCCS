@@ -22,8 +22,8 @@ export default function EmpresaScreenUser() {
   const [hasEmpresa, setHasEmpresa] = useState(false);
   const [empresaReady, setEmpresaReady] = useState(false);
   const [fontsLoaded] = useFonts({
-        'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
-      });
+    'BebasNeue': require('../../assets/BebasNeue-Regular.ttf'),
+  });
 
   useEffect(() => {
     (async () => {
@@ -86,250 +86,250 @@ export default function EmpresaScreenUser() {
 
   const [empresaData, setEmpresaData] = useState(null);
 
-  
+
 
   useEffect(() => {
-  const fetchEmpresa = async () => {
-    try {
-      const isEmpresaAccount = await AsyncStorage.getItem('isEmpresaAccount') === 'true';
-      setIsEmpresaAccount(isEmpresaAccount);
-      const empresaId = empresaIdParam;
-      const response = await api.get(`/api/public/empresas/${empresaId}/`);
-      const data = response.data;
-      if (data.is_following) {
-        setIsFollowing(true);
-      }
-      setEmpresaData(data);
+    const fetchEmpresa = async () => {
+      try {
+        const isEmpresaAccount = await AsyncStorage.getItem('isEmpresaAccount') === 'true';
+        setIsEmpresaAccount(isEmpresaAccount);
+        const empresaId = empresaIdParam;
+        const response = await api.get(`/api/public/empresas/${empresaId}/`);
+        const data = response.data;
+        if (data.is_following) {
+          setIsFollowing(true);
+        }
+        setEmpresaData(data);
 
-      // Intentamos obtener promedio de rating desde el propio objeto devuelto
-      const possibleAvg = data.avg_rating || data.promedio_rating || data.rating_average || data.rating || data.rating_promedio || data.rating_avg;
-      const possibleCount = data.total_ratings || data.ratings_count || data.total_ratings_count || data.n_ratings || data.total_reviews || 0;
-      if (possibleAvg != null && possibleAvg !== '') {
-        setAvgRating(Number(possibleAvg));
-        setRatingsCount(Number(possibleCount) || 0);
-      } else {
-        // Fallback: pedir explicitamente los ratings y calcular promedio
-        try {
-          const rr = await api.get(`/api/empresas/${empresaId}/ratings/`);
-          const items = Array.isArray(rr.data) ? rr.data : rr.data.results || [];
-          if (items.length) {
-            const sum = items.reduce((s, it) => s + (Number(it.rating) || 0), 0);
-            setAvgRating(sum / items.length);
-            setRatingsCount(items.length);
-          } else {
+        // Intentamos obtener promedio de rating desde el propio objeto devuelto
+        const possibleAvg = data.avg_rating || data.promedio_rating || data.rating_average || data.rating || data.rating_promedio || data.rating_avg;
+        const possibleCount = data.total_ratings || data.ratings_count || data.total_ratings_count || data.n_ratings || data.total_reviews || 0;
+        if (possibleAvg != null && possibleAvg !== '') {
+          setAvgRating(Number(possibleAvg));
+          setRatingsCount(Number(possibleCount) || 0);
+        } else {
+          // Fallback: pedir explicitamente los ratings y calcular promedio
+          try {
+            const rr = await api.get(`/api/empresas/${empresaId}/ratings/`);
+            const items = Array.isArray(rr.data) ? rr.data : rr.data.results || [];
+            if (items.length) {
+              const sum = items.reduce((s, it) => s + (Number(it.rating) || 0), 0);
+              setAvgRating(sum / items.length);
+              setRatingsCount(items.length);
+            } else {
+              setAvgRating(null);
+              setRatingsCount(0);
+            }
+          } catch (e) {
+            // No bloquear si el endpoint requiere auth o falla; dejamos el promedio null
             setAvgRating(null);
             setRatingsCount(0);
           }
-        } catch (e) {
-          // No bloquear si el endpoint requiere auth o falla; dejamos el promedio null
-          setAvgRating(null);
-          setRatingsCount(0);
         }
+
+        setEmpresaReady(true); // Set ready when data is loaded
+      } catch (error) {
+        if (error.response) {
+          console.error("❌ Error HTTP:", error.response.status, error.response.data);
+        } else {
+          console.error("❌ Error:", error.message);
+        }
+        setEmpresaReady(false); // Not ready on error
+      } finally {
+        setLoading(false);
       }
+    };
+    fetchEmpresa();
+  }, [empresaIdParam]);
 
-      setEmpresaReady(true); // Set ready when data is loaded
-    } catch (error) {
-      if (error.response) {
-        console.error("❌ Error HTTP:", error.response.status, error.response.data);
-      } else {
-        console.error("❌ Error:", error.message);
+
+
+  const [loginVisible, setLoginVisible] = useState(false);
+  const [user, setUser] = useState('');
+  const [pass, setPass] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loginLoading, setLoginLoading] = useState(false);
+  // App-styled alert (local)
+  const [appAlertVisible, setAppAlertVisible] = useState(false);
+  const [appAlert, setAppAlert] = useState({ title: '', message: '' });
+  const showAppAlert = (title, message) => { setAppAlert({ title: title || '', message: message || '' }); setAppAlertVisible(true); };
+
+  const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
+    try {
+      const token = await AsyncStorage.getItem('accessToken');
+      if (!token) {
+        setLoginVisible(true);
+        return false;
       }
-      setEmpresaReady(false); // Not ready on error
-    } finally {
-      setLoading(false);
-    }
-  };
-  fetchEmpresa();
-}, [empresaIdParam]);
-
-
-
-const [loginVisible, setLoginVisible] = useState(false);
-const [user, setUser] = useState('');
-const [pass, setPass] = useState('');
-const [loginError, setLoginError] = useState('');
-const [loginLoading, setLoginLoading] = useState(false);
-// App-styled alert (local)
-const [appAlertVisible, setAppAlertVisible] = useState(false);
-const [appAlert, setAppAlert] = useState({ title: '', message: '' });
-const showAppAlert = (title, message) => { setAppAlert({ title: title || '', message: message || '' }); setAppAlertVisible(true); };
-
-const enviarCalificacion = async ({ empresaId, rating, comentario }) => {
-  try {
-    const token = await AsyncStorage.getItem('accessToken');
-    if (!token) {
-      setLoginVisible(true);
-      return false;
-    }
-    const res = await api.post(`/api/empresas/${empresaId}/ratings/`, {
-      empresa: empresaId,
-      rating,
-      comentario,
-    });
-    console.log("Respuesta de calificación:", res.data);
-    return res.data;
+      const res = await api.post(`/api/empresas/${empresaId}/ratings/`, {
+        empresa: empresaId,
+        rating,
+        comentario,
+      });
+      console.log("Respuesta de calificación:", res.data);
+      return res.data;
     } catch (e) {
       const msg = e.response?.data?.detail || e.message;
       showAppAlert('Error', msg);
       return false;
     }
-};
+  };
 
-const handleLogin = async () => {
-  let resultado;
-  try {
-    resultado = await loginConFallback(user, pass);
-  } finally {
-    // limpiar campos de login siempre
-    try { setUser(''); setPass(''); } catch (e) {}
-  }
-
-  if (resultado && resultado.error) {
-    switch (resultado.tipo) {
-      case 'validacion':
-        showAppAlert('Campos vacíos', 'Por favor ingresa email y contraseña');
-        break;
-      case 'error':
-        showAppAlert('Error inesperado', resultado.error);
-        break;
-      case 'credenciales':
-        showAppAlert('Error de login', 'Usuario o contraseña incorrectos');
-        break;
+  const handleLogin = async () => {
+    let resultado;
+    try {
+      resultado = await loginConFallback(user, pass);
+    } finally {
+      // limpiar campos de login siempre
+      try { setUser(''); setPass(''); } catch (e) { }
     }
-    return;
-  }
-  setLoginVisible(false);
-  // Persist session and update local state
-  try {
-    if (resultado.data?.access) await AsyncStorage.setItem('accessToken', resultado.data.access);
-    if (resultado.data?.refresh) await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
-    if (resultado.data?.user) {
-      const ud = resultado.data.user;
-      await AsyncStorage.setItem('userId', ud.id.toString());
-      if (ud.username) await AsyncStorage.setItem('userName', ud.username);
-      let cleanAvatar = ud.avatar_url || ud.avatar || null;
-      if (cleanAvatar && typeof cleanAvatar === 'string') cleanAvatar = cleanAvatar.replace(/\?$/, '');
-      // Update local user state if present
-      // Some screens expect userData in state; set it here for header components
-      // (There's no setUserData in this screen; we'll store minimal info)
-      await AsyncStorage.setItem('userName', ud.username || '');
-    }
-    if (resultado.data?.empresa) {
-      await AsyncStorage.setItem('empresaId', resultado.data.empresa.id.toString());
-      await AsyncStorage.setItem('isEmpresaAccount', 'true');
-      await AsyncStorage.setItem('isUserAccount', 'false');
-      setIsEmpresaAccount(true);
-    } else {
-      await AsyncStorage.setItem('isUserAccount', 'true');
-      await AsyncStorage.setItem('isEmpresaAccount', 'false');
-      setIsEmpresaAccount(false);
-    }
-    setIsLogged(true);
-  } catch (e) {
-    console.log('Error persisting login info (EmpresaScreenUser):', e);
-  }
 
-};
-const seguir = async () => {
-  const token = await AsyncStorage.getItem('accessToken');
-  if (!token) {
-    setLoginVisible(true);
-    return;
-  }
-
-  try {
-    if (isFollowing) {
-      // Dejar de seguir
-      const res = await api.post(`/api/empresas/${empresaIdParam}/dejar_de_seguir/`);
-      if (res.status === 200) {
-        setIsFollowing(false);
-        showAppAlert('Información', `Has dejado de seguir a ${empresaData?.nombre || 'la empresa'}`);
-      } else {
-        const detail = res.data?.detail || res.data?.status || 'No se pudo dejar de seguir';
-        showAppAlert('Error', detail);
+    if (resultado && resultado.error) {
+      switch (resultado.tipo) {
+        case 'validacion':
+          showAppAlert('Campos vacíos', 'Por favor ingresa email y contraseña');
+          break;
+        case 'error':
+          showAppAlert('Error inesperado', resultado.error);
+          break;
+        case 'credenciales':
+          showAppAlert('Error de login', 'Usuario o contraseña incorrectos');
+          break;
       }
-    } else {
-      // Seguir
-      const res = await api.post(`/api/empresas/${empresaIdParam}/seguir/`);
-      if (res.status === 200) {
-        setIsFollowing(true);
-        showAppAlert('Información', `Ahora sigues a ${empresaData?.nombre || 'la empresa'}`);
-      } else if (res.status === 405) {
-        showAppAlert('Información', res.data?.detail || 'Ya sigues a esta empresa');
-      } else {
-        const detail = res.data?.detail || 'No se pudo seguir a la empresa';
-        showAppAlert('Error', detail);
-      }
+      return;
     }
-  } catch (error) {
-    console.error('Error al (de)seguir a la empresa:', error);
-    const msg = error.response?.data?.detail || error.message || 'Error en la petición';
-    showAppAlert('Error', msg);
-  }
-};
+    setLoginVisible(false);
+    // Persist session and update local state
+    try {
+      if (resultado.data?.access) await AsyncStorage.setItem('accessToken', resultado.data.access);
+      if (resultado.data?.refresh) await AsyncStorage.setItem('refreshToken', resultado.data.refresh);
+      if (resultado.data?.user) {
+        const ud = resultado.data.user;
+        await AsyncStorage.setItem('userId', ud.id.toString());
+        if (ud.username) await AsyncStorage.setItem('userName', ud.username);
+        let cleanAvatar = ud.avatar_url || ud.avatar || null;
+        if (cleanAvatar && typeof cleanAvatar === 'string') cleanAvatar = cleanAvatar.replace(/\?$/, '');
+        // Update local user state if present
+        // Some screens expect userData in state; set it here for header components
+        // (There's no setUserData in this screen; we'll store minimal info)
+        await AsyncStorage.setItem('userName', ud.username || '');
+      }
+      if (resultado.data?.empresa) {
+        await AsyncStorage.setItem('empresaId', resultado.data.empresa.id.toString());
+        await AsyncStorage.setItem('isEmpresaAccount', 'true');
+        await AsyncStorage.setItem('isUserAccount', 'false');
+        setIsEmpresaAccount(true);
+      } else {
+        await AsyncStorage.setItem('isUserAccount', 'true');
+        await AsyncStorage.setItem('isEmpresaAccount', 'false');
+        setIsEmpresaAccount(false);
+      }
+      setIsLogged(true);
+    } catch (e) {
+      console.log('Error persisting login info (EmpresaScreenUser):', e);
+    }
+
+  };
+  const seguir = async () => {
+    const token = await AsyncStorage.getItem('accessToken');
+    if (!token) {
+      setLoginVisible(true);
+      return;
+    }
+
+    try {
+      if (isFollowing) {
+        // Dejar de seguir
+        const res = await api.post(`/api/empresas/${empresaIdParam}/dejar_de_seguir/`);
+        if (res.status === 200) {
+          setIsFollowing(false);
+          showAppAlert('Información', `Has dejado de seguir a ${empresaData?.nombre || 'la empresa'}`);
+        } else {
+          const detail = res.data?.detail || res.data?.status || 'No se pudo dejar de seguir';
+          showAppAlert('Error', detail);
+        }
+      } else {
+        // Seguir
+        const res = await api.post(`/api/empresas/${empresaIdParam}/seguir/`);
+        if (res.status === 200) {
+          setIsFollowing(true);
+          showAppAlert('Información', `Ahora sigues a ${empresaData?.nombre || 'la empresa'}`);
+        } else if (res.status === 405) {
+          showAppAlert('Información', res.data?.detail || 'Ya sigues a esta empresa');
+        } else {
+          const detail = res.data?.detail || 'No se pudo seguir a la empresa';
+          showAppAlert('Error', detail);
+        }
+      }
+    } catch (error) {
+      console.error('Error al (de)seguir a la empresa:', error);
+      const msg = error.response?.data?.detail || error.message || 'Error en la petición';
+      showAppAlert('Error', msg);
+    }
+  };
 
   const empresaData1 = {
     nombre: empresaData?.nombre || 'Empresa',
-    rif : empresaData?.rif || 'no disponible',
+    rif: empresaData?.rif || 'no disponible',
     seguidores: empresaData?.total_seguidores || 0,
     eventosPublicados: empresaData?.total_eventos || 0,
   }
 
-    // Helpers to open mail and phone
-    const openEmail = async (email) => {
-      if (!email) return;
-      const url = `mailto:${email}`;
-      try {
-        const supported = await Linking.canOpenURL(url);
-        if (supported) {
-          await Linking.openURL(url);
-        } else {
-          showAppAlert('No disponible', 'No se pudo abrir la aplicación de correo.');
-        }
+  // Helpers to open mail and phone
+  const openEmail = async (email) => {
+    if (!email) return;
+    const url = `mailto:${email}`;
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        showAppAlert('No disponible', 'No se pudo abrir la aplicación de correo.');
+      }
     } catch (e) {
       console.log('openEmail error', e);
       showAppAlert('Error', 'No se pudo abrir la aplicación de correo.');
     }
-    };
+  };
 
-    const openPhone = async (phone) => {
-      if (!phone) return;
-      // Normalize phone: keep digits and leading + if present
-      const cleaned = String(phone).trim().replace(/[^+\d]/g, '');
-      const tel = `tel:${cleaned}`;
-      try {
-        // Some emulators/simulators return false for canOpenURL for tel: even when device supports it.
-        // Try canOpenURL first, but always attempt openURL as a fallback.
-        const supported = await Linking.canOpenURL(tel);
-        if (supported) {
-          await Linking.openURL(tel);
-          return;
-        }
-        // Attempt to open anyway (works on many devices even if canOpenURL false)
-        try {
-          await Linking.openURL(tel);
-          return;
-        } catch (openErr) {
-          console.log('openPhone openURL failed', openErr);
-        }
-
-        // Fallback: show the number so the user can call manually (useful on simulators)
-        showAppAlert('Llamar', `No fue posible iniciar la llamada automáticamente. Marca este número: ${cleaned}`);
-      } catch (e) {
-        console.log('openPhone error', e);
-        showAppAlert('Error', 'No se pudo iniciar la llamada.');
+  const openPhone = async (phone) => {
+    if (!phone) return;
+    // Normalize phone: keep digits and leading + if present
+    const cleaned = String(phone).trim().replace(/[^+\d]/g, '');
+    const tel = `tel:${cleaned}`;
+    try {
+      // Some emulators/simulators return false for canOpenURL for tel: even when device supports it.
+      // Try canOpenURL first, but always attempt openURL as a fallback.
+      const supported = await Linking.canOpenURL(tel);
+      if (supported) {
+        await Linking.openURL(tel);
+        return;
       }
-    };
-
-    // Compartir evento desde la tarjeta
-    const handleShareEvento = async (evento) => {
+      // Attempt to open anyway (works on many devices even if canOpenURL false)
       try {
-        const message = `${evento.titulo} - ${evento.fecha || ''} ${evento.hora || ''}\nOrganizada por: ${empresaData?.nombre || ''}`;
-        await Share.share({ message });
-      } catch (err) {
-        console.warn('handleShareEvento error', err);
+        await Linking.openURL(tel);
+        return;
+      } catch (openErr) {
+        console.log('openPhone openURL failed', openErr);
       }
-    };
+
+      // Fallback: show the number so the user can call manually (useful on simulators)
+      showAppAlert('Llamar', `No fue posible iniciar la llamada automáticamente. Marca este número: ${cleaned}`);
+    } catch (e) {
+      console.log('openPhone error', e);
+      showAppAlert('Error', 'No se pudo iniciar la llamada.');
+    }
+  };
+
+  // Compartir evento desde la tarjeta
+  const handleShareEvento = async (evento) => {
+    try {
+      const message = `${evento.titulo} - ${evento.fecha || ''} ${evento.hora || ''}\nOrganizada por: ${empresaData?.nombre || ''}`;
+      await Share.share({ message });
+    } catch (err) {
+      console.warn('handleShareEvento error', err);
+    }
+  };
 
 
   const [eventos, setEventos] = useState([]);
@@ -474,13 +474,13 @@ const seguir = async () => {
         >
           <Text style={styles.backButtonText}>←</Text>
         </TouchableOpacity>
-        
+
         {/* Logo */}
         <View style={styles.logoContainer}>
           <Text style={{ fontFamily: fontsLoaded ? 'BebasNeue' : undefined, fontSize: 48, color: '#ffffffff' }}>Evential</Text>
           <Text style={styles.logoSubtext}>CCS</Text>
         </View>
-        
+
         {/* Espacio vacío para balancear el layout */}
         <View style={styles.headerSpacer} />
       </View>
@@ -501,10 +501,10 @@ const seguir = async () => {
           >
             <Text style={styles.ratingModalCloseText}>×</Text>
           </TouchableOpacity>
-          
+
           <Text style={styles.ratingModalTitle}>Calificar Empresa</Text>
           <Text style={styles.ratingModalSubtitle}>¿Cómo calificarías tu experiencia?</Text>
-          
+
           {/* Estrellas */}
           <View style={styles.starsContainer}>
             {[1, 2, 3, 4, 5].map((star) => (
@@ -523,15 +523,15 @@ const seguir = async () => {
               </TouchableOpacity>
             ))}
           </View>
-          
+
           <Text style={styles.ratingText}>
             {rating === 0 ? 'Toca una estrella para calificar' :
-             rating === 1 ? 'Muy malo' :
-             rating === 2 ? 'Malo' :
-             rating === 3 ? 'Regular' :
-             rating === 4 ? 'Bueno' : 'Excelente'}
+              rating === 1 ? 'Muy malo' :
+                rating === 2 ? 'Malo' :
+                  rating === 3 ? 'Regular' :
+                    rating === 4 ? 'Bueno' : 'Excelente'}
           </Text>
-          
+
           {/* Comentario opcional */}
           <Text style={styles.commentLabel}>Comentario (opcional)</Text>
           <TextInput
@@ -544,7 +544,7 @@ const seguir = async () => {
             numberOfLines={3}
             textAlignVertical="top"
           />
-          
+
           {/* Botones */}
           <View style={styles.ratingButtonsContainer}>
             <TouchableOpacity
@@ -557,7 +557,7 @@ const seguir = async () => {
             >
               <Text style={styles.ratingCancelText}>Cancelar</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[styles.ratingSubmitButton, rating === 0 && styles.ratingSubmitButtonDisabled]}
               onPress={async () => {
@@ -578,7 +578,7 @@ const seguir = async () => {
                 Enviar
               </Text>
             </TouchableOpacity>
-           
+
           </View>
         </View>
       </View>
@@ -601,14 +601,14 @@ const seguir = async () => {
             onPress={() => { if (isLogged) setEmpresaInfoVisible(true); else setLoginVisible(true); }}
             activeOpacity={0.7}
           >
-          {empresaData?.logo ? (
-          <Image
-            source={{ uri: empresaData.logo }}
-            style={{ width: '100%', height: '100%', borderRadius: 100 }}
-          />
-        ) : (
-          <Text style={styles.fotoIcon}>👤</Text>
-        )}
+            {empresaData?.logo ? (
+              <Image
+                source={{ uri: empresaData.logo }}
+                style={{ width: '100%', height: '100%', borderRadius: 100 }}
+              />
+            ) : (
+              <Text style={styles.fotoIcon}>👤</Text>
+            )}
           </TouchableOpacity>
         </View>
         {/* Modal con información de la empresa */}
@@ -659,58 +659,58 @@ const seguir = async () => {
           {/* Mostrar promedio de ratings debajo del nombre si está disponible */}
           {avgRating != null ? (
             <Text style={styles.avgRatingText}>{avgRating.toFixed(1)} / 5 · <TouchableOpacity onPress={async () => {
-                // Toggle panel y cargar reseñas si es la primera vez
-                if (!showReviews && reviews.length === 0) {
-                  setReviewsLoading(true);
-                  try {
-                    const empresaId = empresaIdParam || empresaData?.id;
-                    const rr = await api.get(`/api/empresas/${empresaId}/ratings/`);
-                    const items = Array.isArray(rr.data) ? rr.data : rr.data.results || [];
-                    // Mapear ids de usuario a username (author_name)
-                    const userIds = [...new Set(items.map(i => i.usuario || i.usuario_id).filter(Boolean))];
-                    const usersMap = {};
-                    if (userIds.length) {
-                      try {
-                        const toFetch = userIds.filter(id => !usersCacheRef.current[id]);
-                        const userPromises = toFetch.map(id =>
-                          api.get(`/api/usuarios/${id}/`).then(res => ({ id, data: res.data })).catch(() => ({ id, data: null }))
-                        );
-                        const usersResults = await Promise.all(userPromises);
-                        usersResults.forEach(u => {
-                          if (u.data) {
-                            usersCacheRef.current[u.id] = u.data.username || u.data.nombre || u.data.name || `Usuario #${u.id}`;
-                          } else {
-                            usersCacheRef.current[u.id] = `Usuario #${u.id}`;
-                          }
-                        });
-                        // Rellenar usersMap desde el cache
-                        userIds.forEach(id => { usersMap[id] = usersCacheRef.current[id]; });
-                      } catch (e) {
-                        console.warn('Error cargando usuarios de reseñas', e);
-                      }
+              // Toggle panel y cargar reseñas si es la primera vez
+              if (!showReviews && reviews.length === 0) {
+                setReviewsLoading(true);
+                try {
+                  const empresaId = empresaIdParam || empresaData?.id;
+                  const rr = await api.get(`/api/empresas/${empresaId}/ratings/`);
+                  const items = Array.isArray(rr.data) ? rr.data : rr.data.results || [];
+                  // Mapear ids de usuario a username (author_name)
+                  const userIds = [...new Set(items.map(i => i.usuario || i.usuario_id).filter(Boolean))];
+                  const usersMap = {};
+                  if (userIds.length) {
+                    try {
+                      const toFetch = userIds.filter(id => !usersCacheRef.current[id]);
+                      const userPromises = toFetch.map(id =>
+                        api.get(`/api/usuarios/${id}/`).then(res => ({ id, data: res.data })).catch(() => ({ id, data: null }))
+                      );
+                      const usersResults = await Promise.all(userPromises);
+                      usersResults.forEach(u => {
+                        if (u.data) {
+                          usersCacheRef.current[u.id] = u.data.username || u.data.nombre || u.data.name || `Usuario #${u.id}`;
+                        } else {
+                          usersCacheRef.current[u.id] = `Usuario #${u.id}`;
+                        }
+                      });
+                      // Rellenar usersMap desde el cache
+                      userIds.forEach(id => { usersMap[id] = usersCacheRef.current[id]; });
+                    } catch (e) {
+                      console.warn('Error cargando usuarios de reseñas', e);
                     }
-                    const itemsConAutor = items.map(it => ({
-                      ...it,
-                      author_name: usersMap[it.usuario] || usersMap[it.usuario_id] || it.usuario_nombre || it.username || it.author_name || `Usuario #${it.usuario || it.usuario_id || 'desconocido'}`
-                    }));
-                    // Ordenar por fecha ascendente (más antiguas primero) y paginar de 3 en 3
-                    const parseTime = (x) => new Date(x?.creado_en || x?.created_at || x?.createdAt || 0).getTime();
-                    const sorted = itemsConAutor.sort((a,b) => parseTime(a) - parseTime(b));
-                    setAllReviews(sorted);
-                    setReviews(sorted.slice(0, REVIEWS_PAGE_SIZE));
-                    setReviewsPage(0);
-                  } catch (e) {
-                    setReviews([]);
-                  } finally {
-                    setReviewsLoading(false);
-                    setShowReviews(s => !s);
                   }
-                } else {
+                  const itemsConAutor = items.map(it => ({
+                    ...it,
+                    author_name: usersMap[it.usuario] || usersMap[it.usuario_id] || it.usuario_nombre || it.username || it.author_name || `Usuario #${it.usuario || it.usuario_id || 'desconocido'}`
+                  }));
+                  // Ordenar por fecha ascendente (más antiguas primero) y paginar de 3 en 3
+                  const parseTime = (x) => new Date(x?.creado_en || x?.created_at || x?.createdAt || 0).getTime();
+                  const sorted = itemsConAutor.sort((a, b) => parseTime(a) - parseTime(b));
+                  setAllReviews(sorted);
+                  setReviews(sorted.slice(0, REVIEWS_PAGE_SIZE));
+                  setReviewsPage(0);
+                } catch (e) {
+                  setReviews([]);
+                } finally {
+                  setReviewsLoading(false);
                   setShowReviews(s => !s);
                 }
-              }}>
-                <Text style={styles.ratingsCountText}>Ver reseña</Text>
-              </TouchableOpacity></Text>
+              } else {
+                setShowReviews(s => !s);
+              }
+            }}>
+              <Text style={styles.ratingsCountText}>Ver reseña</Text>
+            </TouchableOpacity></Text>
           ) : (
             <TouchableOpacity onPress={async () => {
               // intentar abrir panel de reseñas aunque avg sea null (posible que existan sin promedio)
@@ -723,33 +723,33 @@ const seguir = async () => {
                   // Mapear ids de usuario a username (author_name)
                   const userIds = [...new Set(items.map(i => i.usuario || i.usuario_id).filter(Boolean))];
                   const usersMap = {};
-                    if (userIds.length) {
-                      try {
-                        const toFetch = userIds.filter(id => !usersCacheRef.current[id]);
-                        const userPromises = toFetch.map(id =>
-                          api.get(`/api/usuarios/${id}/`).then(res => ({ id, data: res.data })).catch(() => ({ id, data: null }))
-                        );
-                        const usersResults = await Promise.all(userPromises);
-                        usersResults.forEach(u => {
-                          if (u.data) {
-                            usersCacheRef.current[u.id] = u.data.username || u.data.nombre || u.data.name || `Usuario #${u.id}`;
-                          } else {
-                            usersCacheRef.current[u.id] = `Usuario #${u.id}`;
-                          }
-                        });
-                        // Rellenar usersMap desde el cache
-                        userIds.forEach(id => { usersMap[id] = usersCacheRef.current[id]; });
-                      } catch (e) {
-                        console.warn('Error cargando usuarios de reseñas', e);
-                      }
+                  if (userIds.length) {
+                    try {
+                      const toFetch = userIds.filter(id => !usersCacheRef.current[id]);
+                      const userPromises = toFetch.map(id =>
+                        api.get(`/api/usuarios/${id}/`).then(res => ({ id, data: res.data })).catch(() => ({ id, data: null }))
+                      );
+                      const usersResults = await Promise.all(userPromises);
+                      usersResults.forEach(u => {
+                        if (u.data) {
+                          usersCacheRef.current[u.id] = u.data.username || u.data.nombre || u.data.name || `Usuario #${u.id}`;
+                        } else {
+                          usersCacheRef.current[u.id] = `Usuario #${u.id}`;
+                        }
+                      });
+                      // Rellenar usersMap desde el cache
+                      userIds.forEach(id => { usersMap[id] = usersCacheRef.current[id]; });
+                    } catch (e) {
+                      console.warn('Error cargando usuarios de reseñas', e);
                     }
+                  }
                   const itemsConAutor = items.map(it => ({
                     ...it,
                     author_name: usersMap[it.usuario] || usersMap[it.usuario_id] || it.usuario_nombre || it.username || it.author_name || `Usuario #${it.usuario || it.usuario_id || 'desconocido'}`
                   }));
                   // Ordenar ascendente y preparar paginado de 3 en 3
                   const parseTime = (x) => new Date(x?.creado_en || x?.created_at || x?.createdAt || 0).getTime();
-                  const sorted = itemsConAutor.sort((a,b) => parseTime(a) - parseTime(b));
+                  const sorted = itemsConAutor.sort((a, b) => parseTime(a) - parseTime(b));
                   setAllReviews(sorted);
                   setReviews(sorted.slice(0, REVIEWS_PAGE_SIZE));
                   setReviewsPage(0);
@@ -767,7 +767,7 @@ const seguir = async () => {
             </TouchableOpacity>
           )}
           <Text style={styles.seguidoresText}>RIF: <Text style={styles.seguidoresCount}>{empresaData1.rif}</Text></Text>
-          
+
           <Text style={styles.seguidoresText}>Seguidores de la empresa: <Text style={styles.seguidoresCount}>{empresaData1.seguidores}</Text></Text>
           <Text style={styles.eventosText}>Total de eventos publicados: <Text style={styles.eventosCount}>{empresaData1.eventosPublicados}</Text></Text>
           {!isEmpresaAccount && (
@@ -818,7 +818,7 @@ const seguir = async () => {
               {reviews.map((r, idx) => (
                 <View key={r.id || idx} style={styles.reviewCard}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={styles.reviewUser}>{ r.author_name || 'Usuario'}</Text>
+                    <Text style={styles.reviewUser}>{r.author_name || 'Usuario'}</Text>
                     <Text style={styles.reviewRating}>{(r.rating || r.valor || r.score) ? `${Number(r.rating || r.valor || r.score).toFixed(1)} / 5` : ''}</Text>
                   </View>
                   {r.comentario ? (
@@ -881,101 +881,101 @@ const seguir = async () => {
   };
 
 
-const renderSocialCircles = () => {
-  if (!empresaReady) return null;
+  const renderSocialCircles = () => {
+    if (!empresaReady) return null;
 
-  const arr = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
+    const arr = Array.isArray(empresaData?.redes_sociales) ? empresaData.redes_sociales : [];
 
-  if (!arr.length) {
-    // Fallback: intentar detectar campos directos en empresaData (por si el backend los expone así)
-    const directKeys = ['instagram','facebook','tiktok','youtube','whatsapp','website','x','twitter'];
-    const fallbackMap = {};
-    directKeys.forEach(k => {
-      if (empresaData?.[k]) fallbackMap[k] = empresaData[k];
+    if (!arr.length) {
+      // Fallback: intentar detectar campos directos en empresaData (por si el backend los expone así)
+      const directKeys = ['instagram', 'facebook', 'tiktok', 'youtube', 'whatsapp', 'website', 'x', 'twitter'];
+      const fallbackMap = {};
+      directKeys.forEach(k => {
+        if (empresaData?.[k]) fallbackMap[k] = empresaData[k];
+      });
+      if (Object.keys(fallbackMap).length === 0) return null;
+    }
+
+    const redesMap = {};
+
+    const normalizeUrl = (u) => {
+      if (!u) return null;
+      let url = String(u).trim();
+      // Mantener mailto: tal cual
+      if (/^mailto:/i.test(url)) return url;
+      // Si parece un correo y no tiene esquema, construir mailto:
+      if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(url)) return `mailto:${url}`;
+      // Asegurar http(s) para enlaces web
+      if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url.replace(/^\/+/, '');
+      }
+      return url;
+    };
+
+    arr.forEach(red => {
+      const tipoRaw = (red?.tipo || red?.platform || red?.nombre || '').toString().toLowerCase().trim();
+      let key = tipoRaw;
+      if (['ig', 'insta'].includes(key)) key = 'instagram';
+      if (['x', 'twitter'].includes(key)) key = 'twitter';
+      if (['fb', 'face'].includes(key)) key = 'facebook';
+      if (['tt', 'tik_tok', 'tiktoc'].includes(key)) key = 'tiktok';
+      if (['yt', 'you_tube'].includes(key)) key = 'youtube';
+      if (['wa', 'wasap', 'whats', 'whatsapp'].includes(key)) key = 'whatsapp';
+      if (['mail', 'correo', 'email'].includes(key)) key = 'email';
+      if (['web', 'site', 'pagina', 'website'].includes(key)) key = 'website';
+
+      const rawUrl = red?.url || red?.link || red?.enlace || red?.full_url;
+      const finalUrl = normalizeUrl(rawUrl);
+      if (key && finalUrl) {
+        redesMap[key] = finalUrl;
+      }
     });
-    if (Object.keys(fallbackMap).length === 0) return null;
-  }
 
-  const redesMap = {};
+    // Merge fallback direct fields
+    ['instagram', 'twitter', 'facebook', 'tiktok', 'youtube', 'whatsapp', 'website', 'email'].forEach(k => {
+      if (!redesMap[k] && empresaData?.[k]) {
+        const u = normalizeUrl(empresaData[k]);
+        if (u) redesMap[k] = u;
+      }
+    });
 
-  const normalizeUrl = (u) => {
-    if (!u) return null;
-    let url = String(u).trim();
-    // Mantener mailto: tal cual
-    if (/^mailto:/i.test(url)) return url;
-    // Si parece un correo y no tiene esquema, construir mailto:
-    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(url)) return `mailto:${url}`;
-    // Asegurar http(s) para enlaces web
-    if (!/^https?:\/\//i.test(url)) {
-      url = 'https://' + url.replace(/^\/+/, '');
-    }
-    return url;
+    const redes = [
+      { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap.instagram },
+      { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap.twitter },
+      { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap.facebook },
+      { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap.tiktok },
+      { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap.youtube },
+      { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap.whatsapp },
+      { id: 'email', label: 'Email', icon: '✉️', color: '#f97316', url: redesMap.email },
+      { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap.website },
+    ];
+
+    const visibles = redes.filter(r => !!r.url);
+    if (!visibles.length) return null;
+
+    return (
+      <View style={styles.socialStripContainer}>
+        <Text style={styles.socialStripTitle}>Redes sociales</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {visibles.map(r => (
+            <TouchableOpacity
+              key={r.id}
+              style={[styles.socialCircle, { borderColor: r.color }]}
+              activeOpacity={0.75}
+              onPress={() => Linking.openURL(r.url)}
+            >
+              <Text style={styles.socialIcon}>{r.icon}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+    );
   };
-
-  arr.forEach(red => {
-    const tipoRaw = (red?.tipo || red?.platform || red?.nombre || '').toString().toLowerCase().trim();
-    let key = tipoRaw;
-    if (['ig','insta'].includes(key)) key = 'instagram';
-    if (['x','twitter'].includes(key)) key = 'twitter';
-    if (['fb','face'].includes(key)) key = 'facebook';
-    if (['tt','tik_tok','tiktoc'].includes(key)) key = 'tiktok';
-  if (['yt','you_tube'].includes(key)) key = 'youtube';
-    if (['wa','wasap','whats','whatsapp'].includes(key)) key = 'whatsapp';
-  if (['mail','correo','email'].includes(key)) key = 'email';
-  if (['web','site','pagina','website'].includes(key)) key = 'website';
-
-    const rawUrl = red?.url || red?.link || red?.enlace || red?.full_url;
-    const finalUrl = normalizeUrl(rawUrl);
-    if (key && finalUrl) {
-      redesMap[key] = finalUrl;
-    }
-  });
-
-  // Merge fallback direct fields
-  ['instagram','twitter','facebook','tiktok','youtube','whatsapp','website','email'].forEach(k => {
-    if (!redesMap[k] && empresaData?.[k]) {
-      const u = normalizeUrl(empresaData[k]);
-      if (u) redesMap[k] = u;
-    }
-  });
-
-  const redes = [
-    { id: 'ig', label: 'Instagram', icon: '📸', color: '#d946ef', url: redesMap.instagram },
-    { id: 'x', label: 'X', icon: '𝕏', color: '#0ea5e9', url: redesMap.twitter },
-    { id: 'fb', label: 'Facebook', icon: '📘', color: '#3b82f6', url: redesMap.facebook },
-    { id: 'tt', label: 'TikTok', icon: '🎵', color: '#14b8a6', url: redesMap.tiktok },
-    { id: 'yt', label: 'YouTube', icon: '▶️', color: '#ef4444', url: redesMap.youtube },
-    { id: 'wa', label: 'WhatsApp', icon: '💬', color: '#22c55e', url: redesMap.whatsapp },
-    { id: 'email', label: 'Email', icon: '✉️', color: '#f97316', url: redesMap.email },
-    { id: 'web', label: 'Web', icon: '🌐', color: '#f59e0b', url: redesMap.website },
-  ];
-
-  const visibles = redes.filter(r => !!r.url);
-  if (!visibles.length) return null;
-
-  return (
-    <View style={styles.socialStripContainer}>
-      <Text style={styles.socialStripTitle}>Redes sociales</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        {visibles.map(r => (
-          <TouchableOpacity
-            key={r.id}
-            style={[styles.socialCircle, { borderColor: r.color }]}
-            activeOpacity={0.75}
-            onPress={() => Linking.openURL(r.url)}
-          >
-            <Text style={styles.socialIcon}>{r.icon}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
-};
 
   const renderEventos = () => (
     <View style={styles.eventosContainer}>
       <View style={styles.eventosHeader}>
-        <View style={{ flex:1 }}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.eventosTitle}>Eventos publicados</Text>
           <Text style={styles.eventosTotalLinea}>Total de eventos publicados: <Text style={styles.eventosCount}>{eventos.length}</Text></Text>
         </View>
@@ -990,61 +990,61 @@ const renderSocialCircles = () => {
         ) : eventos.length === 0 ? (
           <Text style={styles.eventosEmptyText}>Esta empresa no tiene eventos publicados</Text>
         ) : (
-              eventos.map((evento) => (
-                <View key={evento.id} style={styles.eventoCard}>
-                  <View style={styles.eventoImageContainer}>
-                    {/* (Se removió el icono superior; ahora el botón Compartir aparece junto a 'Ver detalles') */}
-                    <Image
-                      source={ 
-                        evento.imagenes?.[0]?.url 
-                          ? { uri: evento.imagenes[0].url }
-                          : require('../../assets/register-bg.jpg')
-                      }
-                      style={styles.eventoImage}
-                      resizeMode="cover"
-                    />
-                    <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
-                      <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
-                    </View>
+          eventos.map((evento) => (
+            <View key={evento.id} style={styles.eventoCard}>
+              <View style={styles.eventoImageContainer}>
+                {/* (Se removió el icono superior; ahora el botón Compartir aparece junto a 'Ver detalles') */}
+                <Image
+                  source={
+                    evento.imagenes?.[0]?.url
+                      ? { uri: evento.imagenes[0].url }
+                      : require('../../assets/register-bg.jpg')
+                  }
+                  style={styles.eventoImage}
+                  resizeMode="cover"
+                />
+                <View style={[styles.eventoCategoria, { backgroundColor: evento.categoriaColor }]}>
+                  <Text style={styles.eventoCategoriaText}>{evento.categoria}</Text>
+                </View>
+              </View>
+
+              <View style={styles.eventoContent}>
+                <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
+
+                {evento.hora && evento.hora !== 'Hora no definida' && (
+                  <View style={styles.eventoInfo}>
+                    <Text style={styles.eventoInfoText}>📅 {evento.fecha}  ⏰ {evento.hora}</Text>
                   </View>
-                  
-                  <View style={styles.eventoContent}>
-                    <Text style={styles.eventoTitulo}>{evento.titulo}</Text>
-                    
-                    {evento.hora && evento.hora !== 'Hora no definida' && (
-                      <View style={styles.eventoInfo}>
-                        <Text style={styles.eventoInfoText}>📅 {evento.fecha}  ⏰ {evento.hora}</Text>
-                      </View>
-                    )}
-                    
-                    <View style={styles.eventoInfo}>
-                      <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
-                    </View>
-                    
-                    <View style={styles.eventoFooter}>
-                      <Text style={styles.eventoPrecio}>{evento.precio}</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                              <TouchableOpacity 
-                                style={styles.verDetallesButton}
-                                onPress={() => {
-                                  navigation.navigate('BuyScreen', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
-                                }}
-                              >
-                                <Text style={styles.verDetallesText}>{'Ver detalles'}</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity style={styles.shareButton} onPress={() => handleShareEvento(evento)}>
-                                <Ionicons name="share-social" size={18} color="#ffffffff" />
-                              </TouchableOpacity>
-                            </View>
-                    </View>
+                )}
+
+                <View style={styles.eventoInfo}>
+                  <Text style={styles.eventoInfoText}>📍 {evento.ubicacion}</Text>
+                </View>
+
+                <View style={styles.eventoFooter}>
+                  <Text style={styles.eventoPrecio}>{evento.precio}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity
+                      style={styles.verDetallesButton}
+                      onPress={() => {
+                        navigation.navigate('BuyScreen', { idEvento: evento.id, idEmpresa: empresaIdParam ? empresaIdParam : empresaData?.id });
+                      }}
+                    >
+                      <Text style={styles.verDetallesText}>{'Ver detalles'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.shareButton} onPress={() => handleShareEvento(evento)}>
+                      <Ionicons name="share-social" size={18} color="#ffffffff" />
+                    </TouchableOpacity>
                   </View>
                 </View>
+              </View>
+            </View>
           ))
         )}
       </View>
     </View>
   );
-  
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: '#0f172a' }]}>
@@ -1058,7 +1058,7 @@ const renderSocialCircles = () => {
   }
 
   return (
-  <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}> 
+    <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
       {/* Modal de Login SIEMPRE al nivel más alto */}
@@ -1120,7 +1120,7 @@ const renderSocialCircles = () => {
       {renderHeader()}
       {renderNotificationsModal()}
       {renderRatingModal()}
-      
+
       <ScrollView style={[styles.scrollView, { marginTop: 16 }]} showsVerticalScrollIndicator={false} onScroll={handleMainScroll} scrollEventThrottle={100}>
         <View style={styles.content}>
           {renderPerfilEmpresa()}
@@ -1158,7 +1158,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: '100%',
   },
-  
+
   // Header styles
   header: {
     backgroundColor: '#0f172a',
@@ -1592,7 +1592,7 @@ const styles = StyleSheet.create({
   ratingSubmitTextDisabled: {
     color: '#9ca3af',
   },
-   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#1e293b', borderRadius: 16, padding: 24, width: width < 400 ? width - 32 : 320, alignItems: 'center', position: 'relative' },
   modalClose: { position: 'absolute', top: 8, right: 12, zIndex: 2 },
   loginTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginBottom: 16 },

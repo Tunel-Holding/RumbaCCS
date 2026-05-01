@@ -133,14 +133,14 @@ export default function StandardHeader({
         AsyncStorage.removeItem('isUserAccount'),
         AsyncStorage.removeItem('sessionMode'),
       ]);
-    } catch (_) {}
+    } catch (_) { }
     navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
   };
 
   const handleWebAction = async (item) => {
     try {
       if (onMenuPress) onMenuPress(item);
-    } catch (_) {}
+    } catch (_) { }
 
     if (item === 'inicio') {
       if (isHomeScreen) {
@@ -174,7 +174,7 @@ export default function StandardHeader({
           ]);
           navigation.reset({ index: 0, routes: [{ name: 'Empresa', params: { empresaId } }] });
         }
-      } catch (_) {}
+      } catch (_) { }
       return;
     }
 
@@ -185,7 +185,7 @@ export default function StandardHeader({
 
     if (item === 'logout') {
       if (onLogoutPress || onLogout) {
-        try { (onLogoutPress || onLogout)(); } catch (_) {}
+        try { (onLogoutPress || onLogout)(); } catch (_) { }
       } else {
         await clearSessionAndGoHome();
       }

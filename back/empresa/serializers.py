@@ -46,7 +46,7 @@ class EventoListSerializer(serializers.ModelSerializer):
     views_count = serializers.IntegerField(read_only=True, default=0) 
     class Meta:
         model = Evento2
-        fields = ["id", "fecha_evento", "titulo", "ubicacion", "precio", "imagenes", "views_count"]
+        fields = ["id", "fecha_evento", "titulo", "ubicacion", "precio", "imagenes", "views_count", "categoria"]
 
 
 class EventoSerializer(serializers.ModelSerializer):
