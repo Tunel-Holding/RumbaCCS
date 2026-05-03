@@ -115,6 +115,19 @@ export default function BuyScreen() {
   const [reservaModalVisible, setReservaModalVisible] = useState(false);
   const [reservaConfirmada, setReservaConfirmada] = useState(null);
 
+  const [isEditingEvent, setIsEditingEvent] = useState(false);
+  const [editFecha, setEditFecha] = useState(new Date());
+  const [editHora, setEditHora] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editFechaText, setEditFechaText] = useState('');
+  const [editHoraText, setEditHoraText] = useState('');
+
+  const DateTimePickerNative = Platform.OS !== 'web'
+      ? require('@react-native-community/datetimepicker').default
+      : null;
+
   // Carousel refs y medidas
   const scrollRef = useRef(null);
   const autoplayRef = useRef(null);
@@ -202,9 +215,19 @@ export default function BuyScreen() {
         setUserData({ ...ud, avatar_url: cleanAvatar });
       }
       if (resultado.data?.empresa) {
-        await AsyncStorage.setItem('empresaId', resultado.data.empresa.id.toString());
+        const empId = resultado.data.empresa.id.toString();
+        await AsyncStorage.setItem('empresaId', empId);
+        await AsyncStorage.setItem('isEmpresaAccount', 'true');
         setEmpresaData(resultado.data.empresa);
         setHasEmpresa(true);
+        // Actualizar inmediatamente para que el botón cambie al instante
+        setOwnEmpresaId(empId);
+        setIsEmpresaAccount(true);
+      } else {
+        // Login de usuario normal: asegurarse de limpiar flags de empresa
+        await AsyncStorage.setItem('isEmpresaAccount', 'false');
+        setOwnEmpresaId(null);
+        setIsEmpresaAccount(false);
       }
     } catch (e) {
       console.log('Error persisting login info:', e);
@@ -221,6 +244,7 @@ export default function BuyScreen() {
     await AsyncStorage.removeItem('empresaId');
     await AsyncStorage.clear();
     setIsLogged(false);
+    navigation.navigate('HomeScreen');
   };
 
   useEffect(() => {
@@ -261,6 +285,109 @@ export default function BuyScreen() {
     fetchDatos();
   }, [idEvento]);
 
+
+  const startEditingEvent = () => {
+    try {
+      const fechaStr = eventDetails.fecha || '';
+      const horaStr = eventDetails.hora || '';
+      
+      let dateObj = new Date();
+      if (fechaStr && fechaStr !== 'sin definir') {
+        const match = fechaStr.match(/(\d{4}-\d{2}-\d{2})/);
+        if (match) {
+            const parts = match[1].split('-');
+            dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+        } else {
+            const partsSlash = fechaStr.split('/');
+            if (partsSlash.length === 3) {
+                dateObj = new Date(`${partsSlash[2]}-${partsSlash[1]}-${partsSlash[0]}`);
+            }
+        }
+      }
+      
+      if (isNaN(dateObj.getTime())) dateObj = new Date();
+      
+      let timeObj = new Date();
+      if (horaStr && horaStr !== 'sin definir') {
+        const [timeMatch, ampm] = horaStr.split(' ');
+        if (timeMatch) {
+            let [h, m] = timeMatch.split(':').map(Number);
+            if (ampm === 'PM' && h < 12) h += 12;
+            if (ampm === 'AM' && h === 12) h = 0;
+            timeObj.setHours(h || 0, m || 0, 0, 0);
+        }
+      }
+      
+      setEditFecha(dateObj);
+      setEditHora(timeObj);
+      
+      const pad = (n) => String(n).padStart(2, '0');
+      setEditFechaText(`${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`);
+      setEditHoraText(`${pad(timeObj.getHours())}:${pad(timeObj.getMinutes())}`);
+    } catch (e) {
+      setEditFecha(new Date());
+      setEditHora(new Date());
+      setEditFechaText('');
+      setEditHoraText('');
+    }
+    
+    setIsEditingEvent(true);
+  };
+
+  const handleSaveEdit = async () => {
+    setSavingEdit(true);
+    try {
+      let fechaFinal, horaFinal;
+      if (Platform.OS === 'web') {
+        fechaFinal = editFechaText; // YYYY-MM-DD
+        horaFinal = editHoraText;   // HH:MM
+        
+        const parts = fechaFinal.split('-');
+        if (parts.length === 3) {
+            const parsedDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (parsedDate <= today) {
+                Alert.alert("Fecha inválida", "La fecha debe ser estrictamente posterior a hoy.");
+                setSavingEdit(false);
+                return;
+            }
+        }
+      } else {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const selected = new Date(editFecha);
+        selected.setHours(0, 0, 0, 0);
+        if (selected <= today) {
+           Alert.alert("Fecha inválida", "La fecha debe ser estrictamente posterior a hoy.");
+           setSavingEdit(false);
+           return;
+        }
+
+        const pad = (n) => String(n).padStart(2, '0');
+        fechaFinal = `${editFecha.getFullYear()}-${pad(editFecha.getMonth() + 1)}-${pad(editFecha.getDate())}`;
+        horaFinal = `${pad(editHora.getHours())}:${pad(editHora.getMinutes())}`;
+      }
+      const payload = {
+        fecha_evento: `${fechaFinal}T${horaFinal}:00`,
+      };
+      await api.patch(
+        `/api/empresas/${eventDetails.empresaId}/eventos/${idEvento}/`,
+        payload
+      );
+      
+      Alert.alert('¡Listo!', 'Fecha y hora actualizadas correctamente.');
+      setIsEditingEvent(false);
+      // Refrescar evento
+      const resEvento = await api.get(`/api/eventos-publicos/${idEvento}/`);
+      setEvento(resEvento.data);
+    } catch (e) {
+      console.log('Error actualizando fecha/hora', e?.response?.data || e.message);
+      Alert.alert('Error', 'No se pudo actualizar la fecha y hora.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const eventDetails = useMemo(() => {
     let fecha = 'sin definir';
@@ -726,17 +853,107 @@ export default function BuyScreen() {
         {/* Detalles del evento */}
         <View style={styles.detailsContainer}>
           <Text style={styles.detailsTitle}>Detalles del evento</Text>
-          {eventDetails.fecha && (
+          {isEditingEvent ? (
             <View style={styles.detailRow}>
               <Text style={styles.label}>Fecha: </Text>
-              <Text style={styles.detail}>{eventDetails.fecha}</Text>
+              {Platform.OS === 'web' ? (
+                <TextInput
+                  style={styles.editInput}
+                  value={editFechaText}
+                  onChangeText={setEditFechaText}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#64748b"
+                />
+              ) : (
+                <TouchableOpacity
+                  style={styles.editInput}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Text style={{ color: '#f1f5f9', fontSize: 15 }}>
+                    {editFecha
+                      ? `${String(editFecha.getDate()).padStart(2,'0')}/${String(editFecha.getMonth()+1).padStart(2,'0')}/${editFecha.getFullYear()}`
+                      : 'Seleccionar fecha'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {Platform.OS !== 'web' && showDatePicker && DateTimePickerNative && (
+                <View>
+                  <DateTimePickerNative
+                    value={editFecha}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    minimumDate={new Date(new Date().setDate(new Date().getDate() + 1))}
+                    onChange={(event, selected) => {
+                      if (Platform.OS === 'android') setShowDatePicker(false);
+                      if (selected) setEditFecha(selected);
+                    }}
+                  />
+                  {Platform.OS === 'ios' && (
+                    <TouchableOpacity onPress={() => setShowDatePicker(false)} style={{ marginTop: 8, alignItems: 'center', backgroundColor: '#334155', padding: 8, borderRadius: 8 }}>
+                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>Confirmar Fecha</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </View>
+          ) : (
+            eventDetails.fecha && (
+              <View style={styles.detailRow}>
+                <Text style={styles.label}>Fecha: </Text>
+                <Text style={styles.detail}>{eventDetails.fecha}</Text>
+              </View>
+            )
           )}
-          {eventDetails.hora && eventDetails.hora !== 'sin definir' && (
+          {isEditingEvent ? (
             <View style={styles.detailRow}>
               <Text style={styles.label}>Hora: </Text>
-              <Text style={styles.detail}>{eventDetails.hora}</Text>
+              {Platform.OS === 'web' ? (
+                <TextInput
+                  style={styles.editInput}
+                  value={editHoraText}
+                  onChangeText={setEditHoraText}
+                  placeholder="HH:MM (ej: 20:30)"
+                  placeholderTextColor="#64748b"
+                />
+              ) : (
+                <TouchableOpacity
+                  style={styles.editInput}
+                  onPress={() => setShowTimePicker(true)}
+                >
+                  <Text style={{ color: '#f1f5f9', fontSize: 15 }}>
+                    {editHora
+                      ? `${String(editHora.getHours()).padStart(2,'0')}:${String(editHora.getMinutes()).padStart(2,'0')}`
+                      : 'Seleccionar hora'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {Platform.OS !== 'web' && showTimePicker && DateTimePickerNative && (
+                <View>
+                  <DateTimePickerNative
+                    value={editHora}
+                    mode="time"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    is24Hour={false}
+                    onChange={(event, selected) => {
+                      if (Platform.OS === 'android') setShowTimePicker(false);
+                      if (selected) setEditHora(selected);
+                    }}
+                  />
+                  {Platform.OS === 'ios' && (
+                    <TouchableOpacity onPress={() => setShowTimePicker(false)} style={{ marginTop: 8, alignItems: 'center', backgroundColor: '#334155', padding: 8, borderRadius: 8 }}>
+                      <Text style={{ color: '#fff', fontWeight: 'bold' }}>Confirmar Hora</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
             </View>
+          ) : (
+            eventDetails.hora && eventDetails.hora !== 'sin definir' && (
+              <View style={styles.detailRow}>
+                <Text style={styles.label}>Hora: </Text>
+                <Text style={styles.detail}>{eventDetails.hora}</Text>
+              </View>
+            )
           )}
           <View style={styles.detailRow}>
             <Text style={styles.label}>Lugar: </Text>
@@ -783,17 +1000,57 @@ export default function BuyScreen() {
               )}
             </View>
           )}
-          <TouchableOpacity
-            style={[styles.secondaryButton, styles.waButton]}
-            onPress={async () => {
-              const wa = empresaData?.whatsapp || empresaData?.telefono || empresaData?.telefono_celular || empresaData?.phone;
-              await openWhatsApp(wa);
-            }}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="logo-whatsapp" size={18} color="#fff" style={{ marginRight: 10 }} />
-            <Text style={styles.secondaryButtonText}>Mas informacion</Text>
-          </TouchableOpacity>
+          {/* Botón condicional: Editar si soy el dueño, Mas info si no */}
+          {isEmpresaAccount && ownEmpresaId && String(ownEmpresaId) === String(eventDetails.empresaId) ? (
+            isEditingEvent ? (
+              <View style={{ flexDirection: 'row', gap: 10, justifyContent: 'center', marginTop: 8 }}>
+                <TouchableOpacity
+                  style={[styles.secondaryButton, styles.editEventoButton, { flex: 1, backgroundColor: '#374151', minWidth: 'auto', shadowColor: '#000' }]}
+                  onPress={() => setIsEditingEvent(false)}
+                  activeOpacity={0.85}
+                  disabled={savingEdit}
+                >
+                  <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.secondaryButton, styles.editEventoButton, { flex: 1, backgroundColor: '#16a34a', shadowColor: '#16a34a', minWidth: 'auto' }]}
+                  onPress={handleSaveEdit}
+                  activeOpacity={0.85}
+                  disabled={savingEdit}
+                >
+                  {savingEdit ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="save-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+                      <Text style={styles.secondaryButtonText}>Guardar</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.secondaryButton, styles.editEventoButton]}
+                onPress={startEditingEvent}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="create-outline" size={20} color="#fff" style={{ marginRight: 10 }} />
+                <Text style={styles.secondaryButtonText}>Editar evento</Text>
+              </TouchableOpacity>
+            )
+          ) : (
+            <TouchableOpacity
+              style={[styles.secondaryButton, styles.waButton]}
+              onPress={async () => {
+                const wa = empresaData?.whatsapp || empresaData?.telefono || empresaData?.telefono_celular || empresaData?.phone;
+                await openWhatsApp(wa);
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="logo-whatsapp" size={18} color="#fff" style={{ marginRight: 10 }} />
+              <Text style={styles.secondaryButtonText}>Mas informacion</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
 
@@ -1426,6 +1683,22 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
+  editEventoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d97706',
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    minWidth: 240,
+    marginTop: 8,
+    shadowColor: '#92400e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
   secondaryButtonText: {
     color: '#fff',
     fontWeight: '600',
@@ -1433,6 +1706,17 @@ const styles = StyleSheet.create({
   },
   icon: {
     opacity: 0.9,
+  },
+  editInput: {
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#334155',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    color: '#f1f5f9',
+    fontSize: 15,
+    flex: 1,
   },
   iconSaved: {
     opacity: 1,
